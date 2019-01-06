@@ -49,6 +49,7 @@ Usage example
 
 Types
 =====
+```
   BigInteger
     BigInteger.parseInt(string, radix)
     BigInteger.compareTo(a, b)
@@ -121,7 +122,7 @@ Types
       Expression.Complex
         real
         imaginary
-
+```
 Similar projects
 ================
   https://coffeequate.readthedocs.io/en/latest/usage/
