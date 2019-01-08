@@ -28,6 +28,12 @@ Usage example
 
 <script>
 
+  var p = Polynom.toPolynomial(ExpressionParser.parse("10x^5−17x^4−505x^3+1775x^2−249x−630"), ExpressionParser.parse("x"));
+  console.log(p.getroots().toString()); // -1/2,5,21/5,(-73^0.5-7)/2,(73^0.5-7)/2
+
+  var p = Polynom.toPolynomial(ExpressionParser.parse("x^5−2x^4−11x^3+26x^2−2x−13"), ExpressionParser.parse("x"));
+  console.log(p.getZeros(5).result.toString()); // -3.412,-0.609,1.075,1.925,3.021
+
   var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
   console.log('matrix: ' + matrix.toString()); // matrix: {{1,2,3},{4,5,6},{7,8,9}}
 
