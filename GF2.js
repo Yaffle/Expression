@@ -12,9 +12,6 @@
   Expression.GF2.prototype.toString = function (options) {
     return "GF2(" + this.a.toString(Expression.setTopLevel(true, options)) + ")";
   };
-  Expression.GF2.prototype.toMathML = function (options) {
-    return this.a.toMathML(options);
-  };
 
   function GF2Value(value) {
     //Expression.call(this);
@@ -74,10 +71,6 @@
 
   GF2Value.prototype.toString = function (options) {
     return this.value.toString();
-  };
-
-  Expression.GF2Value.prototype.toMathML = function (options) {
-    return "<mrow>" + "<mn>" + this.value.toString() + "</mn>" + "</mrow>";
   };
 
 }());

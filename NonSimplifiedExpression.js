@@ -189,14 +189,6 @@
   NonSimplifiedExpression.prototype.equals = function (y) {
     return this.simplify().equals(y.simplify());
   };
-  NonSimplifiedExpression.prototype.toMathML = function (options) {
-    //?
-    //options = options.fractionDigits >= 0 ? Object.assign({}, options, {fractionDigits: -1}) : options;
-    if (options.printId != undefined) {
-      return "<mrow id=\"" + this.getId() + "\">" + this.e.toMathML(options) + "</mrow>";
-    }
-    return this.e.toMathML(options);
-  };
 
   //!
   NonSimplifiedExpression.prototype.unwrap = function () {

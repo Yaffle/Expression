@@ -365,6 +365,113 @@
     return np;
   };
 
+  Polynom.prototype._getFactorByKroneckersMethod = function () {
+    // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
+    // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
+    // https://en.wikipedia.org/wiki/Vandermonde_matrix
+    //TODO: multivariate polynomials - ?
+    var np = this;
+    var isInteger = function (c) {
+      if (c instanceof Expression.Integer) {
+        return true;
+      }
+      if (c instanceof Expression.Symbol) {
+        return true;
+      }
+      if (c instanceof Expression.Addition) {
+        return isInteger(c.a) && isInteger(c.b);
+      }
+      if (c instanceof Expression.Multiplication) {
+        return isInteger(c.a) && isInteger(c.b);
+      }
+      if (c instanceof Expression.Exponentiation) {
+        return isInteger(c.a) && c.b instanceof Expression.Integer;
+      }
+      return false;
+    };
+    var integerCoefficients = true;
+    for (var i = 0; i <= np.getDegree(); i += 1) {
+      integerCoefficients = integerCoefficients && isInteger(np.getCoefficient(i));
+    }
+    if (!integerCoefficients) {
+      return undefined;
+    }
+    var n = np.getDegree();
+    var ys = new Array(n);
+    var total = 1;
+    for (var i = 0; i <= Math.floor(n / 2); i += 1) {
+      var bi = Expression.Integer.parseInteger(i.toString());
+      var y = np.calcAt(bi);
+      if (y.equals(Expression.ZERO)) {
+        return Polynom.of(bi.negate(), Expression.ONE);
+      }
+      var attachNegative = function (array) {
+        var result = new Array(array.length * 2);
+        for (var i = 0; i < array.length; i += 1) {
+          result[i * 2] = array[i];
+          result[i * 2 + 1] = array[i].negate();
+        }
+        return result;
+      };
+      var divisors = function (e) {
+        var divisors = [];
+        Expression.everyDivisor(e, function (d) {
+          divisors.push(d);
+          return true;
+        });
+        return divisors;
+      };
+      //TODO: ? the first should be positve
+      ys[i] = attachNegative(divisors(y));
+      total *= ys[i].length;
+      var V = Matrix.Zero(i + 1, i + 1).map(function (e, i, j) {
+        return Expression.pow(Expression.Integer.parseInteger(i.toString()), j);
+      });
+      var inv = V.inverse();
+      //scale?
+      inv = inv.scale(V.determinant());
+      //?
+      var u = new Array(i + 1);
+      for (var j = 0; j < i + 1; j += 1) {
+        u[j] = 0;
+      }
+      u[0] = -1;
+      for (var j = 0; j < total; j += 1) {
+        var k = 0;
+        u[k] += 1;
+        while (u[k] === ys[k].length) {
+          u[k] = 0;
+          k += 1;
+          u[k] += 1;
+        }
+        var y = Matrix.Zero(i + 1, 1).map(function (e, i, j) {
+          return ys[i][u[i]];
+        });
+        var s = inv.multiply(y);
+        var polynomialFromVector = function (s) {
+          var c = new Array(s.rows());
+          for (var j = 0; j < s.rows(); j += 1) {
+            c[j] = s.e(j, 0);
+          }
+          return Polynom.from(c);
+        };
+        var g = polynomialFromVector(s);
+        //if (g.getDegree() > 0 && np.divideAndRemainder(g).remainder.equals(Polynom.ZERO)) {
+        //  return g;
+        //}
+        if (g.getDegree() > 0) {
+          var gc = g.getContent();
+          g = g.scale(gc.getDenominator()).divideAndRemainder(Polynom.of(gc.getNumerator()), "throw").quotient;
+          var t = np.divideAndRemainder(g, "undefined");
+          if (t != undefined && t.remainder.equals(Polynom.ZERO)) {
+            return g;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
   Polynom.prototype.getroots = function (callback) {
     //TODO: merge global.hit and callback
     callback = callback || undefined;
@@ -737,7 +844,11 @@
       var EIGHTEEN = NINE.multiply(TWO);
       var TWENTY_SEVEN = NINE.multiply(THREE);
       // 18*a*b*c*d-4*b^3*d+b^2*c^2-4*a*c^3-27*a^2*d^2
-      var delta = EIGHTEEN.multiply(a).multiply(b).multiply(c).subtract(FOUR.multiply(b.pow(THREE)).multiply(d)).add(b.pow(TWO).multiply(c.pow(TWO))).subtract(FOUR.multiply(a).multiply(c.pow(THREE))).subtract(TWENTY_SEVEN.multiply(a.pow(TWO).multiply(d.pow(TWO))));
+      var delta = EIGHTEEN.multiply(a).multiply(b).multiply(c).multiply(d)
+                  .subtract(FOUR.multiply(b.pow(THREE)).multiply(d))
+                  .add(b.pow(TWO).multiply(c.pow(TWO)))
+                  .subtract(FOUR.multiply(a).multiply(c.pow(THREE)))
+                  .subtract(TWENTY_SEVEN.multiply(a.pow(TWO)).multiply(d.pow(TWO)));
       // b^2-3*a*c
       var delta0 = b.pow(TWO).subtract(THREE.multiply(a).multiply(c));
       if (global.hit != undefined) {
@@ -796,93 +907,8 @@
     }
 
     if (np.getDegree() >= 4) {
-      //TODO: multivariate polynomials - ?
-
-      // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
-      // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
-      // https://en.wikipedia.org/wiki/Vandermonde_matrix
-      var integerCoefficients = true;
-      for (var i = 0; i <= np.getDegree(); i += 1) {
-        integerCoefficients = integerCoefficients && np.getCoefficient(i) instanceof Expression.Integer;
-      }
-      if (integerCoefficients) {
+      if (true) {
         //TODO: performance
-        var f = function () {
-          var n = np.getDegree();
-          var ys = new Array(n);
-          var total = 1;
-          for (var i = 0; i <= Math.floor(n / 2); i += 1) {
-            var bi = Expression.Integer.parseInteger(i.toString());
-            var y = np.calcAt(bi);
-            if (y.equals(Expression.ZERO)) {
-              return Polynom.of(bi.negate(), Expression.ONE);
-            }
-            var attachNegative = function (array) {
-              var result = new Array(array.length * 2);
-              for (var i = 0; i < array.length; i += 1) {
-                result[i * 2] = array[i];
-                result[i * 2 + 1] = array[i].negate();
-              }
-              return result;
-            };
-            var divisors = function (e) {
-              var divisors = [];
-              Expression.everyDivisor(e, function (d) {
-                divisors.push(d);
-                return true;
-              });
-              return divisors;
-            };
-            //TODO: ? the first should be positve
-            ys[i] = attachNegative(divisors(y));
-            total *= ys[i].length;
-            var V = Matrix.Zero(i + 1, i + 1).map(function (e, i, j) {
-              return Expression.pow(Expression.Integer.parseInteger(i.toString()), j);
-            });
-            var inv = V.inverse();
-            //scale?
-            inv = inv.scale(V.determinant());
-            //?
-            var u = new Array(i + 1);
-            for (var j = 0; j < i + 1; j += 1) {
-              u[j] = 0;
-            }
-            u[0] = -1;
-            for (var j = 0; j < total; j += 1) {
-              var k = 0;
-              u[k] += 1;
-              while (u[k] === ys[k].length) {
-                u[k] = 0;
-                k += 1;
-                u[k] += 1;
-              }
-              var y = Matrix.Zero(i + 1, 1).map(function (e, i, j) {
-                return ys[i][u[i]];
-              });
-              var s = inv.multiply(y);
-              var polynomialFromVector = function (s) {
-                var c = new Array(s.rows());
-                for (var j = 0; j < s.rows(); j += 1) {
-                  c[j] = s.e(j, 0);
-                }
-                return Polynom.from(c);
-              };
-              var g = polynomialFromVector(s);
-              //if (g.getDegree() > 0 && np.divideAndRemainder(g).remainder.equals(Polynom.ZERO)) {
-              //  return g;
-              //}
-              if (g.getDegree() > 0) {
-                var gc = g.getContent();
-                g = g.scale(gc.getDenominator()).divideAndRemainder(Polynom.of(gc.getNumerator()), "throw").quotient;
-                var t = np.divideAndRemainder(g, "undefined");
-                if (t != undefined && t.remainder.equals(Polynom.ZERO)) {
-                  return g;
-                }
-              }
-            }
-          }
-          return undefined;
-        };
         var isSmall = function () {
           var c = 1;
           for (var i = 0; i <= np.getDegree(); i += 1) {
@@ -895,7 +921,7 @@
           return c <= 4 * 1024;
         };
         //console.time('Kronecker\'s method');
-        var g = isSmall() ? f() : undefined; // too slow
+        var g = isSmall() ? np._getFactorByKroneckersMethod() : undefined; // too slow
         //console.timeEnd('Kronecker\'s method');
         if (g != undefined) {
           var h = np.divideAndRemainder(g).quotient;

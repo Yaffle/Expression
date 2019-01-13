@@ -180,7 +180,15 @@ Expression.prototype.evaluate = function (context) {
   return undefined;
 };
 
-var digitsToDecimalNumber = function (sign, value, fractionDigits, toMathML) {
+var decimalToString = function (sign, number) {
+  return (sign < 0 ? "-" : "") + number;
+};
+
+var complexToString = function (real, imaginary, imaginarySign) {
+  return real + (imaginarySign >= 0 ? "+" : "") + imaginary + "i";
+};
+
+var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStringCallback) {
   // TODO: fix
   // new Intl.NumberFormat().format(1.1)
   // "<math decimalpoint=\"" + decimalSeparator + "\"></math>" -?
@@ -191,10 +199,10 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, toMathML) {
     zeros += "0";
   }
   var number = (fractionDigits === 0 ? digits : (digits.slice(0, -fractionDigits) || "0") + decimalSeparator + (zeros + digits).slice(-fractionDigits));
-  return toMathML ? (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "") : (sign < 0 ? "-" : "") + number;
+  return decimalToStringCallback(sign, number);
 };
 
-var toDecimalNumberOld = function (numerator, denominator, fractionDigits, toMathML) {
+var toDecimalNumberOld = function (numerator, denominator, fractionDigits, decimalToStringCallback) {
   var sign = (BigInteger.compareTo(numerator, BigInteger.ZERO) < 0 ? -1 : +1) * (BigInteger.compareTo(denominator, BigInteger.ZERO) < 0 ? -1 : +1);
   var abs = function (x) {
     return BigInteger.compareTo(x, BigInteger.ZERO) < 0 ? BigInteger.negate(x) : x;
@@ -211,23 +219,26 @@ var toDecimalNumberOld = function (numerator, denominator, fractionDigits, toMat
     q = BigInteger.add(q, 1);
     r = BigInteger.subtract(r, d);
   }
-  return digitsToDecimalNumber(sign, q, fractionDigits, toMathML);
+  return digitsToDecimalNumber(sign, q, fractionDigits, decimalToStringCallback);
 };
 
-Expression.toDecimalStringInternal = function (expression, fractionDigits, toMathML) {
+Expression.toDecimalStringInternal = function (expression, fractionDigits, decimalToStringCallback, complexToStringCallback) {
+  decimalToStringCallback = decimalToStringCallback || decimalToString;
+  complexToStringCallback = complexToStringCallback || complexToString;
   if (expression instanceof Expression.Integer) {
-    return toDecimalNumberOld(expression.value, BigInteger.ONE, fractionDigits, toMathML);
+    return toDecimalNumberOld(expression.value, BigInteger.ONE, fractionDigits, decimalToStringCallback);
   }
   if (expression instanceof Expression.Division) {
     var numerator = expression.getNumerator();//.unwrap();
     var denominator = expression.getDenominator();//.unwrap();
     if (numerator instanceof Expression.Integer && denominator instanceof Expression.Integer) {
-      return toDecimalNumberOld(numerator.value, denominator.value, fractionDigits, toMathML);
+      return toDecimalNumberOld(numerator.value, denominator.value, fractionDigits, decimalToStringCallback);
     }
     if (numerator instanceof Expression.Complex && denominator instanceof Expression.Integer) {
-      var real = toDecimalNumberOld(numerator.real.value, denominator.value, fractionDigits, toMathML);
-      var imaginary = toDecimalNumberOld(numerator.imaginary.value, denominator.value, fractionDigits, toMathML);
-      return real + (numerator.imaginary.compareTo(Expression.ZERO) >= 0 ? (toMathML ? "<mo>+</mo>" : "+") : "") + imaginary + (toMathML ? "<mo>&#x2062;</mo><mi>i</mi>" : "i");
+      var real = toDecimalNumberOld(numerator.real.value, denominator.value, fractionDigits, decimalToStringCallback);
+      var imaginary = toDecimalNumberOld(numerator.imaginary.value, denominator.value, fractionDigits, decimalToStringCallback);
+      var imaginarySign = numerator.imaginary.compareTo(Expression.ZERO);
+      return complexToStringCallback(real, imaginary, imaginarySign);
     }
   }
   if (expression instanceof Expression.NthRoot) {
@@ -244,7 +255,7 @@ Expression.toDecimalStringInternal = function (expression, fractionDigits, toMat
       // 2root < x0 + x1
       // 2**n * A < (x0 + x1)**n
       var nearest = BigInteger.compareTo(BigInteger.multiply(BigInteger.pow(BigInteger.TWO, n), sA), BigInteger.pow(BigInteger.add(x0, x1), n)) < 0 ? x0 : x1;
-      return toDecimalNumberOld(nearest, c, fractionDigits, toMathML);
+      return toDecimalNumberOld(nearest, c, fractionDigits, decimalToStringCallback);
     }
   }
   //---
@@ -274,7 +285,7 @@ Expression.toDecimalStringInternal = function (expression, fractionDigits, toMat
     result = tmp.integer;
     guessedPrecision *= 2;
   }
-  return digitsToDecimalNumber(sign, result, fractionDigits, toMathML);
+  return digitsToDecimalNumber(sign, result, fractionDigits, decimalToStringCallback);
 };
 
 }(this));

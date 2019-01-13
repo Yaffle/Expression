@@ -113,9 +113,6 @@
   Complex.prototype.toString = function (options) {
     return this.toStringInternal(options, "", "i", "-", "+", function (x, options) { return x.toString(options); });
   };
-  Complex.prototype.toMathML = function (options) {
-    return "<mrow>" + this.toStringInternal(options, "<mo>&#x2062;</mo>", "<mi>i</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
-  };
 
   Expression.getComplexConjugate = function (e) {
     if (!Expression.has(e, Complex)) {

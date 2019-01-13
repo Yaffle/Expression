@@ -314,6 +314,7 @@
     //!2018-16-07 (from trash)
     if (options.usage === "solving" && pivotColumn === matrix.cols() - 1) {
       //TODO: test
+      //TODO: test if condition == undefined
       var c = condition.andZero(matrix.e(pivotRow, pivotColumn));
       return {stoppedAtRow: -1, matrix: matrix, condition: c};
     }
@@ -726,6 +727,13 @@
       }
     }
     return result;
+  };
+
+  Matrix.prototype.minorMatrix = function (k, l) {
+    var that = this;
+    return Matrix.Zero(this.rows() - 1, this.cols() - 1).map(function (e, i, j) {
+      return that.e(i < k ? i : i + 1, j < l ? j : j + 1);
+    });
   };
 
   global.Matrix = Matrix;

@@ -30,10 +30,10 @@ function ilog2(n) {
 function nthRoot(S, n) {
   if (n === 2) {
     var t = BigInteger.toNumber(S);
-    if (t < 4503599627370496) { // 2**52
+    if (t < (9007199254740991 + 1) / 2) { // 2**52
       return BigInteger.fromNumber(Math.floor(Math.sqrt(t + 0.5)));
     }
-    if (t < 4503599627370496 * 4503599627370496) { // 2**104
+    if (t < (9007199254740991 + 1) / 2 * (9007199254740991 + 1) / 2) { // 2**104
       var y = BigInteger.fromNumber(Math.floor(Math.sqrt(t) + 0.5));
       if (BigInteger.compareTo(BigInteger.multiply(y, y), S) > 0) {
         y = BigInteger.subtract(y, 1);
@@ -56,7 +56,6 @@ function nthRoot(S, n) {
 }
 
 function powBig(x, count, accumulator) {
-  accumulator = accumulator == undefined ? 1 : accumulator;
   if (count < 0) {
     throw new RangeError();
   }
@@ -67,7 +66,7 @@ function powBig(x, count, accumulator) {
 }
 
 function pow(x, count) {
-  if (typeof x === "number" && count >= 0 && count < 53) {
+  if (typeof x === "number" && count >= 0 && count < 53) { // Math.log2(9007199254740991 + 1)
     var value = 0 + Math.pow(x, count);
     if (value >= -9007199254740991 && value <= 9007199254740991) {
       return value;

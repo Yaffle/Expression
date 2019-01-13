@@ -237,13 +237,59 @@
     }
     
     if (Expression.ExponentiationOfMinusOne != null) {
-      if (x instanceof Integer && x.compareTo(Expression.ZERO) < 0 && y instanceof Symbol && y.symbol === "n") {
-        return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y).multiply(x.negate().pow(y));
-      }
-      if (x instanceof Integer && x.compareTo(Expression.ZERO) < 0 && y instanceof Addition && y.a instanceof Symbol && y.a.symbol === "n" && y.b instanceof Integer) {
-        return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y.a).multiply(Expression.ONE.negate().pow(y.b)).multiply(x.negate().pow(y));
+      if (x instanceof Integer && x.compareTo(Expression.ZERO) < 0) {
+        if (y instanceof Symbol && y.symbol === "n") {
+          return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y).multiply(x.negate().pow(y));
+        }
+        if (y instanceof Addition && y.a instanceof Symbol && y.a.symbol === "n" && y.b instanceof Integer) {
+          return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y.a).multiply(Expression.ONE.negate().pow(y.b)).multiply(x.negate().pow(y));
+        }
+        if (y instanceof Multiplication) {
+          return x.pow(y.a).pow(y.b);
+        }
       }
     }
+    
+    if (x === Expression.E && y instanceof Expression.Matrix && y.matrix.isSquare()) {
+      // https://en.wikipedia.org/wiki/Matrix_exponential#Using_the_Jordan_canonical_form
+      var tmp = Expression.getEigenvalues(y.matrix);
+      var eigenvalues = tmp.eigenvalues;
+      var multiplicities = tmp.multiplicities;
+      if (Expression.sum(multiplicities) === y.matrix.cols()) {
+        var tmp = Expression.getFormaDeJordan(y.matrix, eigenvalues, multiplicities);
+        var D = tmp.J.map(function (e, i, j) {
+          return i === j ? e : Expression.ZERO;
+        });
+        var N = tmp.J.map(function (e, i, j) {
+          return i !== j ? e : Expression.ZERO;
+        });
+        var exp = function (N) {
+          // https://en.wikipedia.org/wiki/Matrix_exponential#Nilpotent_case
+          var z = self.Matrix.Zero(N.cols(), N.cols());
+          var s = z;
+          var p = self.Matrix.I(N.cols());
+          var k = 0;
+          var f = 1;
+          while (!p.eql(z)) {
+            s = s.add(p).scale(Expression.ONE.divide(new Expression.Integer(f)));
+            p = p.multiply(N);
+            k += 1;
+            f *= k;
+          }
+          return s;
+        };
+        if (Expression.callback != undefined) {
+          Expression.callback(new Expression.Event("exponential-using-Jordan-canonical-form", y));
+        }
+        if (Expression.callback != undefined) {
+          Expression.callback(new Expression.Event("Jordan-decomposition", y));
+        }
+        return new Expression.Matrix(tmp.P.multiply(D.map(function (e, i, j) {
+          return i === j ? Expression.E.pow(e) : Expression.ZERO;
+        }).multiply(exp(N))).multiply(tmp.P_INVERSED));
+      }
+    }
+    
     throw new RangeError("NotSupportedError");
   };
 
@@ -766,6 +812,9 @@
   };
 
   var getVariableInternal = function (t) {
+    if (t instanceof Expression.ExponentiationOfMinusOne) {//TODO: ?
+      return new VIterator({v: t, e: Expression.ONE});
+    }
     var v = getBase(t);
     var e = getExponent(t);
 
@@ -1546,10 +1595,10 @@
     var t = getIdentityMatrixCoefficient(this);
     if (t != undefined) {
       //?
-      if (x.matrix.rows() === x.matrix.cols()) {
+      if (x.matrix.isSquare()) {
         return new Matrix(self.Matrix.I(x.matrix.rows()).scale(t)).add(x);
       } else {
-        throw new RangeError("NotSupportedError");
+        throw new RangeError("NonSquareMatrixException");
       }
     }
     return this.addExpression(x);
@@ -1558,10 +1607,10 @@
     var t = getIdentityMatrixCoefficient(x);
     if (t != undefined) {
       //?
-      if (this.matrix.rows() === this.matrix.cols()) {
+      if (this.matrix.isSquare()) {
         return this.add(new Matrix(self.Matrix.I(this.matrix.rows()).scale(t)));
       } else {
-        throw new RangeError("NotSupportedError");
+        throw new RangeError("NonSquareMatrixException");
       }
     }
     return Expression.prototype.addExpression.call(this, x);
@@ -2325,6 +2374,13 @@
           t = v.multiply(q).subtract(sp);
           return false;
         });
+        if (t == null) {
+          t = np._getFactorByKroneckersMethod();
+          if (t != null) {
+            t = t.calcAt(v);
+            np = null;
+          }
+        }
         if (np == undefined) {
           return t;
         }
@@ -2722,6 +2778,9 @@
     Expression.Exponentiation.call(this, x, y);
   };
   Expression.ExponentiationOfMinusOne.prototype = Object.create(Expression.Exponentiation.prototype);
+  Expression.ExponentiationOfMinusOne.prototype.divideExpression = function (x) {
+    return x.multiply(this);
+  };
 
   //!  
   Expression.Division.prototype.negate = function () {

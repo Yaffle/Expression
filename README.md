@@ -25,7 +25,8 @@ Usage example
 <script src="./polynomial-roots-finding.js"></script>
 <script src="./FormaCanonicalDeJordan.js"></script>
 <script src="./ExpressionExtensions.js"></script>
-
+<script src="./Condition.js"></script>
+<script src="./toMathML.js"></script>
 <script>
 
   var p = Polynom.toPolynomial(ExpressionParser.parse("10x^5−17x^4−505x^3+1775x^2−249x−630"), ExpressionParser.parse("x"));
@@ -133,5 +134,4 @@ Similar projects
 ================
   https://coffeequate.readthedocs.io/en/latest/usage/
   http://algebrite.org - this page contains the list of "JavaScript Computer Algebra Systems"
-
-
+  https://github.com/sloisel/numeric

@@ -84,19 +84,27 @@ ExpressionWithPolynomialRoot.prototype.toString = function (options) {
     return Expression.ZERO.toString(options);
   }
   //return this.e.toString(options);
-  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, false);
+  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, undefined, undefined);
   return tmp;
 };
+
 ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
+  //TODO: remove
+  var decimalToMathML = function (sign, number) {
+    return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
+  };
+  var complexToMathML = function (real, imaginary, imaginarySign) {
+    return real + (imaginarySign >= 0 ? "<mo>+</mo>" : "") + imaginary + "<mo>&#x2062;</mo><mi>i</mi>";
+  };
+
   //TODO:
   if (this.equals(Expression.ZERO)) {
     return Expression.ZERO.toMathML(options);
   }
   //return this.e.toMathML(options);
-  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, true);
+  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
   return tmp;
 };
-
 
 ExpressionWithPolynomialRoot.prototype.multiply = function (other) {
   if (other instanceof ExpressionWithPolynomialRoot) {

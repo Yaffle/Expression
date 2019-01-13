@@ -1,4 +1,4 @@
-/*global Expression, Matrix, console*/
+/*global Expression, Matrix, Polynom, console*/
 
 (function () {
   "use strict";

@@ -152,12 +152,7 @@
     if (length === 0) {
       throw new RangeError();
     }
-    if (length < 53 && Math.pow(radix, length) <= BASE) {
-      var value = parseInteger(s, from, from + length, radix);
-      var a = createArray(1);
-      a[0] = value;
-      return createBigInteger(value === 0 ? 0 : sign, a, value === 0 ? 0 : 1);
-    }
+
     var groupLength = 0;
     var groupRadix = 1;
     var limit = fastTrunc(BASE / radix);

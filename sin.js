@@ -174,6 +174,10 @@ var map = function (f, u) {
   if (u instanceof Expression.Complex) {
     return u;//?
   }
+  if (u instanceof Expression.NonSimplifiedExpression) {
+    //TODO: fix
+    return u;//?
+  }
   throw new Error();
 };
 
@@ -588,9 +592,6 @@ Expression.Degrees = function (value) {
 Expression.Degrees.prototype = Object.create(Expression.prototype);
 Expression.Degrees.prototype.toString = function (options) {
   return this.value.toString(options) + "\u00B0";
-};
-Expression.Degrees.prototype.toMathML = function (options) {
-  return "<mrow>" + this.value.toMathML(options) + "<mo>&#x2062;</mo><mi>&deg;</mi></mrow>";
 };
 
 }());
