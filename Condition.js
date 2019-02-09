@@ -71,6 +71,7 @@ Condition.prototype._and = function (operator, e) {
   if (e instanceof Expression.Exponentiation && e.b instanceof Expression.Integer && e.b.compareTo(Expression.ZERO) > 0 && e.a instanceof Expression.Symbol) {
     return this._and(operator, e.a);
   }
+
   var add = function (oldArray, y) {
     if (y.expression instanceof Expression.Division) {
       var tmp = oldArray;
@@ -114,52 +115,66 @@ Condition.prototype._and = function (operator, e) {
         return tmp;
       }
     }
+
+    var p = Expression.getMultivariatePolynomial(y.expression);
+    var content = p.p.getContent();
+    if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
+      y = {
+        expression: y.expression.divide(content),
+        operator: y.operator
+      };
+    }
+
     var newArray = [];
     for (var i = 0; i < oldArray.length; i += 1) {
       var x = oldArray[i];
-      if (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
-        if (x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
-            x.operator === Condition.EQZ && y.operator === Condition.NEZ) {
-          var g = x.expression.gcd(y.expression);
-          while (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
-            if (x.operator === Condition.EQZ) {
-              x = {
-                operator: x.operator,
-                expression: x.expression.divide(g)
-              };
-            } else {
-              y = {
-                operator: y.operator,
-                expression: y.expression.divide(g)
-              };
-            }
-            g = x.expression.gcd(y.expression);
-          }
+      if (x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
+          x.operator === Condition.EQZ && y.operator === Condition.NEZ) {
+        var g = x.expression.gcd(y.expression);
+        while (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
           if (x.operator === Condition.EQZ) {
-            y = x;
+            x = {
+              operator: x.operator,
+              expression: x.expression.divide(g)
+            };
+          } else {
+            y = {
+              operator: y.operator,
+              expression: y.expression.divide(g)
+            };
           }
-          if (Expression.isConstant(y.expression)) {
-            return null;
-          }
-        } else if (x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
-          var g = x.expression.gcd(y.expression);
-          if (g instanceof Expression.Integer) {
-            return null;
-          }
-          y = {
-            operator: y.operator,
-            expression: g
-          };
-        } else {
-          // TODO: both Condition.NEZ - ?
-          var g = x.expression.gcd(y.expression);
-          x = {
-            operator: x.operator,
-            expression: x.expression.divide(g)
-          };
-          if (!Expression.isConstant(x.expression)) {
-            newArray.push(x);
-          }
+          g = x.expression.gcd(y.expression);
+        }
+        if (x.operator === Condition.EQZ) {
+          var tmp = y;
+          y = x;
+          x = tmp;
+        }
+        if (Expression.isConstant(y.expression)) {
+          return null;
+        }
+        //if (!Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+        //  newArray.push(x);
+        //}
+      }
+      if (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression)) && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
+        var g = x.expression.gcd(y.expression);
+        if (g instanceof Expression.Integer) {
+          return null;
+        }
+        y = {
+          operator: y.operator,
+          expression: g
+        };
+      } else if (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+        // TODO: both Condition.NEZ - ?
+        var g = x.expression.gcd(y.expression);
+        x = {
+          operator: x.operator,
+          expression: x.expression.divide(g)
+        };
+        if (!Expression.isConstant(x.expression)) {
+          newArray.push(x);
         }
       } else { // !isSingleVariablePolynomial
         var p = null;

@@ -1,27 +1,32 @@
 {
-  "name": "expression",
-  "version": "0.0.1",
+  "author": {
+    "name": "Yaffle"
+  },
+  "bugs": {
+    "url": "https://github.com/Yaffle/Expression/issues"
+  },
+  "bundleDependencies": false,
+  "deprecated": false,
   "description": "A library to parse expressions, solve and simplify systems of linear equations, find eigenvalues and eigenvectors",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "Yaffle",
-  "license": "ISC",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Yaffle/Expression.git"
-  },
+  "homepage": "https://github.com/Yaffle/Expression#readme",
   "keywords": [
     "math",
     "algebra",
     "parser",
     "expression",
     "matrix",
-    "polynomial"
+    "polynomial",
+    "symbolic-computation"
   ],
-  "bugs": {
-    "url": "https://github.com/Yaffle/Expression/issues"
+  "license": "ISC",
+  "main": "index.js",
+  "name": "expression",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yaffle/Expression.git"
   },
-  "homepage": "https://github.com/Yaffle/Expression#readme"
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "version": "0.0.1"
 }

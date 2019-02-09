@@ -120,6 +120,9 @@
     new Operator("determinant", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.determinant();
     }),
+    new Operator("row-reduce", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
+      return a.rowReduce();
+    }),
     new Operator("transpose", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.transpose();
     }),
@@ -183,7 +186,7 @@
     }),
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
-    })
+    })    
   ];
 
   function OperationSearchCache() {
@@ -230,13 +233,13 @@
   Input.parseCharacter = function (input, position, characterCode) {
     var c = Input.getFirst(input, position);
     if (c !== characterCode) {
-      // TODO: fix error messages
-      // missing the brace ?
-      // "RPN error 0", input ?
       ExpressionParser.startPosition = position;
       ExpressionParser.endPosition = position + 1;
       ExpressionParser.input = input;
-      throw new RangeError("UserError:" + characterCode.toString());
+      if (c === -1) {
+        throw new RangeError("UserError: unexpected end of input, '" + String.fromCharCode(characterCode) + "' expected");
+      }
+      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "', '" + String.fromCharCode(characterCode) + "' expected");
     }
     return Input.trimLeft(input, position, 1);
   };
@@ -676,7 +679,11 @@
       ExpressionParser.startPosition = position;
       ExpressionParser.endPosition = position + 1;
       ExpressionParser.input = input;
-      throw new RangeError("UserError:" + "0");//(!) TODO: "RPN error 2", input
+      var c = Input.getFirst(input, position);
+      if (c === Input.EOF) {
+        throw new RangeError("UserError: unexpected end of input");//TODO: fix
+      }
+      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "'");//TODO: fix
     }
     return new ParseResult(left, position);
   };
@@ -780,6 +787,9 @@
     //if (charCode === 0x0425 || charCode === 0x0445) {
     //  return "X";
     //}
+    if (charCode === 0x0422 || charCode === 0x0442) {
+      return "T";
+    }
     if (charCode === 0x2212) {
       return "-";
     }
@@ -867,11 +877,12 @@
     var position = 0;
     position = Input.trimLeft(input, position, 0);
     var tmp = parseExpression(input, position, context, false, 0, undefined);
-    if (Input.getFirst(input, tmp.position) !== Input.EOF) {
+    var c = Input.getFirst(input, tmp.position);
+    if (c !== Input.EOF) {
       ExpressionParser.startPosition = tmp.position;
       ExpressionParser.endPosition = tmp.position + 1;
       ExpressionParser.input = input;
-      throw new RangeError("UserError:" + Input.EOF.toString());// TODO: fix
+      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "'");
     }
 
     return tmp.result;

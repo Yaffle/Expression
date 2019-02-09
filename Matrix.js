@@ -276,6 +276,9 @@
     if (usage !== "determinant" && usage !== "inverse" && usage !== "solving" && usage !== "") {
       throw new RangeError();
     }
+    if (method !== Matrix.Gauss && method !== Matrix.GaussJordan && method !== Matrix.GaussMontante) {
+      throw new RangeError();
+    }
     this.method = method;
     this.usage = usage;
     this.callback = callback;
@@ -311,6 +314,8 @@
     if (stoppedAtRow !== -1) {
       return {stoppedAtRow: stoppedAtRow, matrix: matrix, condition: condition};
     }
+    if (false) {
+      //TODO: remove
     //!2018-16-07 (from trash)
     if (options.usage === "solving" && pivotColumn === matrix.cols() - 1) {
       //TODO: test
@@ -319,6 +324,7 @@
       return {stoppedAtRow: -1, matrix: matrix, condition: c};
     }
     //!
+    }
     while (true) {
       switch (state) {
         case COLUMN_LOOP:

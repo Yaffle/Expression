@@ -85,6 +85,9 @@
   NonSimplifiedExpression.prototype.determinant = function () {
     return new NonSimplifiedExpression(new Expression.Determinant(this));
   };
+  NonSimplifiedExpression.prototype.rowReduce = function () {
+    return new NonSimplifiedExpression(new Expression.RowReduce(this));
+  };
   //?
   NonSimplifiedExpression.prototype.GF2 = function () {
     return new NonSimplifiedExpression(new Expression.GF2(this));
@@ -151,6 +154,9 @@
   };
   Expression.Determinant.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).determinant();
+  };
+  Expression.RowReduce.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).rowReduce();
   };
   Expression.GF2.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).GF2();

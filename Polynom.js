@@ -369,7 +369,6 @@
     // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
     // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
     // https://en.wikipedia.org/wiki/Vandermonde_matrix
-    //TODO: multivariate polynomials - ?
     var np = this;
     var isInteger = function (c) {
       if (c instanceof Expression.Integer) {
@@ -413,16 +412,13 @@
         }
         return result;
       };
-      var divisors = function (e) {
-        var divisors = [];
-        Expression.everyDivisor(e, function (d) {
-          divisors.push(d);
-          return true;
-        });
-        return divisors;
-      };
-      //TODO: ? the first should be positve
-      ys[i] = attachNegative(divisors(y));
+      var divisors = [];
+      Expression.everyDivisor(y, function (d) {
+        divisors.push(d);
+        return true;
+      });
+      // let the first be positive as two sets with different signs give polynomials that differ only in sign of coefficients
+      ys[i] = i === 0 ? divisors : attachNegative(divisors);
       total *= ys[i].length;
       var V = Matrix.Zero(i + 1, i + 1).map(function (e, i, j) {
         return Expression.pow(Expression.Integer.parseInteger(i.toString()), j);

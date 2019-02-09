@@ -2214,6 +2214,22 @@
     }
     return x.matrix.determinant();
   };
+  Expression.RowReduce = function (matrix) {
+    Expression.Function.call(this, "row-reduce", matrix);
+  };
+  Expression.RowReduce.prototype = Object.create(Expression.Function.prototype);
+  Expression.prototype.rowReduce = function () {
+    var x = this;
+    if (!(x instanceof Matrix)) {
+      throw new RangeError("NotSupportedError");//?
+    }
+    //!
+    if (Expression.callback != undefined) {
+      Expression.callback(new Expression.Event("row-reduce".type, x));
+    }
+    //TODO: Matrix.GaussMontante
+    return new Matrix(x.matrix.toRowEchelon(self.Matrix.GaussJordan, "", null).matrix);
+  };
   Expression.Transpose = function (matrix) {
     Expression.Function.call(this, "transpose", matrix);
   };

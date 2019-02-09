@@ -107,7 +107,11 @@ var getInverse = function (A, eigenvalues, T) {
   var T_INVERSED = Matrix.I(AT.cols()).map(function (e, i, j) {
     return eigenvectors[i].e(j, 0);
   });
-  
+  return _unscaleInverseMatrix(T_INVERSED, T);
+};
+
+var _unscaleInverseMatrix = function (T_INVERSED, T) {
+  // we know, that the result is {{s_1, 0, 0, 0}, {0, s_2, 0, 0}, {0, 0, s_3, 0}, {0, 0, 0, s_4}}
   var trickyMultiply = function (a, b) {
     var n = a.rows();
     return Matrix.Zero(n, n).map(function (element, i, j) {
@@ -131,7 +135,7 @@ var getInverse = function (A, eigenvalues, T) {
 
   return S_INVERSED.multiply(T_INVERSED);
 };
-
+Expression._unscaleInverseMatrix = _unscaleInverseMatrix;//TODO: make private
 
 // A = T^-1 L T ,T-matrix of own vectors, L - matrix of own values
 

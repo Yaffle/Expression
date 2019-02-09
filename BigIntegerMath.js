@@ -75,7 +75,6 @@ function pow(x, count) {
   return powBig(x, count, 1);
 }
 
-var WHEEL2 = [1, 2, 2, 4];
 function primeFactorUsingWheel2(n) {
   var i = 2;
   var s = 0;
@@ -84,9 +83,9 @@ function primeFactorUsingWheel2(n) {
     if (n % i === 0) {
       return i;
     }
-    i += WHEEL2[s];
+    i += s === 2 ? 2 : s + 1;
     s += 1;
-    if (s === WHEEL2.length) {
+    if (s === 4) {
       s = 2;
     }
   }
