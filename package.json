@@ -20,7 +20,7 @@
   ],
   "license": "ISC",
   "main": "index.js",
-  "name": "expression",
+  "name": "@yaffle/expression",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Yaffle/Expression.git"
