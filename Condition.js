@@ -73,6 +73,9 @@ Condition.prototype._and = function (operator, e) {
   }
 
   var add = function (oldArray, y) {
+    if (y.expression instanceof Expression.Multiplication && y.expression.b instanceof Expression.IdentityMatrix) {
+      return add(oldArray, {expression: y.expression.a, operator: y.operator});
+    }
     if (y.expression instanceof Expression.Division) {
       var tmp = oldArray;
       tmp = add(tmp, {expression: y.expression.a, operator: y.operator});
@@ -88,12 +91,15 @@ Condition.prototype._and = function (operator, e) {
         operator: y.operator
       };
     }*/
-    if (y.expression instanceof Expression.Integer) {
+    if (y.expression instanceof Expression.Integer || y.expression instanceof Expression.Complex) {
       if (y.operator === Condition.NEZ && y.expression.equals(Expression.ZERO) ||
           y.operator === Condition.EQZ && !y.expression.equals(Expression.ZERO)) {
         return null;
       }
       return oldArray;
+    }
+    if (y.expression instanceof Expression.NthRoot) {
+      return add(oldArray, {expression: y.expression.a, operator: y.operator});
     }
     if (y.expression instanceof Expression.Multiplication) {
       if (y.operator === Condition.EQZ) {
@@ -117,6 +123,7 @@ Condition.prototype._and = function (operator, e) {
     }
 
     var p = Expression.getMultivariatePolynomial(y.expression);
+    
     var content = p.p.getContent();
     if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
       y = {

@@ -299,7 +299,7 @@
     while (--i >= 0) {
       var degree = this.a.degree(i);
       var coefficient = this.a.coefficient(i);
-      var v = degree === 0 ? undefined : (degree === 1 ? variableSymbol : new Expression.Exponentiation(variableSymbol, Expression.Integer.parseInteger(degree.toString())));
+      var v = degree === 0 ? undefined : (degree === 1 ? variableSymbol : new Expression.Exponentiation(variableSymbol, Expression.Integer.fromNumber(degree)));
       var current = v == undefined ? coefficient : (coefficient.equals(Expression.ONE) ? v : new Expression.Multiplication(coefficient, v));
       result = result == undefined ? current : new Expression.Addition(result, current);
     }
@@ -399,7 +399,7 @@
     var ys = new Array(n);
     var total = 1;
     for (var i = 0; i <= Math.floor(n / 2); i += 1) {
-      var bi = Expression.Integer.parseInteger(i.toString());
+      var bi = Expression.Integer.fromNumber(i);
       var y = np.calcAt(bi);
       if (y.equals(Expression.ZERO)) {
         return Polynom.of(bi.negate(), Expression.ONE);
@@ -421,7 +421,7 @@
       ys[i] = i === 0 ? divisors : attachNegative(divisors);
       total *= ys[i].length;
       var V = Matrix.Zero(i + 1, i + 1).map(function (e, i, j) {
-        return Expression.pow(Expression.Integer.parseInteger(i.toString()), j);
+        return Expression.pow(Expression.Integer.fromNumber(i), j);
       });
       var inv = V.inverse();
       //scale?
@@ -530,7 +530,7 @@
         return sa1 == undefined || sb1 == undefined ? undefined : sa1.divide(sb1);
       }
       if (x instanceof Expression.Exponentiation) {
-        var N = Expression.Integer.parseInteger(n.toString());
+        var N = Expression.Integer.fromNumber(n);
         return x.b.remainder(N).equals(Expression.ZERO) ? x.a.pow(x.b.divide(N)) : undefined;
       }
       if (x instanceof Expression.Multiplication) {
@@ -714,11 +714,11 @@
           j += 1;
         }
         if (j < middle + 1 && !np.getCoefficient(middle + j).equals(Expression.ZERO) && !np.getCoefficient(middle - j).equals(Expression.ZERO)) {
-          var jj = Expression.Integer.parseInteger(j.toString());
+          var jj = Expression.Integer.fromNumber(j);
           var mj = np.getCoefficient(middle + j).divide(np.getCoefficient(middle - j));
           var isQuasiPalindromic = true;
           for (var i = 2; i < middle + 1; i += 1) {
-            isQuasiPalindromic = isQuasiPalindromic && np.getCoefficient(middle + i).pow(jj).subtract(np.getCoefficient(middle - i).pow(jj).multiply(mj.pow(Expression.Integer.parseInteger(i.toString())))).equals(Expression.ZERO);
+            isQuasiPalindromic = isQuasiPalindromic && np.getCoefficient(middle + i).pow(jj).subtract(np.getCoefficient(middle - i).pow(jj).multiply(mj.pow(Expression.Integer.fromNumber(i)))).equals(Expression.ZERO);
           }
           if (isQuasiPalindromic) {
             //TODO: fix
@@ -733,7 +733,7 @@
                 return k === 0 ? 1 : Math.floor((n * choose(n - 1, k - 1)) / k);
               };
               var p = function (n, i, mpi) {
-                return n - 2 * i >= 0 ? p(n - 2 * i, 1, m).scale(Expression.Integer.parseInteger(choose(n, i).toString()).multiply(mpi).negate()).add(p(n, i + 1, mpi.multiply(m))) : Polynom.of(Expression.ONE).shift(n);
+                return n - 2 * i >= 0 ? p(n - 2 * i, 1, m).scale(Expression.Integer.fromNumber(choose(n, i)).multiply(mpi).negate()).add(p(n, i + 1, mpi.multiply(m))) : Polynom.of(Expression.ONE).shift(n);
               };
               var f = function (n, i) {
                 return i <= n ? p(n - i, 1, m).scale(np.getCoefficient(i)).add(f(n, i + 1)) : Polynom.ZERO;
@@ -808,10 +808,10 @@
         return false;
       };
       if (!hasZeroCoefficients(np)) {
-        var g = np.getCoefficient(n - 1).divide(np.getCoefficient(n)).divide(new Expression.Integer(n));
+        var g = np.getCoefficient(n - 1).divide(np.getCoefficient(n)).divide(Expression.Integer.fromNumber(n));
         var ok = true;
         for (var k = np.getDegree() - 1; k >= 1 && ok; k -= 1) {
-          ok = g.equals(np.getCoefficient(k - 1).divide(np.getCoefficient(k)).multiply(new Expression.Integer(n - k + 1)).divide(new Expression.Integer(k)));
+          ok = g.equals(np.getCoefficient(k - 1).divide(np.getCoefficient(k)).multiply(Expression.Integer.fromNumber(n - k + 1)).divide(Expression.Integer.fromNumber(k)));
         }
         if (ok) {
           var root = g.negate();
@@ -992,7 +992,7 @@
     for (var i = 1; i < this.a.length; i += 1) {
       var n = this.a.degree(i);
       var c = this.a.coefficient(i);
-      newData.add(n - 1, c.multiply(Expression.Integer.parseInteger(n.toString())));
+      newData.add(n - 1, c.multiply(Expression.Integer.fromNumber(n)));
     }
     return new Polynom(newData);
   };

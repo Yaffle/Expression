@@ -54,22 +54,72 @@ Usage example
 </script>
 ```
 
+Usage from node.js:
+===================
+```javascript
+// npm install @yaffle/expression --save
+
+  global.BigIntWrapper = require('@yaffle/expression/BigIntWrapper.js').BigIntWrapper;
+  global.BigInteger = require('@yaffle/expression/BigInteger.js').BigInteger;
+  require('@yaffle/expression/BigIntegerMath.js');
+  global.Expression = require('@yaffle/expression/Expression.js').Expression;
+  require('@yaffle/expression/toDecimalString.js');
+  require('@yaffle/expression/GF2.js');
+  require('@yaffle/expression/sin.js');
+  require('@yaffle/expression/complex.js');
+  global.NonSimplifiedExpression = require('@yaffle/expression/NonSimplifiedExpression.js').NonSimplifiedExpression;
+  global.ExpressionParser = require('@yaffle/expression/ExpressionParser.js').ExpressionParser;
+  global.Polynom = require('@yaffle/expression/Polynom.js').Polynom;
+  global.Matrix = require('@yaffle/expression/Matrix.js').Matrix;
+  require('@yaffle/expression/toLaTeX.js');
+  require('@yaffle/expression/polynomial-roots-finding.js');
+  require('@yaffle/expression/FormaCanonicalDeJordan.js');
+  require('@yaffle/expression/ExpressionExtensions.js');
+  require('@yaffle/expression/Condition.js');
+  require('@yaffle/expression/toMathML.js');
+
+  var p = Polynom.toPolynomial(ExpressionParser.parse("10x^5−17x^4−505x^3+1775x^2−249x−630"), ExpressionParser.parse("x"));
+  console.log(p.getroots().toString()); // -1/2,5,21/5,(-73^0.5-7)/2,(73^0.5-7)/2
+
+  var p = Polynom.toPolynomial(ExpressionParser.parse("x^5−2x^4−11x^3+26x^2−2x−13"), ExpressionParser.parse("x"));
+  console.log(p.getZeros(5).result.toString()); // -3.412,-0.609,1.075,1.925,3.021
+
+  var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
+  console.log('matrix: ' + matrix.toString()); // matrix: {{1,2,3},{4,5,6},{7,8,9}}
+
+  var x = Expression.getEigenvalues(matrix);
+  var multiplicities = x.multiplicities;
+  var eigenvalues = x.eigenvalues;
+  console.log('eigenvalues: ' + eigenvalues.toString()); // eigenvalues: 0,(-3*33^0.5+15)/2,(3*33^0.5+15)/2
+
+  var eigenvectors = Expression.getEigenvectors(matrix, x.eigenvalues).eigenvectors;
+  console.log('eigenvectors: ' + eigenvectors.toString()); // eigenvectors: {{1},{-2},{1}},{{(-3*33^0.5-11)/22},{(-3*33^0.5+11)/44},{1}},{{(3*33^0.5-11)/22},{(3*33^0.5+11)/44},{1}}
+
+  var y = Expression.diagonalize(matrix, eigenvalues, multiplicities, eigenvectors);
+  console.log('diagonalization: ' + matrix.toString() + ' = ' + y.T.toString() + " * " + y.L.toString() + " * " + y.T_INVERSED.toString()); // diagonalization: {{1,2,3},{4,5,6},{7,8,9}} = {{1,(-3*33^0.5-11)/22,(3*33^0.5-11)/22},{-2,(-3*33^0.5+11)/44,(3*33^0.5+11)/44},{1,1,1}} * {{0,0,0},{0,(-3*33^0.5+15)/2,0},{0,0,(3*33^0.5+15)/2}} * {{1/6,-1/3,1/6},{(-33^0.5-1)/12,(-33^0.5+3)/18,(-33^0.5+15)/36},{(33^0.5-1)/12,(33^0.5+3)/18,(33^0.5+15)/36}}
+
+  //var y = Expression.getFormaDeJordan(...);
+
+```
+
+
 Types
 =====
 ```
   BigInteger
-    BigInteger.parseInt(string, radix)
-    BigInteger.compareTo(a, b)
+    BigInteger.BigInt(number)
+    BigInteger.BigInt(string)
+    BigInteger.toNumber(a)
+    a.toString(radix)
     BigInteger.add(a, b)
     BigInteger.subtract(a, b)
     BigInteger.multiply(a, b)
     BigInteger.divide(a, b)
     BigInteger.remainder(a, b)
-    BigInteger.fromNumber(number)
-    BigInteger.toNumber(a)
-    BigInteger.negate(a)
+    BigInteger.exponentiate(a, n)
+    BigInteger.unaryMinus(a)
+    BigInteger.lessThan(a, b)
     BigInteger.nthRoot(a, n)
-    BigInteger.pow(a, n)
     BigInteger.gcd(a, b)
     BigInteger.primeFactor(a)
   Matrix

@@ -117,6 +117,9 @@
     new Operator("inverse", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.inverse();
     }),
+    new Operator("det", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {//?
+      return a.determinant();
+    }),
     new Operator("determinant", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.determinant();
     }),
@@ -345,16 +348,16 @@
     var factor = undefined;
 
     if (integerPartAsString != undefined) {
-      numerator = Expression.Integer.parseInteger(integerPartAsString);
+      numerator = Expression.Integer.fromString(integerPartAsString);
     }
     if (nonRepeatingFractionalPartAsString != undefined) {
       factor = Expression.pow(Expression.TEN, nonRepeatingFractionalPartAsString.length);
-      numerator = numerator.multiply(factor).add(Expression.Integer.parseInteger(nonRepeatingFractionalPartAsString));
+      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(nonRepeatingFractionalPartAsString));
       denominator = denominator == undefined ? factor : denominator.multiply(factor);
     }
     if (repeatingFractionalPartAsString != undefined) {
       factor = Expression.pow(Expression.TEN, repeatingFractionalPartAsString.length).subtract(Expression.ONE);
-      numerator = numerator.multiply(factor).add(Expression.Integer.parseInteger(repeatingFractionalPartAsString));
+      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(repeatingFractionalPartAsString));
       denominator = denominator == undefined ? factor : denominator.multiply(factor);
     }
     if (exponentPartAsString != undefined) {
@@ -646,7 +649,7 @@
       if (!ok && left != undefined && precedence <= EXPONENTIATION.precedence + (EXPONENTIATION.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
         if ((match = Input.exec(input, position, superscripts)) != undefined) {
           // implicit exponentiation
-          left = EXPONENTIATION.i(left, Expression.Integer.parseInteger(normalizeSuperscripts(match))).addPosition(position, EXPONENTIATION.name.length, input);
+          left = EXPONENTIATION.i(left, Expression.Integer.fromString(normalizeSuperscripts(match))).addPosition(position, EXPONENTIATION.name.length, input);
           position = Input.trimLeft(input, position, match.length);
           ok = true;//!
         }

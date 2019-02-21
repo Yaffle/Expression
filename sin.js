@@ -17,8 +17,9 @@ var separateSinCos = function (e) {
   }
   var sinCos = undefined;
   var other = undefined;
-  for (var multiplications = e.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-    var v = multiplications.value();
+  var x = e;
+  for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    var v = y;
     if (v instanceof Sin || v instanceof Cos || 
         (v instanceof Exponentiation && (v.a instanceof Sin || v.a instanceof Cos))) {
       sinCos = sinCos == undefined ? v : sinCos.multiply(v);
@@ -71,12 +72,15 @@ var contractTrigonometryPower = function (u) {
 // page 318
 var contractTrigonometryProduct = function (u) {
   var i = u.factors();
-  var a = i.value();
-  i = i.next();
-  var b = i == undefined ? undefined : i.value();
-  i = i == undefined ? undefined : i.next();
-  var rest = i == undefined || i.e == undefined ? Expression.ONE : i.e;//TODO: fix
-  
+  var a = i.next().value;
+  var b = i.next().value;
+  var rest = Expression.ONE;
+  var y = i.next().value;
+  while (y != null) {
+    rest = y.multiply(rest);//TODO: fix
+    y = i.next().value;
+  }
+
   if (a instanceof Exponentiation) {
     a = contractTrigonometryPower(a);
     return contractTrigonometryRules(a.multiply(b).multiply(rest));
@@ -117,12 +121,12 @@ var contractTrigonometryRules = function (u) {
   }
   if (v instanceof Addition) {
     var s = Expression.ZERO;
-    for (var additions = v.summands(); additions != undefined; additions = additions.next()) {
-      var y = additions.value();
-      if (y instanceof Multiplication || y instanceof Exponentiation) {
-        s = s.add(contractTrigonometryRules(y));
+    var e = v;
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      if (x instanceof Multiplication || x instanceof Exponentiation) {
+        s = s.add(contractTrigonometryRules(x));
       } else {
-        s = s.add(y);
+        s = s.add(x);
       }
     }
     return s;
@@ -302,33 +306,33 @@ Expression.Multiplication.prototype.compare4Multiplication = function (y) {
   }
   var i = x.factors();
   var j = y.factors();
-  while (i != undefined && j != undefined) {
-    var a = i.value();
-    i = i.next();
-    var b = j.value();
-    j = j.next();
+  var a = i.next().value;
+  var b = j.next().value;
+  while (a != null && b != null) {
     var c = a.compare4Multiplication(b);
     if (c !== 0) {
       return c;
     }
+    a = i.next().value;
+    b = j.next().value;
   }
-  return i != undefined ? +1 : (j != undefined ? -1 : 0);
+  return a != null ? +1 : (b != null ? -1 : 0);
 };
 
 Expression.Multiplication.compare4Addition = function (x, y) {
   var i = x.factors();
   var j = y.factors();
-  while (i != undefined && j != undefined) {
-    var a = i.value();
-    i = i.next();
-    var b = j.value();
-    j = j.next();
+  var a = i.next().value;
+  var b = j.next().value;
+  while (a != null && b != null) {
     var c = a.compare4Addition(b);
     if (c !== 0) {
       return c;
     }
+    a = i.next().value;
+    b = j.next().value;
   }
-  return i != undefined ? +1 : (j != undefined ? -1 : 0);
+  return a != null ? +1 : (b != null ? -1 : 0);
 };
 
 
@@ -398,7 +402,7 @@ Sin.prototype = Object.create(Expression.Function.prototype);
 
 //TODO: new 2017-04-26
 var simplifyConstantValueInternal = function (a, type) {
-  a = a.remainder(Integer.parseInteger("360"));
+  a = a.remainder(Integer.fromNumber(360));
   var d = Number.parseInt(a.toString(), 10);
   if (type === "cos") {
     d = 90 - d;
@@ -473,7 +477,7 @@ var simplifyConstantValue = function (x, type) {
   if (a != undefined && b != undefined) {
     b = Number.parseInt(b.toString(), 10);
     if (b === 1 || b === 2 || b === 3 || b === 4 || b === 6 || b === 12) {
-      var d = a.multiply(Integer.parseInteger(Math.floor(180 / b).toString()));
+      var d = a.multiply(Integer.fromNumber(Math.floor(180 / b)));
       return simplifyConstantValueInternal(d, type);
     }
   }
@@ -549,17 +553,17 @@ Expression.Addition.prototype.compare4Multiplication = function (y) {
   var x = this;
   var i = x.summands();
   var j = y.summands();
-  while (i != undefined && j != undefined) {
-    var a = i.value();
-    i = i.next();
-    var b = j.value();
-    j = j.next();
+  var a = i.next().value;
+  var b = j.next().value;
+  while (a != null && b != null) {
     var c = a.compare4Multiplication(b);
     if (c !== 0) {
       return c;
     }
+    a = i.next().value;
+    b = j.next().value;
   }
-  return i != undefined ? +1 : (j != undefined ? -1 : 0);
+  return a != null ? +1 : (b != null ? -1 : 0);
 };
 
 Expression.Addition.prototype.compare4MultiplicationSymbol = function (x) {
@@ -569,17 +573,17 @@ Expression.Addition.prototype.compare4MultiplicationSymbol = function (x) {
 Expression.Addition.compare4Addition = function (x, y) {
   var i = x.summands();
   var j = y.summands();
-  while (i != undefined && j != undefined) {
-    var a = i.value();
-    i = i.next();
-    var b = j.value();
-    j = j.next();
+  var a = i.next().value;
+  var b = j.next().value;
+  while (a != null && b != null) {
     var c = a.compare4Addition(b);
     if (c !== 0) {
       return c;
     }
+    a = i.next().value;
+    b = j.next().value;
   }
-  return i != undefined ? +1 : (j != undefined ? -1 : 0);
+  return a != null ? +1 : (b != null ? -1 : 0);
 };
 
 //!!!

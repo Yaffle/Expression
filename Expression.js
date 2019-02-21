@@ -31,7 +31,7 @@
   var matrixInN = function (matrix, n) {
     // https://stackoverflow.com/a/15302448/839199
     var binomialCoefficient = function (n, k) { // binomail coefficient
-      return k === 0 ? Expression.ONE : n.multiply(binomialCoefficient(n.subtract(Expression.ONE), k - 1)).divide(new Integer(k));
+      return k === 0 ? Expression.ONE : n.multiply(binomialCoefficient(n.subtract(Expression.ONE), k - 1)).divide(Integer.fromNumber(k));
     };
     //Note: experimental
     // {{1,0,0},{0,1,1},{0,0,1}}^n === {{1,0,0},{0,1,n},{0,0,1}}
@@ -65,10 +65,10 @@
           if (p.getDegree() === 1 &&
               a.e(i, j).equals(Expression.ZERO) && //TODO: remove
               k instanceof Integer &&
-              e.equals(k.multiply(previous).add(k.pow(n).divide(k.pow(new Integer(m + 1))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m))))) {
+              e.equals(k.multiply(previous).add(k.pow(n).divide(k.pow(Integer.fromNumber(m + 1))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m))))) {
             console.log("!", e.toString());
             // a.e(i, j).add()
-            return k.pow(n).divide(k.pow(new Integer(m + 2))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m + 1));
+            return k.pow(n).divide(k.pow(Integer.fromNumber(m + 2))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m + 1));
           }
         }
         // a_n = a_(n-1)
@@ -76,17 +76,21 @@
           return a.e(i, j);
         }
         // a_n = k * a_(n-1) => a_n = k**(n - 1) * a_1
-        if (anm1.e(i, j) instanceof Expression.Symbol && !e.equals(Expression.ZERO) && 
-            e.divide(anm1.e(i, j)) instanceof Expression.Integer || (e.divide(anm1.e(i, j)).getNumerator() instanceof Expression.Integer && e.getDenominator() instanceof Expression.Integer)) {
-          return e.divide(anm1.e(i, j)).pow(n.subtract(Expression.TWO)).multiply(a.e(i, j));
+        if (anm1.e(i, j) instanceof Expression.Symbol && !e.equals(Expression.ZERO)) {
+          var k = e.divide(anm1.e(i, j));
+          if (k instanceof Integer ||
+              k instanceof Expression.Complex ||
+              (k.getNumerator() instanceof Integer && e.getDenominator() instanceof Integer)) {
+            return k.pow(n.subtract(Expression.TWO)).multiply(a.e(i, j));
+          }
         }
         // a_n = a_(n-1) + b => a_n = a_1 + b*(n-1)
         var sub = e.subtract(anm1.e(i, j));
-        if (sub instanceof Expression.Integer) {
+        if (sub instanceof Integer) {
           return a.e(i, j).add(sub.multiply(n.subtract(Expression.TWO)));
         }
         // a_n = d**(n-1) + d * a_(n-1)
-        if (e instanceof Expression.Division && e.getDenominator() instanceof Expression.Integer) {
+        if (e instanceof Expression.Division && e.getDenominator() instanceof Integer) {
           var d = e.getDenominator();
           if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
             return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
@@ -97,6 +101,13 @@
         if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
           return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
         }
+        
+        //?
+        var d = Expression.I;
+        if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
+          return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
+        }
+        
         
         return anm1.e(i, j);
       });
@@ -188,7 +199,7 @@
     }
 
     //TODO: 
-    if (x instanceof Expression.Matrix && x.matrix.isSquare() && y instanceof Symbol && y.symbol === "n") {
+    if (x instanceof Expression.Matrix && x.matrix.isSquare() && y instanceof Symbol && (y.symbol === "n" || y.symbol === "k")) {
       var tmp = matrixInN(x.matrix, y);
       if (tmp != undefined) {
         return new Expression.Matrix(tmp);
@@ -238,10 +249,10 @@
     
     if (Expression.ExponentiationOfMinusOne != null) {
       if (x instanceof Integer && x.compareTo(Expression.ZERO) < 0) {
-        if (y instanceof Symbol && y.symbol === "n") {
+        if (y instanceof Symbol && (y.symbol === "n" || y.symbol === "k")) {
           return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y).multiply(x.negate().pow(y));
         }
-        if (y instanceof Addition && y.a instanceof Symbol && y.a.symbol === "n" && y.b instanceof Integer) {
+        if (y instanceof Addition && y.a instanceof Symbol && (y.a.symbol === "n" || y.a.symbol === "k") && y.b instanceof Integer) {
           return new Expression.ExponentiationOfMinusOne(Expression.ONE.negate(), y.a).multiply(Expression.ONE.negate().pow(y.b)).multiply(x.negate().pow(y));
         }
         if (y instanceof Multiplication) {
@@ -249,7 +260,25 @@
         }
       }
     }
-    
+
+    if (Expression.ExponentiationOfImaginaryUnit != null) {
+      if (x instanceof Expression.Complex && x.equals(Expression.I.negate())) {
+        return Expression.ONE.negate().pow(y).multiply(x.negate().pow(y));
+      }
+      if (x instanceof Expression.Complex && x.equals(Expression.I)) {//TODO: -i, other complex numbers - ?
+        if (y instanceof Symbol && (y.symbol === "n" || y.symbol === "k")) {
+         return new Expression.ExponentiationOfImaginaryUnit(Expression.I, y);
+        }
+        if (y instanceof Addition && y.a instanceof Symbol && (y.a.symbol === "n" || y.a.symbol === "k") && y.b instanceof Integer) {
+          var t = Expression.I.pow(y.b);
+          return new Expression.ExponentiationOfImaginaryUnit(Expression.I, t instanceof Expression.Complex ? y.a.add(Expression.ONE) : y.a).multiply(t instanceof Expression.Complex ? t.divide(Expression.I) : t);
+        }
+        if (y instanceof Multiplication) {
+          return x.pow(y.a).pow(y.b);
+        }
+      }
+    }
+
     if (x === Expression.E && y instanceof Expression.Matrix && y.matrix.isSquare()) {
       // https://en.wikipedia.org/wiki/Matrix_exponential#Using_the_Jordan_canonical_form
       var tmp = Expression.getEigenvalues(y.matrix);
@@ -271,7 +300,7 @@
           var k = 0;
           var f = 1;
           while (!p.eql(z)) {
-            s = s.add(p).scale(Expression.ONE.divide(new Expression.Integer(f)));
+            s = s.add(p).scale(Expression.ONE.divide(Integer.fromNumber(f)));
             p = p.multiply(N);
             k += 1;
             f *= k;
@@ -293,6 +322,7 @@
     throw new RangeError("NotSupportedError");
   };
 
+  // compare two expression, which are factors (multiplicaiton operands) of terms (addition operands)
   Expression.prototype.compare4Addition = function (y) {
     var x = this;
     if (x instanceof Symbol && y instanceof Integer) {
@@ -362,6 +392,15 @@
       return -1;//?
     }
 
+    //!2019-02-18
+    if (x instanceof Integer && y instanceof Expression.Complex) {
+      return -1;//?
+    }
+    if (x instanceof Expression.Complex && y instanceof Integer) {
+      return +1;//?
+    }
+    //!
+
     //!
     throw new RangeError();
   };
@@ -382,24 +421,25 @@
     return x instanceof Exponentiation ? x.b : Expression.ONE;
   };
 
-  var getConstant = function (x) {
-    if (x instanceof Integer) {
-      return x;
-    } else if (x instanceof Expression.Complex) {
-      return x;
-    } else if (x instanceof Multiplication) {
+  var getConstant = function (e) {
+    if (e instanceof Integer) {
+      return e;
+    } else if (e instanceof Expression.Complex) {
+      return e;
+    } else if (e instanceof Multiplication) {
       var c = undefined;
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var t = getConstant(multiplications.value());
+      var x = e;
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var t = getConstant(y);
         c = c == undefined ? t : t.multiply(c);
       }
       if (c != undefined) {
         return c;
       }
-    } else if (x instanceof Addition) { // -5*x+15
+    } else if (e instanceof Addition) { // -5*x+15
       var c = undefined;
-      for (var additions = x.summands(); additions != undefined; additions = additions.next()) {
-        var t = getConstant(additions.value());
+      for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+        var t = getConstant(x);
         //c = c == undefined ? t : integerGCD(t, c);
         c = c == undefined ? t : complexGCD(t, c);
       }
@@ -417,8 +457,8 @@
       return undefined;
     } else if (x instanceof Multiplication) {
       var terms = [];
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var t = getTerm(multiplications.value());
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var t = getTerm(y);
         if (t != undefined) {
           terms.push(t);
         }
@@ -553,6 +593,22 @@
         return x;
       }
     }
+
+    if (x instanceof Expression.Complex && y instanceof Expression.ExponentiationOfImaginaryUnit) {
+      //!hack
+      //TODO: remove
+      if (x.real.equals(Expression.ZERO) && x !== Expression.I) {
+        return x.imaginary.multiply(y.multiply(Expression.I));
+      }
+    }
+    if (x instanceof Expression.ExponentiationOfImaginaryUnit && y instanceof Expression.Complex) {
+      //!hack
+      //TODO: remove
+      if (y.real.equals(Expression.ZERO) && y !== Expression.I) {
+        return y.imaginary.multiply(x.multiply(Expression.I));
+      }
+    }
+
     var cmp = compare4Multiplication(getBase(x), getBase(y));
     if (cmp === 0) {
       return getBase(x).pow(getExponent(x).add(getExponent(y)));
@@ -566,24 +622,31 @@
 
   };
 
+  function Iterator() {
+  }
+  if (typeof self.Symbol === "function") {
+    Iterator.prototype[self.Symbol.iterator] = function () {
+      return this;
+    };
+    Object.defineProperty(Iterator.prototype, "done", {
+      get: function () {
+        return this.value == null;
+      }
+    });
+  }
+
   function TermFactorsIterator(e) {
+    this.value = undefined;
     this.e = e;
   }
-  TermFactorsIterator.prototype.value = function () {
-    return this.e instanceof Multiplication ? this.e.b : this.e;
-  };
+  TermFactorsIterator.prototype = Object.create(Iterator.prototype);
   TermFactorsIterator.prototype.next = function () {
-    var t = this.e;
-    do {
-      t = t instanceof Multiplication ? t.a : undefined;
-    } while (t instanceof Integer || t instanceof Expression.Complex);
-    return t != undefined ? new TermFactorsIterator(t) : undefined;
+    this.value = this.e instanceof Multiplication ? this.e.b : (this.e instanceof Integer || this.e instanceof Expression.Complex ? null : this.e);
+    this.e = this.e instanceof Multiplication ? this.e.a : undefined;
+    return this;
   };
 
   function termFactors(e) {
-    if (e instanceof Integer || e instanceof Expression.Complex) {
-      return undefined;
-    }
     return new TermFactorsIterator(e);
   }
 
@@ -591,23 +654,23 @@
     // undefined | Symbol | Exponentiation | Multiplication
     var i = termFactors(x);
     var j = termFactors(y);
-    while (i != undefined && j != undefined) {
-      var fx = i.value();
-      i = i.next();
-      var fy = j.value();
-      j = j.next();
+    var a = i.next().value;
+    var b = j.next().value;
+    while (a != null && b != null) {
 
       //!
       // x^3*y^2, x^2*y^3
-      var cmp = 0 - compare(getBase(fx), getBase(fy));
+      var cmp = 0 - compare(getBase(a), getBase(b));
       if (cmp === 0) {
-        cmp = compare(getExponent(fx), getExponent(fy));
+        cmp = compare(getExponent(a), getExponent(b));
       }
       if (cmp !== 0) {
         return cmp;
       }
+      a = i.next().value;
+      b = j.next().value;
     }
-    return i != undefined ? +1 : (j != undefined ? -1 : 0);
+    return a != null ? +1 : (b != null ? -1 : 0);
   };
 
   Expression.prototype.addExpression = function (x) {
@@ -619,22 +682,47 @@
       return x;
     }
 
+    //!2019-02-16
+    if (x instanceof Multiplication && x.b instanceof IdentityMatrix) {
+      var t = getIdentityMatrixCoefficient(y);
+      if (t != null) {
+        return x.a.add(t).multiply(x.b);
+      }
+    } else if (x instanceof IdentityMatrix) {
+      var t = getIdentityMatrixCoefficient(y);
+      if (t != null) {
+        return Expression.ONE.add(t).multiply(x);
+      }
+    }
+    if (y instanceof Multiplication && y.b instanceof IdentityMatrix) {
+      var t = getIdentityMatrixCoefficient(x);
+      if (t != null) {
+        return t.add(y.a).multiply(y.b);
+      }
+    } else if (y instanceof IdentityMatrix) {
+      var t = getIdentityMatrixCoefficient(x);
+      if (t != null) {
+        return t.add(Expression.ONE).multiply(y);
+      }
+    }
+    //!2019-02-16
+
     // rest
 
     var i = x.summands();
     var j = y.summands();
+    var a = i.next().value;
+    var b = j.next().value;
     var s = [];
     //a + b, compare4Addition("a", "b") > 0
-    while (i != null && j != null) {
-      var a = i.value();
-      var b = j.value();
+    while (a != null && b != null) {
       var c = compare4Addition(a, b);
       if (c < 0) {
         s.push(a);
-        i = i.next();
+        a = i.next().value;
       } else if (c > 0) {
         s.push(b);
-        j = j.next();
+        b = j.next().value;
       } else {
         var constant = getConstant(a).add(getConstant(b));
         var term = getTerm(a);
@@ -642,17 +730,17 @@
         if (!last.equals(Expression.ZERO)) {
           s.push(last);
         }
-        i = i.next();
-        j = j.next();
+        a = i.next().value;
+        b = j.next().value;
       }
     }
-    while (i != null) {
-      s.push(i.value());
-      i = i.next();
+    while (a != null) {
+      s.push(a);
+      a = i.next().value;
     }
-    while (j != null) {
-      s.push(j.value());
-      j = j.next();
+    while (b != null) {
+      s.push(b);
+      b = j.next().value;
     }
     if (s.length === 0) {
       return Expression.ZERO;
@@ -672,22 +760,21 @@
     if (n < 0) {
       throw new RangeError();
     }
-    var sx = x.multiply(Polynom.of(lcg.pow(Integer.parseInteger(n.toString()).add(Expression.ONE))));
+    var sx = x.multiply(Polynom.of(lcg.pow(Integer.fromNumber(n).add(Expression.ONE))));
     return sx.divideAndRemainder(y, "throw").remainder;
   };
 
-  var divideByInteger = function (x, f) {
+  var divideByInteger = function (e, f) {
     if (f.equals(Expression.ZERO)) {
       throw new RangeError("ArithmeticException");
     }
     var result = Expression.ZERO;
-    for (var additions = x.summands(); additions != undefined; additions = additions.next()) {
-      var fx = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var rest = Expression.ONE;
       var t = undefined;
       // TODO: check, fix?
-      for (var multiplications = fx.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var z = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var z = y;
         if (z instanceof Integer || z instanceof Expression.Complex) {
           if (t != undefined) {
             console.warn("!");
@@ -714,16 +801,14 @@
     return result;
   };
 
-  Expression.getCoefficients = function (x, v) {
+  Expression.getCoefficients = function (e, v) {
     var result = [];
-    for (var additions = x.summands(); additions != undefined; additions = additions.next()) {
-      var fx = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var d = Expression.ZERO;
       var c = Expression.ONE;
-      for (var multiplications = fx.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var t = multiplications.value();
-        for (var variables = getVariableInternal(t); variables != undefined; variables = variables.next()) {
-          var ve = variables.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var t = y;
+        for (var variables = getVariableInternal(t), ve = variables.next().value; ve != null; ve = variables.next().value) {
           if (ve.v.equals(v)) {
             d = d.add(ve.e);
           } else {
@@ -775,44 +860,48 @@
     if (v == undefined) {
       throw new Error();
     }
+    this.value = undefined;
     this.v = v;
   }
+  VIterator.prototype = Object.create(Iterator.prototype);
   VIterator.prototype.next = function () {
-    return undefined;
-  };
-  VIterator.prototype.value = function () {
-    return this.v;
+    this.value = this.v;
+    this.v = undefined;
+    return this;
   };
 
   function VariablesIterator(v, additions) {
     if (additions == undefined) {
       throw new Error();
     }
+    this.value = undefined;
     this.v = v;
     this.additions = additions;
   }
+  VariablesIterator.prototype = Object.create(Iterator.prototype);
   VariablesIterator.prototype.next = function () {
-    var a = this.additions.next();
-    return a == undefined ? undefined : new VariablesIterator(this.v, a);
-  };
-  VariablesIterator.prototype.value = function () {
-    var x = this.additions.value();
-    if (x == undefined) {
-      throw new Error();//TODO: remove
-    }
-    if (x instanceof Symbol) {
-      return {v: new Exponentiation(this.v, x), e: Expression.ONE};
+    var x = this.additions.next().value;
+    var value = null;
+    if (x == null) {
+      value = null;
+    } else if (x instanceof Symbol) {
+      value = {v: new Exponentiation(this.v, x), e: Expression.ONE};
     } else if (x instanceof Multiplication && x.a instanceof Integer && x.b instanceof Symbol) {
-      return {v: new Exponentiation(this.v, x.b), e: x.a};
+      value = {v: new Exponentiation(this.v, x.b), e: x.a};
     } else if (x instanceof Integer) {
-      return {v: this.v, e: x};
+      value = {v: this.v, e: x};
     } else {
       throw new RangeError();
     }
+    this.value = value;
+    return this;
   };
 
   var getVariableInternal = function (t) {
     if (t instanceof Expression.ExponentiationOfMinusOne) {//TODO: ?
+      return new VIterator({v: t, e: Expression.ONE});
+    }
+    if (t instanceof Expression.ExponentiationOfImaginaryUnit) {//TODO: ?
       return new VIterator({v: t, e: Expression.ONE});
     }
     var v = getBase(t);
@@ -831,10 +920,8 @@
 
   var getVariable = function (e) {
     //? square roots at first
-    for (var additions = e.summands(); additions != undefined; additions = additions.next()) {
-      var x = additions.value();
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var y = multiplications.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
         if (y instanceof NthRoot) {
         //TODO: assert(y instanceof Integer)
           return y;
@@ -843,7 +930,7 @@
     }
     //?
 
-    var result = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(e))).value().v;
+    var result = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(e))).next().value.v;
     //!?
     //if (result instanceof NthRoot) {
     //  return undefined;
@@ -860,14 +947,21 @@
 
   Expression.getVariable = getVariable;
 
-  var integerGCD = function (a, b) {
-    if (a.compareTo(Expression.ZERO) < 0) {
-      a = a.negate();
+  var integerGCD = function (x, y) {
+    if (x.compareTo(Expression.ZERO) < 0) {
+      x = x.negate();
     }
-    if (b.compareTo(Expression.ZERO) < 0) {
-      b = b.negate();
+    if (y.compareTo(Expression.ZERO) < 0) {
+      y = y.negate();
     }
-    return new Integer(BigInteger.gcd(a.value, b.value));
+    var a = x.value;
+    var b = y.value;
+    while (BigInteger.lessThan(BigInteger.BigInt(0), b)) {
+      var t = BigInteger.remainder(a, b);
+      a = b;
+      b = t;
+    }
+    return new Integer(a);
   };
 
   var getIntegerContent = function (x) {
@@ -920,13 +1014,11 @@
 
   // ! new 21.12.2013 (square roots)
 
-  var getConjugateFactor = function (a) {
+  var getConjugateFactor = function (e) {
     var r = 1 / 0;
     var p = undefined;
-    for (var additions = a.summands(); additions != undefined; additions = additions.next()) {
-      var x = additions.value();
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var y = multiplications.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
         if (y instanceof NthRoot) {
           var degree = y.getDegree();
           if (r > degree) {
@@ -966,22 +1058,20 @@
   Expression.getConjugate = getConjugate;
 
   // https://en.wikipedia.org/wiki/Conjugate_(square_roots)
-  Expression.getNthRootConjugate = function (a) {
+  Expression.getNthRootConjugate = function (e) {
   //TODO: fix
   //if (true) return undefined;
-    var tmp = getConjugateFactor(a);
+    var tmp = getConjugateFactor(e);
     var p = tmp.p;
     var r = tmp.r;
     if (p == undefined) {
       return undefined;
     }
     var polynomial = Polynom.of();
-    for (var additions = a.summands(); additions != undefined; additions = additions.next()) {
-      var x = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var degree = 0;
       var coefficient = Expression.ONE;
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var y = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
         if (y instanceof NthRoot && r === y.getDegree()) {
           if (y.a instanceof Integer) {
             var j = 0;
@@ -1032,13 +1122,11 @@
       throw new RangeError();
     }
     var list = [];
-    for (var additions = e.summands(); additions != undefined; additions = additions.next()) {
-      var x = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var v = undefined;
       var c = Expression.ONE;
       var NO_VARIABLE = "";
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var y = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
         if (y instanceof Symbol && v == undefined) {
           v = y;
         } else {
@@ -1170,7 +1258,10 @@
       }
     }//!
 
-    var v = getVariable(x);//???
+    // check if y is instance of Integer to avoid issues with nth-roots (?) - see a test
+    //TODO: investigate
+    var v = y instanceof Integer ? undefined : getVariable(x);//???
+    //var v = getVariable(x);//???
     //TODO: move?
 
     // gcd
@@ -1263,14 +1354,11 @@
   };
 
   //TODO: use in Expression#getCoefficients -?
-  var variables = function (x) {
+  var variables = function (e) {
     var result = [];
-    for (var additions = x.summands(); additions != undefined; additions = additions.next()) {
-      var fx = additions.value();
-      for (var multiplications = fx.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var t = multiplications.value();
-        for (var variables = getVariableInternal(t); variables != undefined; variables = variables.next()) {
-          var ve = variables.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        for (var variables = getVariableInternal(y), ve = variables.next().value; ve != null; ve = variables.next().value) {
           if (!(ve.v instanceof Integer)) {
             result.push(ve.v);
           }
@@ -1430,10 +1518,10 @@
   };
 
   Integer.prototype.negate = function () {
-    return new Integer(BigInteger.negate(this.value));
+    return new Integer(BigInteger.unaryMinus(this.value));
   };
   Integer.prototype.compareTo = function (y) {
-    return BigInteger.compareTo(this.value, y.value);
+    return BigInteger.lessThan(this.value, y.value) ? -1 : (BigInteger.lessThan(y.value, this.value) ? +1 : 0);
   };
   Integer.prototype.add = function (y) {
     return y.addInteger(this);
@@ -1475,14 +1563,17 @@
     return this.value.toString();
   };
 
-  Integer.parseInteger = function (s) {
-    return new Integer(BigInteger.parseInt(s, 10));
+  Integer.fromNumber = function (n) {
+    return new Integer(BigInteger.BigInt(n));
+  };
+  Integer.fromString = function (s) {
+    return new Integer(BigInteger.BigInt(s));
   };
 
-  Expression.ZERO = Integer.parseInteger("0");
-  Expression.ONE = Integer.parseInteger("1");
-  Expression.TWO = Integer.parseInteger("2");
-  Expression.TEN = Integer.parseInteger("10");
+  Expression.ZERO = Integer.fromNumber(0);
+  Expression.ONE = Integer.fromNumber(1);
+  Expression.TWO = Integer.fromNumber(2);
+  Expression.TEN = Integer.fromNumber(10);
 
 
   
@@ -1699,6 +1790,7 @@
   Multiplication.prototype.multiply = function (y) {
     return y.multiplyExpression(this);
   };
+  //TODO:
   var compare4Multiplication2 = function (x, y) {//TODO: fix
     if (x instanceof Integer && y instanceof Exponentiation) {
       return -1;//?
@@ -1858,6 +1950,12 @@
   IdentityMatrix.prototype = Object.create(MatrixSymbol.prototype);
   IdentityMatrix.prototype.multiply = function (y) {
     return y.multiplyIdentityMatrix(this);
+  };
+  IdentityMatrix.prototype.multiplyAddition = function (x) {
+    if (isScalar(x)) {
+      return new Multiplication(x, this);
+    }
+    return Expression.prototype.multiplyAddition.call(this, x);
   };
   Expression.prototype.multiplyIdentityMatrix = function (x) {
     return this.multiplyExpression(x);
@@ -2197,7 +2295,7 @@
     if (Expression.callback != undefined) {
       Expression.callback(new Expression.Event("rank", x));
     }
-    return Integer.parseInteger(x.matrix.rank().toString());
+    return Integer.fromNumber(x.matrix.rank());
   };
   Expression.Determinant = function (matrix) {
     Expression.Function.call(this, "determinant", matrix);
@@ -2490,30 +2588,31 @@
     return "=";
   };
 
-  var AdditionIterator = function (e) {
+  function AdditionIterator(e) {
     if (e == undefined) {
       throw new Error();
     }
+    this.value = undefined;
     this.e = e;
-  };
-  AdditionIterator.prototype.value = function () {
-    return this.e instanceof Addition ? this.e.b : this.e;
-  };
+  }
+  AdditionIterator.prototype = Object.create(Iterator.prototype);
   AdditionIterator.prototype.next = function () {
-    return this.e instanceof Addition ? new AdditionIterator(this.e.a) : undefined;
+    this.value = this.e instanceof Addition ? this.e.b : this.e;
+    this.e = this.e instanceof Addition ? this.e.a : undefined;
+    return this;
   };
 
-  var MultiplicationIterator = function (e) {
+  function MultiplicationIterator(e) {
     if (e == undefined) {
       throw new Error();
     }
     this.e = e;
-  };
-  MultiplicationIterator.prototype.value = function () {
-    return this.e instanceof Multiplication ? this.e.b : this.e;
-  };
+  }
+  MultiplicationIterator.prototype = Object.create(Iterator.prototype);
   MultiplicationIterator.prototype.next = function () {
-    return this.e instanceof Multiplication ? new MultiplicationIterator(this.e.a) : undefined;
+    this.value = this.e instanceof Multiplication ? this.e.b : this.e;
+    this.e = this.e instanceof Multiplication ? this.e.a : null;
+    return this;
   };
 
   Expression.prototype.summands = function () {
@@ -2528,11 +2627,10 @@
     var scalar = undefined;
     var l = undefined;
     var r = undefined;
-    for (var additions = e.summands(); additions != undefined; additions = additions.next()) {
-      var summand = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var state = 0;
-      for (var multiplications = summand.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var factor = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var factor = y;
         if (!(factor instanceof Integer) && !(factor instanceof Symbol) && !(factor instanceof Matrix)) {
           throw new RangeError("NotSupportedError");
         }
@@ -2582,11 +2680,11 @@
   var getExpressionWithX = function (e) {
     var withX = undefined;
     var withoutX = undefined;
-    for (var additions = e.summands(); additions != undefined; additions = additions.next()) {
-      var summand = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      var summand = x;
       var hasX = false;
-      for (var multiplications = summand.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var factor = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+        var factor = y;
         var factorBase = getBase(factor);
         if (!(factorBase instanceof Integer) && !(factorBase instanceof Symbol)) {
           if (!(factorBase instanceof Matrix)) {//?
@@ -2648,7 +2746,7 @@
     }
     //var v = Expression.getVariable(e);
     // To avoid square roots / nth roots:
-    var v = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(e))).value().v;
+    var v = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(e))).next().value.v;
     if (v instanceof NthRoot || v instanceof Integer || v instanceof Expression.Complex) {
       v = undefined;
     }
@@ -2718,8 +2816,9 @@
     var right = withoutX;
 
     var isToTheLeft = false;
-    for (var multiplications = withX.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-      var factor = multiplications.value();
+    var x = withX;
+    for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      var factor = y;
       var factorBase = getBase(factor);
       //if (!(factorBase instanceof Integer) && !(factorBase instanceof Symbol)) {
       //  if (!(factorBase instanceof Matrix)) {//?
@@ -2795,6 +2894,14 @@
   };
   Expression.ExponentiationOfMinusOne.prototype = Object.create(Expression.Exponentiation.prototype);
   Expression.ExponentiationOfMinusOne.prototype.divideExpression = function (x) {
+    return x.multiply(this);
+  };
+
+  Expression.ExponentiationOfImaginaryUnit = function (x, y) {
+    Expression.Exponentiation.call(this, x, y);
+  };
+  Expression.ExponentiationOfImaginaryUnit.prototype = Object.create(Expression.Exponentiation.prototype);
+  Expression.ExponentiationOfImaginaryUnit.prototype.divideExpression = function (x) {
     return x.multiply(this);
   };
 
@@ -2877,12 +2984,12 @@
     return (count < 2 ? (this.polynomial.getLeadingCoefficient().equals(Expression.ONE) ? new Expression.Symbol("x") : new Expression.Multiplication(Expression.ONE, Expression.ONE)) : new Expression.Addition(Expression.ONE, Expression.ONE)).getPrecedence();
   };
 
-  Expression.sum = function (multiplicities) {
-    var countWithDuplicates = 0;
-    for (var i = 0; i < multiplicities.length; i += 1) {
-      countWithDuplicates += multiplicities[i];
+  Expression.sum = function (array) {
+    var count = 0;
+    for (var i = 0; i < array.length; i += 1) {
+      count += array[i];
     }
-    return countWithDuplicates;
+    return count;
   };
 
 }(this));

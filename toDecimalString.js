@@ -3,14 +3,14 @@
 (function (global) {
 "use strict";
 
-BigInteger.ZERO = BigInteger.fromNumber(0);
-BigInteger.ONE = BigInteger.fromNumber(1);
-BigInteger.TWO = BigInteger.fromNumber(2);
-BigInteger.TEN = BigInteger.fromNumber(10);
+BigInteger.ZERO = BigInteger.BigInt(0);
+BigInteger.ONE = BigInteger.BigInt(1);
+BigInteger.TWO = BigInteger.BigInt(2);
+BigInteger.TEN = BigInteger.BigInt(10);
 
 function nthRoot(A, n) {
-  var x = BigInteger.nthRoot(A, n);
-  return {x0: x, x1: BigInteger.compareTo(A, BigInteger.pow(x, n)) === 0 ? x : BigInteger.add(x, BigInteger.ONE)};
+  var x = BigInteger.nthRoot(A, BigInteger.BigInt(n));
+  return {x0: x, x1: BigInteger.lessThan(BigInteger.exponentiate(x, BigInteger.BigInt(n)), A) ? BigInteger.add(x, BigInteger.ONE) : x};
 }
 
 //TODO: ???
@@ -20,10 +20,10 @@ function FP() {
 FP.Context = function (roundingMode, precision) {
   this.roundingMode = roundingMode;
   this.precision = precision;
-  this.scalingCoefficient = BigInteger.pow(BigInteger.TEN, this.precision);
+  this.scalingCoefficient = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(this.precision));
 };
 FP.Context.prototype.sign = function (x) { // returns -1 or +1
-  return BigInteger.compareTo(x, BigInteger.ZERO) < 0 ? -1 : +1;
+  return BigInteger.lessThan(x, BigInteger.ZERO) ? -1 : +1;
 };
 FP.Context.prototype.round = function (x) { // returns BigInteger
   // rounding to closest, half - away from zero
@@ -31,7 +31,7 @@ FP.Context.prototype.round = function (x) { // returns BigInteger
     var q = BigInteger.divide(a, b);
     var r = BigInteger.remainder(a, b);
     var r2 = BigInteger.add(r, r);
-    return BigInteger.compareTo(BigInteger.negate(r2), b) >= 0 ? BigInteger.subtract(q, BigInteger.ONE) : (BigInteger.compareTo(r2, b) >= 0 ? BigInteger.add(q, BigInteger.ONE) : q);
+    return !BigInteger.lessThan(BigInteger.unaryMinus(r2), b) ? BigInteger.subtract(q, BigInteger.ONE) : (!BigInteger.lessThan(r2, b) ? BigInteger.add(q, BigInteger.ONE) : q);
   };
   return roundDivision(x, this.scalingCoefficient);
 };
@@ -39,10 +39,10 @@ FP.Context.prototype.fromInteger = function (n) {
   return BigInteger.multiply(n, this.scalingCoefficient);
 };
 FP.Context.prototype.compareTo = function (x, y) {
-  return BigInteger.compareTo(x, y);
+  return BigInteger.lessThan(x, y) ? -1 : (BigInteger.lessThan(y, x) ? +1 : 0);
 };
 FP.Context.prototype.negate = function (x) {
-  return BigInteger.negate(x);
+  return BigInteger.unaryMinus(x);
 };
 FP.Context.prototype.add = function (x, y) {
   return BigInteger.add(x, y);
@@ -54,10 +54,10 @@ FP.Context.prototype._divide = function (x, y) {
   var q = BigInteger.divide(x, y);
   var r = BigInteger.remainder(x, y);
   if (this.roundingMode === "FLOOR") {
-    return BigInteger.compareTo(r, BigInteger.ZERO) < 0 ? BigInteger.subtract(q, BigInteger.ONE) : q;
+    return BigInteger.lessThan(r, BigInteger.ZERO) ? BigInteger.subtract(q, BigInteger.ONE) : q;
   }
   if (this.roundingMode === "CEIL") {
-    return BigInteger.compareTo(r, BigInteger.ZERO) > 0 ? BigInteger.add(q, BigInteger.ONE) : q;
+    return BigInteger.lessThan(BigInteger.ZERO, r) ? BigInteger.add(q, BigInteger.ONE) : q;
   }
   throw new RangeError();
 };
@@ -106,8 +106,8 @@ Interval.Context.prototype.divide = function (x, y) {
                       this.up.max(this.up.max(this.up.divide(x.a, y.a), this.up.divide(x.a, y.b)), this.up.max(this.up.divide(x.b, y.a), this.up.divide(x.b, y.b))));
 };
 Interval.Context.prototype.nthRoot = function (A, n) {
-  var c = BigInteger.pow(BigInteger.TEN, this.precision);
-  var sA = BigInteger.multiply(A, BigInteger.pow(c, n));
+  var c = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(this.precision));
+  var sA = BigInteger.multiply(A, BigInteger.exponentiate(c, BigInteger.BigInt(n)));
   var tmp = nthRoot(sA, n);
   var a = this.down.divide(this.down.fromInteger(tmp.x0), this.down.fromInteger(c));
   var b = this.up.divide(this.up.fromInteger(tmp.x1), this.up.fromInteger(c));
@@ -123,7 +123,7 @@ Interval.Context.prototype.toInteger = function (x) {
   if (signA === signB) {
     var candidateA = this.down.round(x.a);
     var candidateB = this.up.round(x.b);
-    if (BigInteger.compareTo(candidateA, candidateB) === 0) {
+    if (!BigInteger.lessThan(candidateA, candidateB)) {
       return {sign: signA, integer: candidateA};
     }
   }
@@ -192,7 +192,7 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStri
   // TODO: fix
   // new Intl.NumberFormat().format(1.1)
   // "<math decimalpoint=\"" + decimalSeparator + "\"></math>" -?
-  var digits = (BigInteger.compareTo(value, BigInteger.ZERO) < 0 ? BigInteger.negate(value) : value).toString();
+  var digits = (BigInteger.lessThan(value, BigInteger.ZERO) ? BigInteger.unaryMinus(value) : value).toString();
   var decimalSeparator = ".";
   var zeros = "";
   for (var i = 0; i < fractionDigits; i += 1) {
@@ -203,20 +203,20 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStri
 };
 
 var toDecimalNumberOld = function (numerator, denominator, fractionDigits, decimalToStringCallback) {
-  var sign = (BigInteger.compareTo(numerator, BigInteger.ZERO) < 0 ? -1 : +1) * (BigInteger.compareTo(denominator, BigInteger.ZERO) < 0 ? -1 : +1);
+  var sign = (BigInteger.lessThan(numerator, BigInteger.ZERO) ? -1 : +1) * (BigInteger.lessThan(denominator, BigInteger.ZERO) ? -1 : +1);
   var abs = function (x) {
-    return BigInteger.compareTo(x, BigInteger.ZERO) < 0 ? BigInteger.negate(x) : x;
+    return BigInteger.lessThan(x, BigInteger.ZERO) ? BigInteger.unaryMinus(x) : x;
   };
   var n = abs(numerator);
   var d = abs(denominator);
 
   //? ((n * 10**(fractionDigits + 1)) ~/ d + 5) ~/ 10
 
-  var x = BigInteger.multiply(n, BigInteger.pow(BigInteger.TEN, fractionDigits));
+  var x = BigInteger.multiply(n, BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits)));
   var q = BigInteger.divide(x, d);
   var r = BigInteger.subtract(x, BigInteger.multiply(q, d));
-  if (BigInteger.compareTo(BigInteger.add(r, r), d) >= 0) {
-    q = BigInteger.add(q, 1);
+  if (!BigInteger.lessThan(BigInteger.add(r, r), d)) {
+    q = BigInteger.add(q, BigInteger.BigInt(1));
     r = BigInteger.subtract(r, d);
   }
   return digitsToDecimalNumber(sign, q, fractionDigits, decimalToStringCallback);
@@ -246,15 +246,15 @@ Expression.toDecimalStringInternal = function (expression, fractionDigits, decim
     if (a instanceof Expression.Integer) {
       var A = a.value;
       var n = expression.n;
-      var c = BigInteger.pow(BigInteger.TEN, fractionDigits);
-      var sA = BigInteger.multiply(A, BigInteger.pow(c, n));
+      var c = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits));
+      var sA = BigInteger.multiply(A, BigInteger.exponentiate(c, BigInteger.BigInt(n)));
       var tmp = nthRoot(sA, n);
       var x0 = tmp.x0;
       var x1 = tmp.x1;
       // root - x0 < x1 - root
       // 2root < x0 + x1
       // 2**n * A < (x0 + x1)**n
-      var nearest = BigInteger.compareTo(BigInteger.multiply(BigInteger.pow(BigInteger.TWO, n), sA), BigInteger.pow(BigInteger.add(x0, x1), n)) < 0 ? x0 : x1;
+      var nearest = BigInteger.lessThan(BigInteger.multiply(BigInteger.exponentiate(BigInteger.TWO, BigInteger.BigInt(n)), sA), BigInteger.exponentiate(BigInteger.add(x0, x1), BigInteger.BigInt(n))) ? x0 : x1;
       return toDecimalNumberOld(nearest, c, fractionDigits, decimalToStringCallback);
     }
   }
@@ -273,9 +273,9 @@ Expression.toDecimalStringInternal = function (expression, fractionDigits, decim
   var guessedPrecision = fractionDigits + 1;
   while (result == undefined) {
     var context = new Interval.Context(guessedPrecision);
-    var x = new Expression.Multiplication(expression, new Expression.Integer(BigInteger.pow(BigInteger.TEN, fractionDigits))).evaluate(context);
+    var x = new Expression.Multiplication(expression, new Expression.Integer(BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits)))).evaluate(context);
     if (x === "CANNOT_DIVIDE") {
-      x = context.fromIntegers(BigInteger.negate(BigInteger.ONE), BigInteger.ONE); // to continue the loop
+      x = context.fromIntegers(BigInteger.unaryMinus(BigInteger.ONE), BigInteger.ONE); // to continue the loop
     }
     if (x == undefined) {
       return undefined;

@@ -57,6 +57,14 @@
     return -1;
   };
   Complex.prototype.compare4Multiplication = function (y) {
+    if (y instanceof Complex) {
+      if (y.equals(this)) {
+        return 0;
+      }
+      return 0;
+      //TODO: fix
+      //throw new RangeError("NotSupportedError");//TODO:
+    }
     return -1;//?
   };
   Complex.prototype.compare4MultiplicationSymbol = function (y) {
@@ -119,11 +127,9 @@
       return undefined;
     }
     var c = Expression.ZERO;
-    for (var additions = e.summands(); additions != undefined; additions = additions.next()) {
-      var x = additions.value();
+    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
       var f = undefined;
-      for (var multiplications = x.factors(); multiplications != undefined; multiplications = multiplications.next()) {
-        var y = multiplications.value();
+      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
         if (y instanceof Complex) {
           f = y;
         }
@@ -135,7 +141,16 @@
         c = c.add(x.multiply(fc).divide(f.multiply(fc)).multiply(fc));
       }
     }
+    //!?
+    if (c.equals(e)) {
+      return undefined;
+    }
+    //!?
     return c;
+  };
+  
+  Complex.prototype.compare4MultiplicationInteger = function (y) {
+    return +1;
   };
 
   Expression.Complex = Complex;
