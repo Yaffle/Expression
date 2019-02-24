@@ -1,7 +1,4 @@
-/*global Expression*/
-
-(function () {
-  "use strict";
+  import Expression from './Expression.js';
 
   function GF2(a) {
     this.a = a;
@@ -72,5 +69,3 @@
   GF2Value.prototype.toString = function (options) {
     return this.value.toString();
   };
-
-}());

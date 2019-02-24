@@ -1,8 +1,6 @@
-/*global Expression*/
+  import Expression from './Expression.js';
+  import Matrix from './Matrix.js';
 
-
-(function (global) {
-  "use strict";
   function PolynomialTerm(degree, coefficient) {
     if (degree < 0) {
       throw new RangeError();
@@ -63,13 +61,13 @@
     return Expression.ZERO;
   };
 
-  // Polynom([a0, a1, a2, ...., an]);
+  // Polynomial([a0, a1, a2, ...., an]);
   // an*x^n+ an-1 x ^n-1 +... + a0
-  function Polynom(a) {
+  function Polynomial(a) {
     this.a = a;
   }
 
-  Polynom.of = function () {
+  Polynomial.of = function () {
     var newData = new PolynomialData(arguments.length);
     for (var i = 0; i < arguments.length; i += 1) {
       var a = arguments[i];
@@ -77,9 +75,9 @@
         newData.add(i, a);
       }
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
-  Polynom.from = function (array) {
+  Polynomial.from = function (array) {
     var newData = new PolynomialData(array.length);
     for (var i = 0; i < array.length; i += 1) {
       var a = array[i];
@@ -87,25 +85,25 @@
         newData.add(i, a);
       }
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
 
-  Polynom.ZERO = Polynom.of();
+  Polynomial.ZERO = Polynomial.of();
 
-  Polynom.prototype.getDegree = function () {
+  Polynomial.prototype.getDegree = function () {
     return this.a.length === 0 ? -1 : this.a.degree(this.a.length - 1);
   };
-  Polynom.prototype.getCoefficient = function (degree) {
+  Polynomial.prototype.getCoefficient = function (degree) {
     if (degree > this.getDegree()) {
       throw new RangeError();
     }
     return this.a.getCoefficient(degree);
   };
-  Polynom.prototype.getLeadingCoefficient = function () {
+  Polynomial.prototype.getLeadingCoefficient = function () {
     return this.a.length === 0 ? Expression.ZERO : this.a.coefficient(this.a.length - 1);
   };
 
-  Polynom.prototype.map = function (mapFunction) {//?
+  Polynomial.prototype.map = function (mapFunction) {//?
     var newData = new PolynomialData(this.a.length);
     for (var i = 0; i < this.a.length; i += 1) {
       var coefficient = this.a.coefficient(i);
@@ -115,10 +113,10 @@
         newData.add(degree, c);
       }
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
 
-  Polynom.prototype.equals = function (p) {
+  Polynomial.prototype.equals = function (p) {
     var i = this.a.length;
     if (i !== p.a.length) {
       return false;
@@ -131,7 +129,7 @@
     return true;
   };
 
-  Polynom.prototype.add = function (p) {
+  Polynomial.prototype.add = function (p) {
     var i = 0;
     var j = 0;
     var newData = new PolynomialData(this.a.length + p.a.length);
@@ -161,14 +159,14 @@
       newData.add(p.a.degree(j), p.a.coefficient(j));
       j += 1;
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
 
-  Polynom.prototype.multiply = function (p) {
+  Polynomial.prototype.multiply = function (p) {
     if (this.a.length === 0 || p.a.length === 0) {
-      return Polynom.ZERO;
+      return Polynomial.ZERO;
     }
-    var result = Polynom.ZERO;
+    var result = Polynomial.ZERO;
     for (var i = 0; i < this.a.length; i += 1) {
       var xd = this.a.degree(i);
       var xc = this.a.coefficient(i);
@@ -178,12 +176,12 @@
         var yc = p.a.coefficient(j);
         newData.add(xd + yd, xc.multiply(yc));
       }
-      result = result.add(new Polynom(newData.trim()));
+      result = result.add(new Polynomial(newData.trim()));
     }
     return result;
   };
 
-  Polynom.prototype.shift = function (n) { // *= x**n, n >= 0
+  Polynomial.prototype.shift = function (n) { // *= x**n, n >= 0
     if (n < 0) {
       throw new RangeError();
     }
@@ -191,15 +189,15 @@
     for (var i = 0; i < this.a.length; i += 1) {
       newData.add(this.a.degree(i) + n, this.a.coefficient(i));
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
 
-  Polynom.prototype.divideAndRemainder = function (p, w) {
+  Polynomial.prototype.divideAndRemainder = function (p, w) {
     w = w || undefined;
-    if (p.equals(Polynom.ZERO)) {
+    if (p.equals(Polynomial.ZERO)) {
       throw new RangeError("ArithmeticException");
     }
-    var quotient = Polynom.ZERO;
+    var quotient = Polynomial.ZERO;
     var remainder = this;
     while (remainder.getDegree() >= p.getDegree()) {
       var n = remainder.getDegree() - p.getDegree();
@@ -217,14 +215,14 @@
           throw new RangeError();
         }
       }
-      var pq = Polynom.of(q);
+      var pq = Polynomial.of(q);
       quotient = quotient.add(pq.shift(n));
       remainder = remainder.subtract(p.multiply(pq).shift(n));
     }
     return {quotient: quotient, remainder: remainder};
   };
 
-  Polynom.prototype.calcAt = function (point) {//!!!
+  Polynomial.prototype.calcAt = function (point) {//!!!
     var n = Expression.ZERO;
     var lastDegree = -1;
     var i = this.a.length;
@@ -242,7 +240,7 @@
     return n;
   };
 
-  Polynom.prototype.getContent = function () {
+  Polynomial.prototype.getContent = function () {
     if (this.a.length === 0) {
       throw new RangeError();
     }
@@ -261,24 +259,24 @@
 
   // add, multiply, divideAndRemainder
 
-  Polynom.prototype.negate = function () {
+  Polynomial.prototype.negate = function () {
     //TODO: fix
     return this.map(function (coefficient, degree) {
       return coefficient.negate();
     });
   };
 
-  Polynom.prototype.subtract = function (l) {
+  Polynomial.prototype.subtract = function (l) {
     return this.add(l.negate());
   };
 
-  Polynom.prototype.scale = function (x) {
+  Polynomial.prototype.scale = function (x) {
     return this.map(function (coefficient, degree) {
       return coefficient.multiply(x);
     });
   };
 
-  Polynom.toPolynomial = function (e, v) {
+  Polynomial.toPolynomial = function (e, v) {
     if (e instanceof Expression.Division) {
       throw new RangeError();
     }
@@ -290,10 +288,10 @@
       var c = x.coefficient;
       newData.add(d, c);
     }
-    return new Polynom(newData.trim());
+    return new Polynomial(newData.trim());
   };
 
-  Polynom.prototype.toExpression = function (variableSymbol) {
+  Polynomial.prototype.toExpression = function (variableSymbol) {
     var i = this.a.length;
     var result = undefined;
     while (--i >= 0) {
@@ -306,7 +304,7 @@
     return result == undefined ? Expression.ZERO : result;
   };
 
-  Polynom.prototype.doRationalRootTest = function (callback) {
+  Polynomial.prototype.doRationalRootTest = function (callback) {
     var np = this;
     var an = np.getLeadingCoefficient();
     var a0 = np.getCoefficient(0);
@@ -326,9 +324,9 @@
           //if (// fp1.remainder(sp.subtract(q)).equals(ZERO) &&
                 // fm1.remainder(sp.add(q)).equals(ZERO) &&
                 // sp.gcd(q).equals(ONE)) {//?
-            var x = Polynom.of(sp.negate(), q);
+            var x = Polynomial.of(sp.negate(), q);
             var z = np.divideAndRemainder(x, "undefined");
-            while (z != undefined && z.remainder.equals(Polynom.ZERO)) {
+            while (z != undefined && z.remainder.equals(Polynomial.ZERO)) {
               np = z.quotient;
               np = np.scale(q);
               if (!callback(sp, q)) {
@@ -338,7 +336,7 @@
               if (np.getDegree() === 1) {
                 sp = np.getCoefficient(0).negate();
                 q = np.getCoefficient(1);
-                np = Polynom.of(q);
+                np = Polynomial.of(q);
                 if (!callback(sp, q)) {
                   np = undefined;
                   return false;
@@ -365,7 +363,7 @@
     return np;
   };
 
-  Polynom.prototype._getFactorByKroneckersMethod = function () {
+  Polynomial.prototype._getFactorByKroneckersMethod = function () {
     // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
     // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
     // https://en.wikipedia.org/wiki/Vandermonde_matrix
@@ -402,7 +400,7 @@
       var bi = Expression.Integer.fromNumber(i);
       var y = np.calcAt(bi);
       if (y.equals(Expression.ZERO)) {
-        return Polynom.of(bi.negate(), Expression.ONE);
+        return Polynomial.of(bi.negate(), Expression.ONE);
       }
       var attachNegative = function (array) {
         var result = new Array(array.length * 2);
@@ -449,17 +447,17 @@
           for (var j = 0; j < s.rows(); j += 1) {
             c[j] = s.e(j, 0);
           }
-          return Polynom.from(c);
+          return Polynomial.from(c);
         };
         var g = polynomialFromVector(s);
-        //if (g.getDegree() > 0 && np.divideAndRemainder(g).remainder.equals(Polynom.ZERO)) {
+        //if (g.getDegree() > 0 && np.divideAndRemainder(g).remainder.equals(Polynomial.ZERO)) {
         //  return g;
         //}
         if (g.getDegree() > 0) {
           var gc = g.getContent();
-          g = g.scale(gc.getDenominator()).divideAndRemainder(Polynom.of(gc.getNumerator()), "throw").quotient;
+          g = g.scale(gc.getDenominator()).divideAndRemainder(Polynomial.of(gc.getNumerator()), "throw").quotient;
           var t = np.divideAndRemainder(g, "undefined");
-          if (t != undefined && t.remainder.equals(Polynom.ZERO)) {
+          if (t != undefined && t.remainder.equals(Polynomial.ZERO)) {
             return g;
           }
         }
@@ -468,8 +466,8 @@
     return undefined;
   };
 
-  Polynom.prototype.getroots = function (callback) {
-    //TODO: merge global.hit and callback
+  Polynomial.prototype.getroots = function (callback) {
+    //TODO: merge hit and callback
     callback = callback || undefined;
     var np = this;
 
@@ -477,7 +475,7 @@
 
 
     //!new 2018-12-24
-    //TODO: fix (?Polynom#getContent()?)
+    //TODO: fix (?Polynomial#getContent()?)
       var t = Expression.ZERO;
       while (t != null) {
         var t = Expression.getConjugate(np.getCoefficient(np.getDegree()));
@@ -489,21 +487,21 @@
 
     var content = np.getContent();
     if (!content.equals(Expression.ONE)) {
-      np = np.scale(content.getDenominator()).divideAndRemainder(Polynom.of(content.getNumerator()), "throw").quotient;
-      //np = np.divideAndRemainder(Polynom.of(content), "throw").quotient;
+      np = np.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
+      //np = np.divideAndRemainder(Polynomial.of(content), "throw").quotient;
     }
     
     
 
     // x = 0
     while (np.getCoefficient(0).equals(Expression.ZERO)) {
-      np = np.divideAndRemainder(Polynom.of(Expression.ZERO, Expression.ONE), "throw").quotient;
+      np = np.divideAndRemainder(Polynomial.of(Expression.ZERO, Expression.ONE), "throw").quotient;
       roots.push(Expression.ZERO);
     }
     if ((!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) || roots.length > 0) {
       if (roots.length > 0) {
-        if (global.hit != undefined) {
-          global.hit({getroots: {special: "0"}});
+        if (typeof hit === "function") {
+          hit({getroots: {special: "0"}});
         }
       }
       if (callback != undefined) {
@@ -513,9 +511,9 @@
 
     if (np.getDegree() === 1) {
       roots.push(np.getCoefficient(0).negate().divide(np.getCoefficient(1)));
-      np = Polynom.of(np.getCoefficient(1));
-      if (global.hit != undefined) {
-        global.hit({getroots: {linear: ""}});
+      np = Polynomial.of(np.getCoefficient(1));
+      if (typeof hit === "function") {
+        hit({getroots: {linear: ""}});
       }
       if (callback != undefined) {
         callback({content: content, roots: roots, newPolynomial: np, type: "solveLinearEquation"});
@@ -608,9 +606,9 @@
       var y = nthRootInternal(n, x);
       if (y == undefined) {
         if (!(x instanceof Expression.Integer)) {
-          self.setTimeout(function () {
-            throw new RangeError((n === 2 ? "squareRoot" : (n === 3 ? "cubeRoot" : n + "-root")) + ":" + x.toString() + ":" + np.toString());
-          }, 0);
+          if (typeof hit === "function") {
+            hit({nthRoot: (n === 2 ? "squareRoot" : (n === 3 ? "cubeRoot" : n + "-root")) + ":" + x.toString() + ":" + np.toString()});
+          }
         }
       }
       return y;
@@ -623,7 +621,7 @@
       } : undefined);
       for (var i = 0; i < rs.length; i += 1) {
         roots.push(rs[i]);
-        np = np.divideAndRemainder(Polynom.of(rs[i].negate(), Expression.ONE)).quotient;
+        np = np.divideAndRemainder(Polynomial.of(rs[i].negate(), Expression.ONE)).quotient;
       }
       return np;
     };
@@ -640,11 +638,11 @@
       }
       if (g >= 2) {
         var allZeros = g === np.getDegree();
-        if (global.hit != undefined) {
+        if (typeof hit === "function") {
           if (g === np.getDegree()) {
-            global.hit({getroots: {allZeros: ""}});
+            hit({getroots: {allZeros: ""}});
           } else {
-            global.hit({getroots: g % 2 === 0 ? (np.getDegree() === 4 ? {biquadratic: ""} : {even: ""}) : {xyz: np.toString()}});
+            hit({getroots: g % 2 === 0 ? (np.getDegree() === 4 ? {biquadratic: ""} : {even: ""}) : {xyz: np.toString()}});
           }
         }
         // t = x^g
@@ -654,7 +652,7 @@
           newData[k] = np.getCoefficient(i);
           k += 1;
         }
-        var q = Polynom.from(newData);
+        var q = Polynomial.from(newData);
         var qRoots = q.getroots();
         var n = np.getDegree();//TODO: 2018-02-04
         var ok = false;//?
@@ -663,10 +661,10 @@
           var s = nthRoot(g, qRoot, np);
           if (s != undefined) {
             roots.push(s);
-            np = np.divideAndRemainder(Polynom.of(s.negate(), Expression.ONE)).quotient;
+            np = np.divideAndRemainder(Polynomial.of(s.negate(), Expression.ONE)).quotient;
             if (g % 2 === 0) {
               roots.push(s.negate());
-              np = np.divideAndRemainder(Polynom.of(s, Expression.ONE)).quotient;
+              np = np.divideAndRemainder(Polynomial.of(s, Expression.ONE)).quotient;
             }
           }
           ok = ok || Expression.has(qRoot, Expression.Complex);//?
@@ -689,15 +687,15 @@
 
       var D = b.multiply(b).subtract(Expression.TWO.multiply(Expression.TWO).multiply(a).multiply(c));
       var sD = nthRoot(2, D, np);
-      if (global.hit != undefined) {
-        global.hit({getroots: {quadratic: (sD == undefined ? (D instanceof Expression.Integer ? D.compareTo(Expression.ZERO) : "?" + D.toString()) : "OK")}});
+      if (typeof hit === "function") {
+        hit({getroots: {quadratic: (sD == undefined ? (D instanceof Expression.Integer ? D.compareTo(Expression.ZERO) : "?" + D.toString()) : "OK")}});
       }
       if (sD != undefined) {
         var x1 = b.negate().subtract(sD).divide(Expression.TWO.multiply(a));
         var x2 = b.negate().add(sD).divide(Expression.TWO.multiply(a));
         roots.push(x1);
         roots.push(x2);
-        np = Polynom.of(a);
+        np = Polynomial.of(a);
         if (callback != undefined) {
           callback({content: content, roots: roots, newPolynomial: np, type: "solveQuadraticEquation"});
         }
@@ -707,68 +705,59 @@
 
     //TODO: odd degrees ?
     if (np.getDegree() >= 4 && np.getDegree() % 2 === 0) {
-      try {
-        var middle = Math.floor(np.getDegree() / 2);
-        var j = 1;
-        while (j < middle + 1 && np.getCoefficient(middle + j).equals(Expression.ZERO) && np.getCoefficient(middle - j).equals(Expression.ZERO)) {
-          j += 1;
+      var middle = Math.floor(np.getDegree() / 2);
+      var j = 1;
+      while (j < middle + 1 && np.getCoefficient(middle + j).equals(Expression.ZERO) && np.getCoefficient(middle - j).equals(Expression.ZERO)) {
+        j += 1;
+      }
+      if (j < middle + 1 && !np.getCoefficient(middle + j).equals(Expression.ZERO) && !np.getCoefficient(middle - j).equals(Expression.ZERO)) {
+        var jj = Expression.Integer.fromNumber(j);
+        var mj = np.getCoefficient(middle + j).divide(np.getCoefficient(middle - j));
+        var isQuasiPalindromic = true;
+        for (var i = 2; i < middle + 1; i += 1) {
+          isQuasiPalindromic = isQuasiPalindromic && np.getCoefficient(middle + i).pow(jj).subtract(np.getCoefficient(middle - i).pow(jj).multiply(mj.pow(Expression.Integer.fromNumber(i)))).equals(Expression.ZERO);
         }
-        if (j < middle + 1 && !np.getCoefficient(middle + j).equals(Expression.ZERO) && !np.getCoefficient(middle - j).equals(Expression.ZERO)) {
-          var jj = Expression.Integer.fromNumber(j);
-          var mj = np.getCoefficient(middle + j).divide(np.getCoefficient(middle - j));
-          var isQuasiPalindromic = true;
-          for (var i = 2; i < middle + 1; i += 1) {
-            isQuasiPalindromic = isQuasiPalindromic && np.getCoefficient(middle + i).pow(jj).subtract(np.getCoefficient(middle - i).pow(jj).multiply(mj.pow(Expression.Integer.fromNumber(i)))).equals(Expression.ZERO);
+        if (isQuasiPalindromic) {
+          //TODO: fix
+          if (typeof hit === "function") {
+            hit({getroots: {quasiPalindromic: np.getDegree()}});
           }
-          if (isQuasiPalindromic) {
-            //TODO: fix
-            if (global.hit != undefined) {
-              global.hit({getroots: {quasiPalindromic: np.getDegree()}});
-            }
-          }
-          if (isQuasiPalindromic && np.getDegree() <= 53) { // Math.log2(9007199254740991 + 1)
-            var substitute = function (m, np) { // t = mx + 1 / x
-              // https://stackoverflow.com/a/15302448/839199
-              var choose = function (n, k) {
-                return k === 0 ? 1 : Math.floor((n * choose(n - 1, k - 1)) / k);
-              };
-              var p = function (n, i, mpi) {
-                return n - 2 * i >= 0 ? p(n - 2 * i, 1, m).scale(Expression.Integer.fromNumber(choose(n, i)).multiply(mpi).negate()).add(p(n, i + 1, mpi.multiply(m))) : Polynom.of(Expression.ONE).shift(n);
-              };
-              var f = function (n, i) {
-                return i <= n ? p(n - i, 1, m).scale(np.getCoefficient(i)).add(f(n, i + 1)) : Polynom.ZERO;
-              };
-              return f(Math.floor(np.getDegree() / 2), 0);
+        }
+        if (isQuasiPalindromic && np.getDegree() <= 53) { // Math.log2(9007199254740991 + 1)
+          var substitute = function (m, np) { // t = mx + 1 / x
+            // https://stackoverflow.com/a/15302448/839199
+            var choose = function (n, k) {
+              return k === 0 ? 1 : Math.floor((n * choose(n - 1, k - 1)) / k);
             };
-            var m = j === 1 ? mj : nthRoot(j, mj, np); // TODO: check the result of nthRoot - ?
-            // t = mx + 1 / x
-            var pt = substitute(m, np);
-            //var pt = Polynom.of(np.getCoefficient(2).subtract(Expression.ONE.add(Expression.ONE).multiply(m).multiply(np.getCoefficient(0))), np.getCoefficient(1), np.getCoefficient(0));
-            var ptRoots = pt.getroots();
-            for (var i = 0; i < ptRoots.length; i += 1) {
-              var ptRoot = ptRoots[i];
-              // mx^2 - tx + 1 = 0
-              var u = Polynom.of(Expression.ONE, ptRoot.negate(), m);
-              var uRoots = u.getroots();
-              for (var j = 0; j < uRoots.length; j += 1) {
-                var root = uRoots[j];
-                np = np.divideAndRemainder(Polynom.of(root.negate(), Expression.ONE)).quotient;
-                roots.push(root);
-              }
+            var p = function (n, i, mpi) {
+              return n - 2 * i >= 0 ? p(n - 2 * i, 1, m).scale(Expression.Integer.fromNumber(choose(n, i)).multiply(mpi).negate()).add(p(n, i + 1, mpi.multiply(m))) : Polynomial.of(Expression.ONE).shift(n);
+            };
+            var f = function (n, i) {
+              return i <= n ? p(n - i, 1, m).scale(np.getCoefficient(i)).add(f(n, i + 1)) : Polynomial.ZERO;
+            };
+            return f(Math.floor(np.getDegree() / 2), 0);
+          };
+          var m = j === 1 ? mj : nthRoot(j, mj, np); // TODO: check the result of nthRoot - ?
+          // t = mx + 1 / x
+          var pt = substitute(m, np);
+          //var pt = Polynomial.of(np.getCoefficient(2).subtract(Expression.ONE.add(Expression.ONE).multiply(m).multiply(np.getCoefficient(0))), np.getCoefficient(1), np.getCoefficient(0));
+          var ptRoots = pt.getroots();
+          for (var i = 0; i < ptRoots.length; i += 1) {
+            var ptRoot = ptRoots[i];
+            // mx^2 - tx + 1 = 0
+            var u = Polynomial.of(Expression.ONE, ptRoot.negate(), m);
+            var uRoots = u.getroots();
+            for (var j = 0; j < uRoots.length; j += 1) {
+              var root = uRoots[j];
+              np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
+              roots.push(root);
             }
-            if (callback != undefined) {
-              callback({content: content, roots: roots, newPolynomial: np, type: "solvePalindromicEquaion"});
-            }
-            return roots;
           }
+          if (callback != undefined) {
+            callback({content: content, roots: roots, newPolynomial: np, type: "solvePalindromicEquaion"});
+          }
+          return roots;
         }
-      } catch (error) {
-        self.setTimeout(function () {
-          throw error;
-        }, 0);
-        self.setTimeout(function () {
-          throw new RangeError(np.toString());
-        }, 0);
       }
     }
 
@@ -780,8 +769,8 @@
       });
 
       if (n !== roots.length) {
-        if (global.hit != undefined) {
-          global.hit({getroots: {rational: ""}});
+        if (typeof hit === "function") {
+          hit({getroots: {rational: ""}});
         }
         if (callback != undefined) {
           callback({content: content, roots: roots, newPolynomial: np, type: "useTheRationalRootTest"});
@@ -818,7 +807,7 @@
           for (var k = 0; k < n; k += 1) {
             roots.push(root);
           }
-          np = Polynom.of(Expression.pow(root.negate().getDenominator(), n));
+          np = Polynomial.of(Expression.pow(root.negate().getDenominator(), n));
           if (callback != undefined) {
             callback({content: content, roots: roots, newPolynomial: np, type: "(ax+b)**n"});//TODO:
           }
@@ -847,8 +836,8 @@
                   .subtract(TWENTY_SEVEN.multiply(a.pow(TWO)).multiply(d.pow(TWO)));
       // b^2-3*a*c
       var delta0 = b.pow(TWO).subtract(THREE.multiply(a).multiply(c));
-      if (global.hit != undefined) {
-        global.hit({getroots: {cubic: (delta instanceof Expression.Integer ? delta.compareTo(Expression.ZERO) : "?") + "-" + (delta0 instanceof Expression.Integer ? delta0.compareTo(Expression.ZERO) : "?")}});
+      if (typeof hit === "function") {
+        hit({getroots: {cubic: (delta instanceof Expression.Integer ? delta.compareTo(Expression.ZERO) : "?") + "-" + (delta0 instanceof Expression.Integer ? delta0.compareTo(Expression.ZERO) : "?")}});
       }
       if (delta0.equals(Expression.ZERO)) {
         //TODO: link to a^3+3a^2b+3ab^2+b^3=0 - ?
@@ -858,7 +847,7 @@
           roots.push(root);
           roots.push(root);
           roots.push(root);
-          var p = Polynom.of(root.negate(), Expression.ONE);
+          var p = Polynomial.of(root.negate(), Expression.ONE);
           np = np.divideAndRemainder(p.multiply(p).multiply(p)).quotient;
           if (callback != undefined) {
             callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
@@ -871,7 +860,7 @@
           if (C != undefined) {
             var root = np.getCoefficient(2).add(C).add(delta0.divide(C)).negate().divide(THREE.multiply(np.getCoefficient(3)));
             roots.push(root);
-            np = np.divideAndRemainder(Polynom.of(root.negate(), Expression.ONE)).quotient;
+            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
             if (callback != undefined) {
               callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
             }
@@ -888,10 +877,10 @@
           var root = NINE.multiply(a).multiply(d).subtract(b.multiply(c)).divide(TWO.multiply(delta0));
           roots.push(root);
           roots.push(root);
-          var p = Polynom.of(root.negate(), Expression.ONE);
+          var p = Polynomial.of(root.negate(), Expression.ONE);
           np = np.divideAndRemainder(p.multiply(p)).quotient;
           roots.push(np.getCoefficient(0).negate().divide(np.getCoefficient(1)));
-          np = Polynom.of(np.getCoefficient(1));
+          np = Polynomial.of(np.getCoefficient(1));
           if (callback != undefined) {
             callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
           }
@@ -924,16 +913,16 @@
           var gr = g.getroots();
           for (var i = 0; i < gr.length; i += 1) {
             roots.push(gr[i]);
-            np = np.divideAndRemainder(Polynom.of(gr[i].negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
+            np = np.divideAndRemainder(Polynomial.of(gr[i].negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
           }
           var hr = h.getroots();
           for (var i = 0; i < hr.length; i += 1) {
             roots.push(hr[i]);
-            np = np.divideAndRemainder(Polynom.of(hr[i].negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
+            np = np.divideAndRemainder(Polynomial.of(hr[i].negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
           }
           if (hr.length > 0 || gr.length > 0) {
-            if (global.hit != undefined) {
-              global.hit({getroots: {methodOfKronecker: np.toString()}});
+            if (typeof hit === "function") {
+              hit({getroots: {methodOfKronecker: np.toString()}});
             }
             if (callback != undefined) {
               callback({content: content, roots: roots, newPolynomial: np, type: "methodOfKronecker"});//?
@@ -962,14 +951,14 @@
           var root = a0r[i];
           while (np.calcAt(root).equals(Expression.ZERO)) {
             roots.push(root);
-            np = np.divideAndRemainder(Polynom.of(root.negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
+            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
           }
-          q = q.divideAndRemainder(Polynom.of(root.negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
+          q = q.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
         }
         if (a0r.length > 0) {
-          self.setTimeout(function () {
-            throw new RangeError("squareFreeRoot" + ":" + f.toString());
-          }, 0);
+          if (typeof hit === "function") {
+            hit({getroots: {squareFreeRoot: np.toString()}});
+          }
           np = continueWithNewPolynomial(roots, np);
           return roots;
         }
@@ -979,23 +968,22 @@
 
     if (np.getDegree() >= 4) {
       //TODO: fix
-      if (global.hit != undefined) {
-        global.hit({getroots: {other: np.getDegree()}});
+      if (typeof hit === "function") {
+        hit({getroots: {other: np.getDegree()}});
       }
     }
 
     return roots;
   };
 
-  Polynom.prototype.derive = function () {
+  Polynomial.prototype.derive = function () {
     var newData = new PolynomialData(this.a.length - 1);
     for (var i = 1; i < this.a.length; i += 1) {
       var n = this.a.degree(i);
       var c = this.a.coefficient(i);
       newData.add(n - 1, c.multiply(Expression.Integer.fromNumber(n)));
     }
-    return new Polynom(newData);
+    return new Polynomial(newData);
   };
 
-  global.Polynom = Polynom;
-}(this));
+  export default Polynomial;

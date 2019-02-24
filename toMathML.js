@@ -1,14 +1,19 @@
-/*global Expression, NonSimplifiedExpression*/
 
-(function () {
-"use strict";
+import toDecimalStringInternal from './toDecimalString.js';
+import Polynomial from './Polynomial.js';//TODO:
+import Expression from './Expression.js';//TODO:
+import NonSimplifiedExpression from './NonSimplifiedExpression.js';//TODO:
+
+//TODO: remove - ?
+import Condition from './Condition.js';
+
 
 //!TODO: remove
-Polynom.prototype.toString = function (options) {
+Polynomial.prototype.toString = function (options) {
   options = options || {};
   return this.toExpression(options.polynomialVariable || (new Expression.Symbol("x"))).toString(options);
 };
-Polynom.prototype.toMathML = function (options) {
+Polynomial.prototype.toMathML = function (options) {
   options = options || {};
   return this.toExpression(options.polynomialVariable || (new Expression.Symbol("x"))).toMathML(options);
 };
@@ -54,8 +59,8 @@ Expression.toDecimalString = function (x, options) {
   if (fractionDigits >= 0 && !Expression.has(x, Expression.Symbol) && 
                              !Expression.has(x, Expression.NonSimplifiedExpression) &&
                              !Expression.has(x, Expression.Matrix) &&
-                             !Expression.has(x, Polynom)) {
-    return Expression.toDecimalStringInternal(x, fractionDigits, decimalToMathML, complexToMathML);
+                             !Expression.has(x, Expression.Polynomial)) {
+    return toDecimalStringInternal(x, fractionDigits, decimalToMathML, complexToMathML);
   }
   return undefined;
 };
@@ -137,7 +142,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
     var j = -1;
     result += "<mtr>";
     if (variableNames != undefined) {// TODO: fix?
-      //TODO: use code from polynomToExpression3 (shared)
+      //TODO: use code from polynomialToExpression3 (shared)
       var row = "";
       var wasNotZero = false;
       while (++j < cols - 1) {
@@ -354,7 +359,7 @@ Expression.Negation.prototype.toMathML = function (options) {
   return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mrow></mfenced>" : "") + "</mrow>";
 };
 
-Expression.Condition.prototype.toMathML = function (printOptions) {
+Condition.prototype.toMathML = function (printOptions) {
   return this._toStringInternal(function (e) {
     return e.toMathML(printOptions);
   }, "<mo>,</mo>", "<mo>&ne;</mo><mn>0</mn>", "<mo>=</mo><mn>0</mn>");
@@ -387,5 +392,3 @@ NonSimplifiedExpression.prototype.toMathML = function (options) {
 Expression.prototype.toMathML = function (options) {
   throw new Error();
 };
-
-}());

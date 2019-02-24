@@ -1,7 +1,5 @@
-/*global Matrix, Expression*/
-
-(function () {
-"use strict";
+import Expression from './Expression.js';
+import Matrix from './Matrix.js';
 
 // https://ca.wikipedia.org/wiki/Forma_canònica_de_Jordan
 
@@ -173,6 +171,4 @@ var getInverse = function (A, eigenvalues, multiplicities, P) {
   var P_INVESRED = X.multiply(B).transpose();
   return Expression._unscaleInverseMatrix(P_INVESRED, P);
 };
-
-}());
 

@@ -1,10 +1,6 @@
-/*global Expression */
-
-(function () {
-"use strict";
+  import Expression from './Expression.js';
 
   var Integer = Expression.Integer;
-  var Symbol = Expression.Symbol;
   var Addition = Expression.Addition;
   var Multiplication = Expression.Multiplication;
   var Division = Expression.Division;
@@ -229,7 +225,7 @@ var expandTrigonometryRules = function (A, type) {
       return expandTrigonometryRulesInternal(a.a.divide(b), a.b.divide(b), type);
     }
   }
-  if (A instanceof Symbol) {
+  if (A instanceof Expression.Symbol) {
     if (type === "cos") {
       return A.cos();
     }
@@ -243,7 +239,7 @@ var expandTrigonometryRules = function (A, type) {
 // CA and SC, EA, p. 303
 
 var expandTrigonometry = function (u) {
-  if (u instanceof Integer || u instanceof Symbol) {
+  if (u instanceof Integer || u instanceof Expression.Symbol) {
     return u;
   }
   var v = map(expandTrigonometry, u);
@@ -257,7 +253,7 @@ var expandTrigonometry = function (u) {
 };
 
 var contractTrigonometry = function (u) {
-  if (u instanceof Integer || u instanceof Symbol) {
+  if (u instanceof Integer || u instanceof Expression.Symbol) {
     return u;
   }
   var v = map(contractTrigonometry, u);
@@ -299,101 +295,6 @@ var simplifyTrigonometry = function (u) {
 
 Expression.simplifyTrigonometry = simplifyTrigonometry;//?
 
-Expression.Multiplication.prototype.compare4Multiplication = function (y) {
-  var x = this;
-  if (y instanceof Addition) {//TODO: fix
-    return 0 - y.compare4Multiplication(x);
-  }
-  var i = x.factors();
-  var j = y.factors();
-  var a = i.next().value;
-  var b = j.next().value;
-  while (a != null && b != null) {
-    var c = a.compare4Multiplication(b);
-    if (c !== 0) {
-      return c;
-    }
-    a = i.next().value;
-    b = j.next().value;
-  }
-  return a != null ? +1 : (b != null ? -1 : 0);
-};
-
-Expression.Multiplication.compare4Addition = function (x, y) {
-  var i = x.factors();
-  var j = y.factors();
-  var a = i.next().value;
-  var b = j.next().value;
-  while (a != null && b != null) {
-    var c = a.compare4Addition(b);
-    if (c !== 0) {
-      return c;
-    }
-    a = i.next().value;
-    b = j.next().value;
-  }
-  return a != null ? +1 : (b != null ? -1 : 0);
-};
-
-
-// cos(2 * x) * cos(x)
-Expression.Multiplication.prototype.compare4MultiplicationSymbol = function (x) {
-  return 0 - this.compare4Multiplication(x);
-};
-
-Expression.Function.prototype.compare4Addition = function (y) {
-  if (y instanceof Expression.Function) {
-    return this.name < y.name ? -1 : (y.name < this.name ? +1 : this.a.compare4Addition(y.a));
-  }
-  return +1;
-};
-
-Expression.prototype.compare4AdditionSymbol = function (x) {
-  var y = this;
-  if (y instanceof Expression.Function) {
-    return -1;
-  }
-  return Expression.prototype.compare4Addition.call(x, y);
-};
-
-Symbol.prototype.compare4Addition = function (y) {
-  return y.compare4AdditionSymbol(this);
-};
-
-Expression.Function.prototype.compare4Multiplication = function (y) {
-  if (y instanceof Expression.NthRoot) {
-    return +1;
-  }
-  if (y instanceof Expression.Function) {
-    return this.name < y.name ? -1 : (y.name < this.name ? +1 : this.a.compare4Multiplication(y.a));
-  }
-  return +1;
-};
-
-Expression.Function.prototype.compare4MultiplicationInteger = function (x) {
-  return 0 - this.compare4Multiplication(x);
-};
-
-Expression.Function.prototype.compare4MultiplicationSymbol = function (x) {
-  return -1;//?
-};
-
-Expression.Function.prototype.compare4MultiplicationNthRoot = function (x) {
-  return 0 - this.compare4Multiplication(x);
-};
-
-Expression.Function.prototype.pow = function (y) {
-  if (this instanceof Expression.NthRoot) {
-    return Expression.prototype.pow.call(this, y);
-  }
-  if (y instanceof Expression.Integer) {
-    if (y.compareTo(Expression.ONE) > 0) {
-      return new Expression.Exponentiation(this, y);
-    }
-    return Expression.prototype.pow.call(this, y);
-  }
-  throw new RangeError("NotSupportedError");
-};
 
 function Sin(x) {
   Expression.Function.call(this, "sin", x);
@@ -488,8 +389,8 @@ var isArgumentValid = function (x) {
   if (simplifyConstantValue(x, "sin") != undefined) {
     return true;
   }
-  if (!(Expression.isScalar(x) && x instanceof Symbol) &&
-      !(x instanceof Multiplication && x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Symbol) &&
+  if (!(Expression.isScalar(x) && x instanceof Expression.Symbol) &&
+      !(x instanceof Multiplication && x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) &&
       !(x instanceof Addition && isArgumentValid(x.a) && isArgumentValid(x.b)) &&
       !(x instanceof Division && x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b)) && isArgumentValid(x.a.b.divide(x.b)))) {
     return false;
@@ -598,4 +499,3 @@ Expression.Degrees.prototype.toString = function (options) {
   return this.value.toString(options) + "\u00B0";
 };
 
-}());

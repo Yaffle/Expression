@@ -1,7 +1,5 @@
-/*global Expression*/
-
-(function () {
-  "use strict";
+import Expression from './Expression.js';
+import Polynomial from './Polynomial.js';
 
 function Condition(array) {
   this.array = array;
@@ -200,20 +198,20 @@ Condition.prototype._and = function (operator, e) {
             true) {
 
           //if (px != null && px.p.getDegree() !== 1 && py == null) {
-            //py = {p: Polynom.toPolynomial(y.expression, px.v), v: px.v};
+            //py = {p: Polynomial.toPolynomial(y.expression, px.v), v: px.v};
             //if (xy.v === py.v) {
             //  py = null;
             //}
           //}
           //if (px == null && py != null && py.p.getDegree() !== 1) {
-            //px = {p: Polynom.toPolynomial(x.expression, py.v), v: py.v};
+            //px = {p: Polynomial.toPolynomial(x.expression, py.v), v: py.v};
             //if (xy.v === px.v) {
             //  px = null;
             //}
           //}
           //if (px == null && py == null) {//?TODO:
-          //  px = {p: Polynom.toPolynomial(x.expression, xy.v), v: xy.v};
-          //  py = {p: Polynom.toPolynomial(y.expression, xy.v), v: xy.v};
+          //  px = {p: Polynomial.toPolynomial(x.expression, xy.v), v: xy.v};
+          //  py = {p: Polynomial.toPolynomial(y.expression, xy.v), v: xy.v};
           //}
 
           if (x.operator === Condition.EQZ && px != null && px.p.getDegree() === 1 && y.operator === Condition.EQZ && py != null && py.p.getDegree() === 1) {
@@ -236,8 +234,8 @@ Condition.prototype._and = function (operator, e) {
           }
         }
         if (pp != null) {
-          var polynom = Polynom.toPolynomial(p, pp.v);
-          var a = polynom.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
+          var polynomial = Polynomial.toPolynomial(p, pp.v);
+          var a = polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
           if (!a.equals(p) && (a.getDenominator() instanceof Expression.Integer)) {
             var tmp = {
               operator: pOperator,
@@ -316,6 +314,4 @@ Condition.prototype.toString = function (printOptions) {
 Condition.TRUE = new Condition(new Array(0));
 Condition.FALSE = new Condition(undefined);
 
-Expression.Condition = Condition;
-
-}());
+export default Condition;

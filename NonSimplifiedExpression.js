@@ -1,7 +1,7 @@
-/*global Expression, ExpressionParser*/
-
-(function (global) {
-  "use strict";
+  import Expression from './Expression.js';
+  import ExpressionParser from './ExpressionParser.js';
+  import './sin.js';
+  import './GF2.js';
 
   var idCounter = 0;
 
@@ -247,6 +247,5 @@
   };
 
   Expression.NonSimplifiedExpression = NonSimplifiedExpression;
-  global.NonSimplifiedExpression = NonSimplifiedExpression;
 
-}(this));
+  export default NonSimplifiedExpression;

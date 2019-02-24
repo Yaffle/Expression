@@ -1,7 +1,5 @@
-/*global Expression, NonSimplifiedExpression*/
-
-(function () {
-"use strict";
+import Expression from './Expression.js';
+import NonSimplifiedExpression from './Expression.js';
 
 Expression.prototype.toLaTeX = function (options) {
   throw new RangeError();
@@ -63,5 +61,3 @@ Expression.Complex.prototype.toLaTeX = function (options) {
 NonSimplifiedExpression.prototype.toLaTeX = function (options) {
   return this.e.toLaTeX(options);
 };
-
-}());

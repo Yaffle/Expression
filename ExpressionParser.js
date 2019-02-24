@@ -1,8 +1,6 @@
 /*jslint plusplus: true, vars: true, indent: 2 */
-/*global Expression, Matrix */
-
-(function (global) {
-  "use strict";
+  import Expression from './Expression.js';
+  import Matrix from './Matrix.js';
 
   //var isAlpha = function (code) {
   //  return (code >= "a".charCodeAt(0) && code <= "z".charCodeAt(0)) ||
@@ -815,8 +813,8 @@
     var y = replaceSimpleDigit(charCode);
     if (y != undefined) {
       // TODO: remove
-      if (global.hit != undefined) {
-        global.hit({digit: y.name});
+      if (typeof hit === "function") {
+        hit({digit: y.name});
       }
       return String.fromCharCode(y.code);
     }
@@ -865,14 +863,14 @@
     //TODO: fix ???
     input = replaceSomeChars(input);
 
-    if (global.hit != undefined && context.getter != undefined) {
+    if (typeof hit === "function" && context.getter != undefined) {
       var re = /[a-z][a-z][a-z\-]+/gi;
       var m = null;
       while ((m = re.exec(input)) != null) {
         var t = m[0];
         if (!(t in fs) && t.indexOf("-") === -1) {
           fs[t] = true;
-          global.hit({fs: t});
+          hit({fs: t});
         }
       }
     }
@@ -963,6 +961,4 @@
     }
   };
 
-  global.ExpressionParser = ExpressionParser;
-
-}(this));
+  export default ExpressionParser;

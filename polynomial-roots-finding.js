@@ -1,7 +1,6 @@
-/*global Expression, Polynom*/
-
-(function () {
-"use strict";
+import Expression from './Expression.js';
+import Polynomial from './Polynomial.js';
+import toDecimalStringInternal from './toDecimalString.js';
 
 function PolynomialRoot(polynomial, interval) {
   Expression.Symbol.call(this, "@");
@@ -37,12 +36,12 @@ function makeExpressionWithPolynomialRoot(e, root) {
   }
   var v = root;
   //TODO: use polynomial from the start - ?
-  var f = Polynom.toPolynomial(en, v);
+  var f = Polynomial.toPolynomial(en, v);
   if (f.hasRoot(v)) {
     return Expression.ZERO;
   }
   var c = function (x) {
-    return Polynom.toPolynomial(x, v).divideAndRemainder(v.polynomial).remainder.calcAt(v);
+    return Polynomial.toPolynomial(x, v).divideAndRemainder(v.polynomial).remainder.calcAt(v);
   };
   e = c(e.getNumerator()).divide(c(e.getDenominator()));
   if (e instanceof Expression.Integer) {
@@ -84,7 +83,7 @@ ExpressionWithPolynomialRoot.prototype.toString = function (options) {
     return Expression.ZERO.toString(options);
   }
   //return this.e.toString(options);
-  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, undefined, undefined);
+  var tmp = toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, undefined, undefined);
   return tmp;
 };
 
@@ -102,7 +101,7 @@ ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
     return Expression.ZERO.toMathML(options);
   }
   //return this.e.toMathML(options);
-  var tmp = Expression.toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
+  var tmp = toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
   return tmp;
 };
 
@@ -241,7 +240,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return i.compareTo(Expression.ZERO) < 0 ? i.negate() : i;
   };
   
-  Polynom.prototype.getRootsInterval = function () {
+  Polynomial.prototype.getRootsInterval = function () {
     //TODO: only integer coefficients (?)
     // https://en.wikipedia.org/wiki/Sturm%27s_theorem#Number_of_real_roots
     var max = null;
@@ -256,7 +255,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return {a: M.negate(), b: M};
   };
 
-  Polynom.prototype.getZero = function (interval, precision) {
+  Polynomial.prototype.getZero = function (interval, precision) {
     var e = Expression.pow(Expression.TEN, precision); // epsilon^-1
     if (!(e instanceof Expression.Integer)) {
       throw new RangeError("epsilon^-1 is not an integer");
@@ -341,7 +340,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
   };
 
-  Polynom.prototype.hasRoot = function (polynomialRoot) {
+  Polynomial.prototype.hasRoot = function (polynomialRoot) {
     var f = this;
     var p = polynomialRoot.polynomial;
     var g = gcd(f, p);
@@ -353,7 +352,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return sturmSequence.numberOfRoots(i) === 1;
   };
 
-  Polynom.prototype.hasIntegerCoefficients = function () {
+  Polynomial.prototype.hasIntegerCoefficients = function () {
     //TODO: optimize
     for (var i = 0; i <= this.getDegree(); i += 1) {
       if (!(this.getCoefficient(i) instanceof Expression.Integer)) {
@@ -382,11 +381,11 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     }
   };
 
-  // Polynom.toPolynom("x^3-8x^2+21x-18").getZeros();
-  Polynom.prototype.getZeros = function (precision) {
+  // Polynomial.toPolynomial("x^3-8x^2+21x-18").getZeros();
+  Polynomial.prototype.getZeros = function (precision) {
     //TODO: test
     var content = this.getContent();
-    var f = this.scale(content.getDenominator()).divideAndRemainder(Polynom.of(content.getNumerator()), "throw").quotient;
+    var f = this.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
 
     if (!f.hasIntegerCoefficients()) {
       //return [];
@@ -430,5 +429,3 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
 
     return {result: result, multiplicities: multiplicities};
   };
-
-}(this));

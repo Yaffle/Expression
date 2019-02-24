@@ -1,8 +1,6 @@
 /*jslint plusplus: true, vars: true, indent: 2 */
-/*global Expression */
 
-(function (global) {
-  "use strict";
+  import Expression from './Expression.js';
 
   //    API same as http://sylvester.jcoglan.com/api/matrix.html
   //    new Matrix([
@@ -742,6 +740,4 @@
     });
   };
 
-  global.Matrix = Matrix;
-
-}(this));
+  export default Matrix;

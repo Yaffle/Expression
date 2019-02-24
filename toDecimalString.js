@@ -1,88 +1,82 @@
-/*global Expression, BigInteger, self*/
-
-(function (global) {
-"use strict";
-
-BigInteger.ZERO = BigInteger.BigInt(0);
-BigInteger.ONE = BigInteger.BigInt(1);
-BigInteger.TWO = BigInteger.BigInt(2);
-BigInteger.TEN = BigInteger.BigInt(10);
-
-function nthRoot(A, n) {
-  var x = BigInteger.nthRoot(A, BigInteger.BigInt(n));
-  return {x0: x, x1: BigInteger.lessThan(BigInteger.exponentiate(x, BigInteger.BigInt(n)), A) ? BigInteger.add(x, BigInteger.ONE) : x};
-}
+import Expression from './Expression.js';
+import BigInteger from './BigInteger.js';
+import nthRoot from './nthRoot.js';
 
 //TODO: ???
 
-function FP() {
-}
-FP.Context = function (roundingMode, precision) {
+// https://en.wikipedia.org/wiki/Fixed-point_arithmetic
+function FixedPointContext(roundingMode, scalingCoefficient) {
+  if (roundingMode !== "FLOOR" && roundingMode !== "CEIL") {
+    throw new RangeError();
+  }
   this.roundingMode = roundingMode;
-  this.precision = precision;
-  this.scalingCoefficient = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(this.precision));
+  this.scalingCoefficient = scalingCoefficient;
+}
+FixedPointContext.prototype.sign = function (x) { // returns -1 or +1
+  return BigInteger.lessThan(x, BigInteger.BigInt(0)) ? -1 : +1;
 };
-FP.Context.prototype.sign = function (x) { // returns -1 or +1
-  return BigInteger.lessThan(x, BigInteger.ZERO) ? -1 : +1;
-};
-FP.Context.prototype.round = function (x) { // returns BigInteger
+FixedPointContext.prototype.round = function (x) { // returns BigInteger
   // rounding to closest, half - away from zero
-  var roundDivision = function (a, b) {
-    var q = BigInteger.divide(a, b);
-    var r = BigInteger.remainder(a, b);
-    var r2 = BigInteger.add(r, r);
-    return !BigInteger.lessThan(BigInteger.unaryMinus(r2), b) ? BigInteger.subtract(q, BigInteger.ONE) : (!BigInteger.lessThan(r2, b) ? BigInteger.add(q, BigInteger.ONE) : q);
-  };
-  return roundDivision(x, this.scalingCoefficient);
+  var y = this.scalingCoefficient;
+  // division of x by y with rounding
+  var q = BigInteger.divide(x, y);
+  var r = BigInteger.subtract(x, BigInteger.multiply(q, y));
+  var r2 = BigInteger.add(r, r);
+  return !BigInteger.lessThan(BigInteger.unaryMinus(r2), y) ? BigInteger.subtract(q, BigInteger.BigInt(1)) : (!BigInteger.lessThan(r2, y) ? BigInteger.add(q, BigInteger.BigInt(1)) : q);
 };
-FP.Context.prototype.fromInteger = function (n) {
+FixedPointContext.prototype.fromInteger = function (n) {
   return BigInteger.multiply(n, this.scalingCoefficient);
 };
-FP.Context.prototype.compareTo = function (x, y) {
+FixedPointContext.prototype.compareTo = function (x, y) {
   return BigInteger.lessThan(x, y) ? -1 : (BigInteger.lessThan(y, x) ? +1 : 0);
 };
-FP.Context.prototype.negate = function (x) {
+FixedPointContext.prototype.negate = function (x) {
   return BigInteger.unaryMinus(x);
 };
-FP.Context.prototype.add = function (x, y) {
+FixedPointContext.prototype.add = function (x, y) {
   return BigInteger.add(x, y);
 };
-FP.Context.prototype.subtract = function (x, y) {
+FixedPointContext.prototype.subtract = function (x, y) {
   return BigInteger.subtract(x, y);
 };
-FP.Context.prototype._divide = function (x, y) {
+FixedPointContext.prototype._divide = function (x, y) {
   var q = BigInteger.divide(x, y);
-  var r = BigInteger.remainder(x, y);
+  var r = BigInteger.subtract(x, BigInteger.multiply(q, y));
   if (this.roundingMode === "FLOOR") {
-    return BigInteger.lessThan(r, BigInteger.ZERO) ? BigInteger.subtract(q, BigInteger.ONE) : q;
+    return BigInteger.lessThan(r, BigInteger.BigInt(0)) ? BigInteger.subtract(q, BigInteger.BigInt(1)) : q;
   }
   if (this.roundingMode === "CEIL") {
-    return BigInteger.lessThan(BigInteger.ZERO, r) ? BigInteger.add(q, BigInteger.ONE) : q;
+    return BigInteger.lessThan(BigInteger.BigInt(0), r) ? BigInteger.add(q, BigInteger.BigInt(1)) : q;
   }
   throw new RangeError();
 };
-FP.Context.prototype.multiply = function (x, y) {
+FixedPointContext.prototype.multiply = function (x, y) {
   return this._divide(BigInteger.multiply(x, y), this.scalingCoefficient);
 };
-FP.Context.prototype.divide = function (x, y) {
+FixedPointContext.prototype.divide = function (x, y) {
   return this._divide(BigInteger.multiply(x, this.scalingCoefficient), y);
 };
-FP.Context.prototype.min = function (x, y) {
+FixedPointContext.prototype.min = function (x, y) {
   return this.compareTo(x, y) > 0 ? y : x;
 };
-FP.Context.prototype.max = function (x, y) {
+FixedPointContext.prototype.max = function (x, y) {
   return this.compareTo(x, y) < 0 ? y : x;
 };
 
+//function DegenerateInterval(a) {
+//  this.a = a;
+//}
+
+// https://en.wikipedia.org/wiki/Interval_arithmetic
 function Interval(a, b) {
   this.a = a;
   this.b = b;
 }
 Interval.Context = function (precision) {
-  this.down = new FP.Context("FLOOR", precision);
-  this.up = new FP.Context("CEIL", precision);
+  this.scalingCoefficient = BigInteger.exponentiate(BigInteger.BigInt(10), BigInteger.BigInt(precision));
   this.precision = precision;
-  this.zero = this.down.fromInteger(BigInteger.ZERO);
+  this.down = new FixedPointContext("FLOOR", this.scalingCoefficient);
+  this.up = new FixedPointContext("CEIL", this.scalingCoefficient);
 };
 Interval.Context.prototype.negate = function (x) {
   return new Interval(this.down.negate(x.b), this.up.negate(x.a));
@@ -98,7 +92,7 @@ Interval.Context.prototype.multiply = function (x, y) {
                       this.up.max(this.up.max(this.up.multiply(x.a, y.a), this.up.multiply(x.a, y.b)), this.up.max(this.up.multiply(x.b, y.a), this.up.multiply(x.b, y.b))));
 };
 Interval.Context.prototype.divide = function (x, y) {
-  if (this.down.compareTo(y.a, this.zero) <= 0 && this.down.compareTo(y.b, this.zero) >= 0) {
+  if (this.down.compareTo(y.a, this.up.fromInteger(BigInteger.BigInt(0))) <= 0 && this.up.compareTo(y.b, this.down.fromInteger(BigInteger.BigInt(0))) >= 0) {
     //throw new RangeError();
     return "CANNOT_DIVIDE";//TODO: FIX
   }
@@ -106,12 +100,18 @@ Interval.Context.prototype.divide = function (x, y) {
                       this.up.max(this.up.max(this.up.divide(x.a, y.a), this.up.divide(x.a, y.b)), this.up.max(this.up.divide(x.b, y.a), this.up.divide(x.b, y.b))));
 };
 Interval.Context.prototype.nthRoot = function (A, n) {
-  var c = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(this.precision));
+  var c = this.scalingCoefficient;
   var sA = BigInteger.multiply(A, BigInteger.exponentiate(c, BigInteger.BigInt(n)));
-  var tmp = nthRoot(sA, n);
-  var a = this.down.divide(this.down.fromInteger(tmp.x0), this.down.fromInteger(c));
-  var b = this.up.divide(this.up.fromInteger(tmp.x1), this.up.fromInteger(c));
+
+  var x0 = nthRoot(sA, BigInteger.BigInt(n));
+  var x1 = BigInteger.lessThan(BigInteger.exponentiate(x0, BigInteger.BigInt(n)), sA) ? BigInteger.add(x0, BigInteger.BigInt(1)) : x0;
+
+  var a = this.down.divide(this.down.fromInteger(x0), this.down.fromInteger(c));
+  var b = this.up.divide(this.up.fromInteger(x1), this.up.fromInteger(c));
   return new Interval(a, b);
+};
+Interval.Context.prototype.fromInteger = function (a, b) {
+  return new Interval(this.down.fromInteger(a), this.up.fromInteger(a));
 };
 Interval.Context.prototype.fromIntegers = function (a, b) {
   return new Interval(this.down.fromInteger(a), this.up.fromInteger(b));
@@ -133,11 +133,10 @@ Interval.prototype.toString = function () {
   return "[" + this.a.toString() + ";" + this.b.toString() + "]";
 };
 
-Expression.prototype.evaluate = function (context) {
-  var e = this;
+var evaluateExpression = function (e, context) {
   if (e instanceof Expression.Integer) {
     var n = e.value;
-    return context.fromIntegers(n, n);
+    return context.fromInteger(n);
   } else if (e instanceof Expression.NthRoot) {
     var a = e.a;
     var n = e.n;
@@ -145,8 +144,8 @@ Expression.prototype.evaluate = function (context) {
       return context.nthRoot(a.value, n);
     }
   } else if (e instanceof Expression.BinaryOperation) {
-    var a = e.a.evaluate(context);
-    var b = e.b.evaluate(context);
+    var a = evaluateExpression(e.a, context);
+    var b = evaluateExpression(e.b, context);
     if (a === "CANNOT_DIVIDE") {
       return a;
     }
@@ -175,7 +174,9 @@ Expression.prototype.evaluate = function (context) {
   } else if (e instanceof Expression.PolynomialRoot) {
     var i = e.polynomial.getZero(e.interval, context.precision);
     var cd = i.a.getDenominator().lcm(i.b.getDenominator());
-    return context.divide(context.fromIntegers(i.a.getNumerator().multiply(cd.divide(i.a.getDenominator())).value, i.b.getNumerator().multiply(cd.divide(i.b.getDenominator())).value), context.fromIntegers(cd.value, cd.value));
+    return context.divide(context.fromIntegers(i.a.getNumerator().multiply(cd.divide(i.a.getDenominator())).value,
+                                               i.b.getNumerator().multiply(cd.divide(i.b.getDenominator())).value),
+                         context.fromInteger(cd.value));
   }
   return undefined;
 };
@@ -192,7 +193,7 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStri
   // TODO: fix
   // new Intl.NumberFormat().format(1.1)
   // "<math decimalpoint=\"" + decimalSeparator + "\"></math>" -?
-  var digits = (BigInteger.lessThan(value, BigInteger.ZERO) ? BigInteger.unaryMinus(value) : value).toString();
+  var digits = (BigInteger.lessThan(value, BigInteger.BigInt(0)) ? BigInteger.unaryMinus(value) : value).toString();
   var decimalSeparator = ".";
   var zeros = "";
   for (var i = 0; i < fractionDigits; i += 1) {
@@ -203,30 +204,31 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStri
 };
 
 var toDecimalNumberOld = function (numerator, denominator, fractionDigits, decimalToStringCallback) {
-  var sign = (BigInteger.lessThan(numerator, BigInteger.ZERO) ? -1 : +1) * (BigInteger.lessThan(denominator, BigInteger.ZERO) ? -1 : +1);
+  var sign = (BigInteger.lessThan(numerator, BigInteger.BigInt(0)) ? -1 : +1) * (BigInteger.lessThan(denominator, BigInteger.BigInt(0)) ? -1 : +1);
   var abs = function (x) {
-    return BigInteger.lessThan(x, BigInteger.ZERO) ? BigInteger.unaryMinus(x) : x;
+    return BigInteger.lessThan(x, BigInteger.BigInt(0)) ? BigInteger.unaryMinus(x) : x;
   };
   var n = abs(numerator);
   var d = abs(denominator);
 
   //? ((n * 10**(fractionDigits + 1)) ~/ d + 5) ~/ 10
 
-  var x = BigInteger.multiply(n, BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits)));
+  var x = BigInteger.multiply(n, BigInteger.exponentiate(BigInteger.BigInt(10), BigInteger.BigInt(fractionDigits)));
   var q = BigInteger.divide(x, d);
   var r = BigInteger.subtract(x, BigInteger.multiply(q, d));
   if (!BigInteger.lessThan(BigInteger.add(r, r), d)) {
     q = BigInteger.add(q, BigInteger.BigInt(1));
-    r = BigInteger.subtract(r, d);
   }
-  return digitsToDecimalNumber(sign, q, fractionDigits, decimalToStringCallback);
+  var result = q;
+  return digitsToDecimalNumber(sign, result, fractionDigits, decimalToStringCallback);
 };
 
-Expression.toDecimalStringInternal = function (expression, fractionDigits, decimalToStringCallback, complexToStringCallback) {
+var toDecimalStringInternal = function (expression, fractionDigits, decimalToStringCallback, complexToStringCallback) {
   decimalToStringCallback = decimalToStringCallback || decimalToString;
   complexToStringCallback = complexToStringCallback || complexToString;
+  //TODO: remove
   if (expression instanceof Expression.Integer) {
-    return toDecimalNumberOld(expression.value, BigInteger.ONE, fractionDigits, decimalToStringCallback);
+    return toDecimalNumberOld(expression.value, BigInteger.BigInt(1), fractionDigits, decimalToStringCallback);
   }
   if (expression instanceof Expression.Division) {
     var numerator = expression.getNumerator();//.unwrap();
@@ -246,46 +248,46 @@ Expression.toDecimalStringInternal = function (expression, fractionDigits, decim
     if (a instanceof Expression.Integer) {
       var A = a.value;
       var n = expression.n;
-      var c = BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits));
+      var c = BigInteger.exponentiate(BigInteger.BigInt(10), BigInteger.BigInt(fractionDigits));
       var sA = BigInteger.multiply(A, BigInteger.exponentiate(c, BigInteger.BigInt(n)));
-      var tmp = nthRoot(sA, n);
-      var x0 = tmp.x0;
-      var x1 = tmp.x1;
+
+      var x0 = nthRoot(sA, BigInteger.BigInt(n));
+      var x1 = BigInteger.lessThan(BigInteger.exponentiate(x0, BigInteger.BigInt(n)), sA) ? BigInteger.add(x0, BigInteger.BigInt(1)) : x0;
+
       // root - x0 < x1 - root
       // 2root < x0 + x1
       // 2**n * A < (x0 + x1)**n
-      var nearest = BigInteger.lessThan(BigInteger.multiply(BigInteger.exponentiate(BigInteger.TWO, BigInteger.BigInt(n)), sA), BigInteger.exponentiate(BigInteger.add(x0, x1), BigInteger.BigInt(n))) ? x0 : x1;
+      var nearest = BigInteger.lessThan(BigInteger.multiply(BigInteger.exponentiate(BigInteger.BigInt(2), BigInteger.BigInt(n)), sA), BigInteger.exponentiate(BigInteger.add(x0, x1), BigInteger.BigInt(n))) ? x0 : x1;
       return toDecimalNumberOld(nearest, c, fractionDigits, decimalToStringCallback);
     }
   }
   //---
   if (!Expression.has(expression, Expression.NthRoot) &&
       !Expression.has(expression, Expression.PolynomialRoot)) {
-    self.setTimeout(function () {
-      throw new TypeError("toDecimalString:" + fractionDigits + ":" + expression.toString({}));
-    }, 0);
+    throw new TypeError("toDecimalString:" + fractionDigits + ":" + expression.toString({}));
   }
   if (fractionDigits < 0 || fractionDigits > 9007199254740991) {
     throw new RangeError();
   }
   var sign = 0;
   var result = undefined;
-  var guessedPrecision = fractionDigits + 1;
+  var guessedPrecision = 0;
+  var scale = BigInteger.exponentiate(BigInteger.BigInt(10), BigInteger.BigInt(fractionDigits));
   while (result == undefined) {
     var context = new Interval.Context(guessedPrecision);
-    var x = new Expression.Multiplication(expression, new Expression.Integer(BigInteger.exponentiate(BigInteger.TEN, BigInteger.BigInt(fractionDigits)))).evaluate(context);
-    if (x === "CANNOT_DIVIDE") {
-      x = context.fromIntegers(BigInteger.unaryMinus(BigInteger.ONE), BigInteger.ONE); // to continue the loop
-    }
+    var x = evaluateExpression(expression, context);
     if (x == undefined) {
       return undefined;
     }
-    var tmp = context.toInteger(x);
-    sign = tmp.sign;
-    result = tmp.integer;
-    guessedPrecision *= 2;
+    if (x !== "CANNOT_DIVIDE") { // continue the loop otherwise
+      x = context.multiply(context.fromInteger(scale), x);
+      var tmp = context.toInteger(x);
+      sign = tmp.sign;
+      result = tmp.integer;
+    }
+    guessedPrecision = (guessedPrecision === 0 ? 1 : guessedPrecision * 2);
   }
   return digitsToDecimalNumber(sign, result, fractionDigits, decimalToStringCallback);
 };
 
-}(this));
+export default toDecimalStringInternal;

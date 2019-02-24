@@ -1,7 +1,6 @@
-/*global Expression, Matrix, Polynom, console*/
-
-(function () {
-  "use strict";
+import Expression from './Expression.js';
+import Matrix from './Matrix.js';
+import Polynomial from './Polynomial.js';
   
 Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, callback) {
   var roots = polynomial.getroots(callback);
@@ -12,9 +11,9 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
   // experimental code
   var zeros = {result: [], multiplicities: []};
   if (typeof polynomial.getZeros === "function" && roots.length !== polynomial.getDegree()) {
-    var p = Polynom.of(Expression.ONE);
+    var p = Polynomial.of(Expression.ONE);
     for (var i = 0; i < roots.length; i += 1) {
-      p = p.multiply(Polynom.of(roots[i].negate(), Expression.ONE));
+      p = p.multiply(Polynomial.of(roots[i].negate(), Expression.ONE));
     }
     var r = polynomial.divideAndRemainder(p).quotient;
     var precision = Math.max(fractionDigits || 0, 5);
@@ -55,10 +54,10 @@ Expression.getEigenvalues = function (matrix, fractionDigits, callback) {
   if (!matrix.isSquare()) {
     throw new RangeError("NonSquareMatrixException");
   }
-  // TODO: remove Polynom
+  // TODO: remove Polynomial
 
   var determinant = matrix.map(function (e, i, j) {
-    var p = i === j ? Polynom.of(e, Expression.ONE.negate()) : (e.equals(Expression.ZERO) ? Polynom.ZERO : Polynom.of(e));
+    var p = i === j ? Polynomial.of(e, Expression.ONE.negate()) : (e.equals(Expression.ZERO) ? Polynomial.ZERO : Polynomial.of(e));
     return new Expression.Polynomial(p);
   }).determinant();
   determinant = determinant.polynomial;
@@ -312,5 +311,3 @@ Expression.CholeskyDecomposition = function (matrix) {
     L: new Expression.Matrix(Matrix.padRows(L, null))
   };
 };
-
-}());

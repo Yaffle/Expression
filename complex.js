@@ -1,7 +1,4 @@
-/*global Expression*/
-
-(function (global) {
-  "use strict";
+  import Expression from './Expression.js';
 
   var Integer = Expression.Integer;
 
@@ -154,4 +151,3 @@
   };
 
   Expression.Complex = Complex;
-}());
