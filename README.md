@@ -4,6 +4,8 @@ It can parse expressions, solve and simplify systems of linear equations, find e
 
 Installation
 ============
+npm install @yaffle/expression
+or
 npm install Yaffle/Expression
 
 Usage example
@@ -11,7 +13,7 @@ Usage example
 
 example.js:
 ```javascript
-  import {ExpressionParser, Polynomial, Expression} from './index.js';
+  import {ExpressionParser, Polynomial, Expression} from './node_modules/@yaffle/expression/index.js';
 
   var p = Polynomial.toPolynomial(ExpressionParser.parse("10x^5−17x^4−505x^3+1775x^2−249x−630"), ExpressionParser.parse("x"));
   console.log(p.getroots().toString()); // -1/2,5,21/5,(-73^0.5-7)/2,(73^0.5-7)/2
@@ -42,12 +44,13 @@ to run from a webbrowser create example.js (see above), example.html and open it
 <meta charset="utf-8" />
 <script type="module" src="example.js"></script>
 ```
+See the console output.
 
 to run from the node.js create example.js (see above), then run:
 ================================================================
 ```sh
 npm install @yaffle/expression --save
-node --experimental-modules --loader ./js-loader.mjs example.js
+node --experimental-modules --loader @yaffle/expression/js-loader.mjs example.js
 ```
 
 
