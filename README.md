@@ -137,3 +137,4 @@ Similar projects
  * https://coffeequate.readthedocs.io/en/latest/usage/
  * http://algebrite.org - this page contains the list of "JavaScript Computer Algebra Systems"
  * https://github.com/sloisel/numeric
+ * https://nerdamer.com/

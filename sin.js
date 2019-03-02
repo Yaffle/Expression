@@ -377,7 +377,7 @@ var simplifyConstantValue = function (x, type) {
   }
   if (a != undefined && b != undefined) {
     b = Number.parseInt(b.toString(), 10);
-    if (b === 1 || b === 2 || b === 3 || b === 4 || b === 6 || b === 12) {
+    if (b >= 1 && b <= 180 && 180 % b === 0) {
       var d = a.multiply(Integer.fromNumber(Math.floor(180 / b)));
       return simplifyConstantValueInternal(d, type);
     }
@@ -385,14 +385,14 @@ var simplifyConstantValue = function (x, type) {
   return undefined;
 };
 
-var isArgumentValid = function (x) {
-  if (simplifyConstantValue(x, "sin") != undefined) {
+var isArgumentValid = function (x, type) {
+  if (simplifyConstantValue(x, type) != undefined) {
     return true;
   }
   if (!(Expression.isScalar(x) && x instanceof Expression.Symbol) &&
       !(x instanceof Multiplication && x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) &&
-      !(x instanceof Addition && isArgumentValid(x.a) && isArgumentValid(x.b)) &&
-      !(x instanceof Division && x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b)) && isArgumentValid(x.a.b.divide(x.b)))) {
+      !(x instanceof Addition && isArgumentValid(x.a, type) && isArgumentValid(x.b, type)) &&
+      !(x instanceof Division && x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b), type) && isArgumentValid(x.a.b.divide(x.b), type))) {
     return false;
   }
   return true;
@@ -400,7 +400,7 @@ var isArgumentValid = function (x) {
 
 Expression.prototype.sin = function () {
   var x = this;
-  if (!isArgumentValid(x)) {
+  if (!isArgumentValid(x, "sin")) {
     throw new RangeError("NotSupportedError");
   }
   if (x.isNegative()) {
@@ -420,7 +420,7 @@ Cos.prototype = Object.create(Expression.Function.prototype);
 
 Expression.prototype.cos = function () {
   var x = this;
-  if (!isArgumentValid(x)) {
+  if (!isArgumentValid(x, "cos")) {
     throw new RangeError("NotSupportedError");
   }
   if (x.isNegative()) {

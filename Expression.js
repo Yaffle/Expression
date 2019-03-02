@@ -999,7 +999,7 @@
       //! 2018-05-12
       if (!r.equals(Polynomial.ZERO)) {
         // https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Primitive_pseudo-remainder_sequence
-        // RPN("(x^8+x^6-3x^4-3x^3+8x^2+2x-5)/(3x^6+5x^4-4x^2-9x+21)")
+        // ExpressionParser.parse("(x^8+x^6-3x^4-3x^3+8x^2+2x-5)/(3x^6+5x^4-4x^2-9x+21)")
         r = r.divideAndRemainder(Polynomial.of(r.getContent()), "throw").quotient;
         //console.log(r.toString());
       }
@@ -2189,6 +2189,9 @@
     if (x instanceof Integer) {
       if (x.compareTo(Expression.ZERO) < 0) {
         if (n % 2 === 0) {
+          if (n === 2) {//TODO: ?
+            return Expression.I.multiply(this.negate()._nthRoot(n));
+          }
           throw new RangeError("NotSupportedError");
         }
       }
@@ -2783,7 +2786,7 @@
     if (withX == undefined) {
       if (e.getDenominator() instanceof Integer && !(e.getNumerator() instanceof Expression.Matrix)) {
         //TODO: tests
-        var tmp = Expression.getSingleVariablePolynomial(e.getNumerator());
+        var tmp = Expression.getMultivariatePolynomial(e.getNumerator());
         if (tmp != undefined) {
           var p = tmp.p;
           var v = tmp.v;
