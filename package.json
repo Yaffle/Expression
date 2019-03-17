@@ -17,7 +17,13 @@
     "matrix",
     "polynomial",
     "symbolic-computation",
-    "cas"
+    "cas",
+    "complex",
+    "eigenvectors",
+    "eigenvalues",
+    "equation solver",
+    "linear algebra",
+    "symbolic math"
   ],
   "license": "ISC",
   "main": "index.js",
@@ -29,5 +35,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "0.0.5"
+  "version": "0.0.6"
 }
