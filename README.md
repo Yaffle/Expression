@@ -12,6 +12,7 @@ Usage example
 =============
 
 example.js:
+{% raw %}
 ```javascript
   import {ExpressionParser, Polynomial, Expression} from './node_modules/@yaffle/expression/index.js';
 
@@ -37,6 +38,7 @@ example.js:
 
   //var y = Expression.getFormaDeJordan(...);
 ```
+{% endraw %}
 
 to run from a webbrowser create example.js (see above), example.html and open it in Firefox or Edge:
 ====================================================================================================
