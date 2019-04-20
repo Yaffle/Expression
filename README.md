@@ -137,7 +137,7 @@ Types
 
 DEMO
 ====
-[demo page](./demo.html)
+[demo page](https://yaffle.github.io/Expression/demo.html)
 
 Similar projects
 ================
