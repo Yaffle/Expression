@@ -502,6 +502,7 @@
   var parseExpression = function (input, position, context, isMatrixElement, precedence, left) {
     var ok = true;
     var firstCharacterCode = Input.getFirst(input, position);
+    var isDecimalFraction = false;
     //!
 
     while (firstCharacterCode !== Input.EOF && ok) {
@@ -556,20 +557,34 @@
             ExpressionParser.input = input;
             left = op.i(left).addPosition(operatorPosition, op.name.length, input);
           } else {
-            if (op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT && op.precedence === UNARY_PRECEDENCE_PLUS_ONE && op.name.length > 1 && (op.name === "sin" || op.name === "cos" || op.name === "sen" || op.name === "tan" || op.name === "tg") && Input.startsWith(input, position, EXPONENTIATION.name)) {
+            if (op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT && op.precedence === UNARY_PRECEDENCE_PLUS_ONE && op.name.length > 1 &&
+                (op.name === "sin" || op.name === "cos" || op.name === "sen" || op.name === "tan" || op.name === "tg") &&
+                (Input.startsWith(input, position, EXPONENTIATION.name) || (match = Input.exec(input, position, superscripts)) != null)) {
+              
               // cos^2(x)
               //!new 2017-11-04
               // parse an operator for the exponentiation
               var exponentiationPosition = position;
-              position = position + EXPONENTIATION.name.length;
-              tmp = parseExpression(input, position, context, isMatrixElement, EXPONENTIATION.precedence, undefined);
-              var middle = tmp.result;
-              position = tmp.position;
+
+              var exponentiationLength = 0;
+              var middle = null;
+              if (match != null) {
+                exponentiationLength = match.length;
+                position = position + exponentiationLength;
+                middle = Expression.Integer.fromString(normalizeSuperscripts(match));
+              } else {
+                exponentiationLength = EXPONENTIATION.name.length;
+                position = position + exponentiationLength;
+                tmp = parseExpression(input, position, context, isMatrixElement, EXPONENTIATION.precedence, undefined);
+                middle = tmp.result;
+                position = tmp.position;
+              }
+
               // parse an operator for the current operator
               tmp = parseExpression(input, position, context, isMatrixElement, op.precedence, undefined);
               right = tmp.result;
               position = tmp.position;
-              operand = EXPONENTIATION.i(op.i(right).addPosition(operatorPosition, op.name.length, input), middle).addPosition(exponentiationPosition, EXPONENTIATION.name.length, input);
+              operand = EXPONENTIATION.i(op.i(right).addPosition(operatorPosition, op.name.length, input), middle).addPosition(exponentiationPosition, exponentiationLength, input);
             } else {
               tmp = parseExpression(input, position, context, isMatrixElement, op.precedence, undefined);
               right = tmp.result;
@@ -589,7 +604,7 @@
             }
           }
         }
-      } else if (left == undefined || precedence < MULTIPLICATION.precedence) {
+      } else if (left == undefined || precedence < MULTIPLICATION.precedence || (precedence === UNARY_PRECEDENCE_PLUS_ONE && isDecimalFraction && (match = Input.exec(input, position, symbols)) != undefined)) {
         if (firstCharacterCode === "(".charCodeAt(0)) {
           position = Input.parseCharacter(input, position, "(".charCodeAt(0));
           tmp = parseExpression(input, position, context, false, 0, undefined);
@@ -611,6 +626,7 @@
         } else if ((tmp = parseDecimalFraction(input, position, context, isMatrixElement)) != undefined) {
           operand = tmp.result;
           position = tmp.position;
+          isDecimalFraction = true;
         } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
           tmp = parseLaTeXMatrix(input, position, context, Input.startsWith(input, position, "\\begin{pmatrix}") ? "{pmatrix}" : "{matrix}");
           operand = tmp.result;
@@ -647,6 +663,7 @@
       if (!ok && left != undefined && precedence <= EXPONENTIATION.precedence + (EXPONENTIATION.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
         if ((match = Input.exec(input, position, superscripts)) != undefined) {
           // implicit exponentiation
+          //TODO: check position
           left = EXPONENTIATION.i(left, Expression.Integer.fromString(normalizeSuperscripts(match))).addPosition(position, EXPONENTIATION.name.length, input);
           position = Input.trimLeft(input, position, match.length);
           ok = true;//!

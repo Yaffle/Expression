@@ -50,11 +50,16 @@
       // A^(n) = A^(n-1) * A;
       an = anm1.multiply(a);
       anm1 = an.map(function (e, i, j) {
+        if (!(anm1.e(i, j) instanceof Expression.Symbol && anm1.e(i, j).symbol.slice(0, symbolName.length) === symbolName)) {
+          return anm1.e(i, j);//?
+        }
+
         // an: {{1,0,0},{0,1,1+aa_23},{0,0,1}}
         // a_n = n + a_(n-1)
         // a_n = k * a_(n-1) + k**(n-(m+1)) * choose(n-1, m)
         // =>
-        // a_n = k**(n-(m+1)) * choose(n-1, m)
+        // a_n = k**(n-(m+1)) * choose(n, m+1)
+        // choose(n-1, m+1) + choose(n-1, m) = choose(n, m+1)
         if (!(e instanceof Integer)) {
           var m = Polynomial.toPolynomial(e.getNumerator(), n).getDegree();
           var previous = anm1.e(i, j);
@@ -63,7 +68,7 @@
           //TODO: remove `k instanceof Integer`
           if (p.getDegree() === 1 &&
               a.e(i, j).equals(Expression.ZERO) && //TODO: remove
-              k instanceof Integer &&
+              (k instanceof Integer || k instanceof Expression.Complex) &&
               e.equals(k.multiply(previous).add(k.pow(n).divide(k.pow(Integer.fromNumber(m + 1))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m))))) {
             console.log("!", e.toString());
             // a.e(i, j).add()
@@ -88,22 +93,34 @@
         if (sub instanceof Integer) {
           return a.e(i, j).add(sub.multiply(n.subtract(Expression.TWO)));
         }
+        var dpnm1pda = function (k) {
+          var previous = anm1.e(i, j);
+          return k.multiply(previous).add(k.pow(n.subtract(Expression.ONE)));
+        };
         // a_n = d**(n-1) + d * a_(n-1)
         if (e instanceof Expression.Division && e.getDenominator() instanceof Integer) {
           var d = e.getDenominator();
-          if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
+          if (e.equals(dpnm1pda(d))) {
+            return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
+          }
+          var d = e.getDenominator().negate();
+          if (e.equals(dpnm1pda(d))) {
             return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
           }
         }
         // a_n = (-1)**(n-1) - a_(n-1)
         var d = Expression.ONE.negate();
-        if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
+        if (e.equals(dpnm1pda(d))) {
           return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
         }
         
         //?
         var d = Expression.I;
-        if (e.equals(d.pow(n.subtract(Expression.ONE)).add(d.multiply(anm1.e(i, j))))) {
+        if (e.equals(dpnm1pda(d))) {
+          return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
+        }
+        var d = Expression.I.negate();
+        if (e.equals(dpnm1pda(d))) {
           return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
         }
         
@@ -257,6 +274,9 @@
         if (y instanceof Multiplication) {
           return x.pow(y.a).pow(y.b);
         }
+        if (y instanceof Addition && y.b instanceof Integer) {
+          return x.pow(y.a).multiply(x.pow(y.b));
+        }
       }
     }
 
@@ -274,6 +294,9 @@
         }
         if (y instanceof Multiplication) {
           return x.pow(y.a).pow(y.b);
+        }
+        if (y instanceof Addition && y.b instanceof Integer) {
+          return x.pow(y.a).multiply(x.pow(y.b));
         }
       }
     }
@@ -2900,7 +2923,8 @@
   };
   Expression.ExponentiationOfImaginaryUnit.prototype = Object.create(Expression.Exponentiation.prototype);
   Expression.ExponentiationOfImaginaryUnit.prototype.divideExpression = function (x) {
-    return x.multiply(this);
+    //return x.multiply(this);
+    return x.multiply(this.multiply(this).multiply(this));
   };
 
   //!  

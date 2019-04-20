@@ -132,6 +132,11 @@ Types
         real
         imaginary
 ```
+
+DEMO
+====
+[./demo.html]
+
 Similar projects
 ================
  * https://coffeequate.readthedocs.io/en/latest/usage/
