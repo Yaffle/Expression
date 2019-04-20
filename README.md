@@ -135,7 +135,7 @@ Types
 
 DEMO
 ====
-[./demo.html]
+[demo page](./demo.html)
 
 Similar projects
 ================
