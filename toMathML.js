@@ -30,17 +30,17 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
   if (coefficient.equals(Expression.ZERO)) {
     return (isLast && isFirst ? "<mn>0</mn>" : "");
   }
-  var sign1 = "+";
+  var isNegative = false;
   if (coefficient.isNegative()) {
-    sign1 = "&minus;";
+    isNegative = true;
     coefficient = coefficient.negate();//?
   }
   var coefficientString = coefficient.toMathML(options);
   var precedenceOfMultiptication = new Expression.Multiplication(Expression.ZERO, Expression.ZERO).getPrecedence();
   var areBracketsRequired = coefficient.getPrecedence() < precedenceOfMultiptication; //?
   //TODO: fix
-  return (isFirst && sign1 === "+" ? "" : "<mo>" + sign1 + "</mo>") +
-         (coefficient.equals(Expression.ONE) ? "" : (areBracketsRequired && coefficientString !== "" ? "<mfenced open=\"(\" close=\")\"><mrow>" + coefficientString + "</mrow></mfenced>" : coefficientString) + (coefficientString !== "" ? "<mo>&times;</mo>" : "")) +
+  return (isFirst && !isNegative ? '' : (isNegative ? '<mo>&minus;</mo>' : '<mo>+</mo>')) +
+         (coefficient.equals(Expression.ONE) ? "" : (areBracketsRequired && coefficientString !== "" ? "<mfenced>" + coefficientString + "</mfenced>" : coefficientString) + (coefficientString !== "" ? "<mo>&times;</mo>" : "")) +
          variable.toMathML(options);
 };
 
@@ -84,7 +84,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
 
   var useMatrixContainer = options.useMatrixContainer == undefined ? true : options.useMatrixContainer;
   //TODO: fix!
-  var braces = options.useBraces == undefined ? ["(", ")"] : options.useBraces;
+  var braces = options.useBraces == undefined ? undefined : options.useBraces;
   var columnlines = options.columnlines == undefined ? 0 : options.columnlines;
   var variableNames = options.variableNames == undefined ? undefined : options.variableNames;
 
@@ -120,12 +120,10 @@ Expression.Matrix.prototype.toMathML = function (options) {
   var containerId = options.idPrefix + "-" + Expression.id();
   if (useMatrixContainer) {
     result += "<munder>";
-    result += "<mrow>";
     result += "<menclose notation=\"none\" href=\"#\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
   }
 
-  result += "<mfenced open=\"" + braces[0] + "\" close=\"" + braces[1] + "\">";
-  result += "<mrow>";
+  result += braces == undefined ? '<mfenced>' : '<mfenced open="' + braces[0] + '" close="' + braces[1] + '">';
   var columnlinesAttribute = "";
   if (columnlines !== 0 && cols - 1 > 0) {
     var k = -1;
@@ -140,7 +138,6 @@ Expression.Matrix.prototype.toMathML = function (options) {
   result += "<mtable" + (useColumnspacing ? " rowspacing=\"0ex\"" + " columnspacing=\"0em\"" : " rowspacing=\"0ex\"") + (variableNames != undefined ? " columnalign=\"right\"" : "") + (columnlinesAttribute !== "" ? " columnlines=\"" + columnlinesAttribute + "\"" : "") + ">";
   while (++i < rows) {
     var j = -1;
-    result += "<mtr>";
     if (variableNames != undefined) {// TODO: fix?
       //TODO: use code from polynomialToExpression3 (shared)
       var row = "";
@@ -154,9 +151,12 @@ Expression.Matrix.prototype.toMathML = function (options) {
       }
       row += "<mtd><mo>=</mo></mtd><mtd>" + x.e(i, cols - 1).toMathML(options) + "</mtd>";
       if (wasNotZero || !x.e(i, cols - 1).equals(Expression.ZERO)) {
+        result += "<mtr>";
         result += row;
+        result += "</mtr>";
       }
     } else {
+      result += "<mtr>";
       while (++j < cols) {
         result += "<mtd" + (cellIdGenerator != undefined ? " id=\"" + cellIdGenerator(i, j) + "\"" : "") + ">";
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
@@ -190,22 +190,18 @@ Expression.Matrix.prototype.toMathML = function (options) {
         }
         result += "</mtd>";
       }
+      result += "</mtr>";
     }
-    result += "</mtr>";
   }
   result += "</mtable>";
-  result += "</mrow>";
   result += "</mfenced>";
 
   if (useMatrixContainer) {
     result += "</menclose>";
-    result += "</mrow>";
 
-    result += "<mrow>";
     result += "<mtext data-x=\"TODO\">";
     result += "<button type=\"button\" class=\"matrix-menu-show matrix-menu-show-new\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\">&#x2630;</button>";
     result += "</mtext>";
-    result += "</mrow>";
 
     result += "</munder>";
   }
@@ -222,34 +218,45 @@ Expression.Determinant.prototype.toMathML = function (options) {
     //TODO: fix
     return x.a.toMathML(options);
   }
-  return "<mfenced open=\"" + "|" + "\" close=\"" + "|" + "\"><mrow>" + x.a.toMathML(options) + "</mrow></mfenced>";
+  return "<mfenced open=\"" + "|" + "\" close=\"" + "|" + "\">" + x.a.toMathML(options) + "</mfenced>";
 };
 Expression.Transpose.prototype.toMathML = function (options) {
   var x = this;
   //TODO: ^T ?
   // https://www.w3.org/TR/MathML3/chapter4.html#contm.transpose
-  return "<msup><mrow>" + x.a.toMathML(options) + "</mrow><mrow><mi>T</mi></mrow></msup>";
+  return "<msup>" +
+         x.a.toMathML(options) +
+         "<mi>T</mi>" +
+         "</msup>";
 };
 Expression.SquareRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
   }
-  return "<msqrt><mrow>" + this.a.toMathML(Expression.setTopLevel(true, options)) + "</mrow></msqrt>";
+  return "<msqrt>" +
+         this.a.toMathML(Expression.setTopLevel(true, options)) +
+         "</msqrt>";
 };
 Expression.CubeRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
   }
-  return "<mroot><mrow>" + this.a.toMathML(Expression.setTopLevel(true, options)) + "</mrow><mrow><mi>" + 3 + "</mi></mrow></mroot>";
+  return "<mroot>" +
+         this.a.toMathML(Expression.setTopLevel(true, options)) +
+         "<mi>" + 3 + "</mi>" +
+         "</mroot>";
 };
 Expression.NthRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
   }
-  return "<mroot><mrow>" + this.a.toMathML(Expression.setTopLevel(true, options)) + "</mrow><mrow><mi>" + this.n + "</mi></mrow></mroot>";
+  return "<mroot>" +
+         this.a.toMathML(Expression.setTopLevel(true, options)) +
+         "<mi>" + this.n + "</mi>" +
+         "</mroot>";
 };
 Expression.Function.prototype.toMathML = function (options) {
   var x = this;
@@ -258,9 +265,9 @@ Expression.Function.prototype.toMathML = function (options) {
   return "<mrow>" +
          (typeof i18n !== "undefined" ? "<mi>" + (x.name === "rank" ? i18n.rankDenotation : (x.name === "sin" ? i18n.sinDenotation : (x.name === "tan" ? i18n.tanDenotation : x.name))) + "</mi>" : "<mi>" + x.name + "</mi>") +
          "<mo>&#x2061;</mo>" +
-         (fa ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") +
+         (fa ? "<mfenced>" : "") +
          x.a.toMathML(Expression.setTopLevel(true, options)) +
-         (fa ? "</mrow></mfenced>" : "") +
+         (fa ? "</mfenced>" : "") +
          "</mrow>";
 };
 Expression.Division.prototype.toMathML = function (options) {
@@ -275,8 +282,9 @@ Expression.Division.prototype.toMathML = function (options) {
   //if (numerator.isNegative()) {
   //  return "<mrow><mo>&minus;</mo>" + x.negate().toMathML(options) + "</mrow>";
   //}
-  return "<mfrac><mrow>" + numerator.toMathML(Expression.setTopLevel(true, options)) + "</mrow><mrow>" + denominator.toMathML(Expression.setTopLevel(true, options)) + "</mrow></mfrac>";
+  return "<mfrac>" + numerator.toMathML(Expression.setTopLevel(false, options)) + "" + denominator.toMathML(Expression.setTopLevel(false, options)) + "</mfrac>";
 };
+
 Expression.Integer.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
@@ -284,9 +292,15 @@ Expression.Integer.prototype.toMathML = function (options) {
   }
   var x = this;
   var tmp = x.toString();
-  return (tmp.slice(0, 1) === "-" ? "<mo>&minus;</mo><mn>" + tmp.slice(1) + "</mn>" : "<mn>" + tmp + "</mn>");
+  return tmp.slice(0, 1) === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp.slice(1) + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
 };
 Expression.BinaryOperation.prototype.toMathML = function (options) {
+  if (options.fractionDigits >= 0 &&
+      this.unwrap() instanceof Expression.Exponentiation &&
+      this.unwrap().a.unwrap() instanceof Expression.Symbol &&
+      (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
+    options = Object.assign({}, options, {fractionDigits: -1});
+  }
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
@@ -312,23 +326,19 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
 
   if (this instanceof Expression.Exponentiation) {
       return "<msup>" + 
-             "<mrow>" +
-             (fa ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mrow></mfenced>" : "") +
-             "</mrow>" +
-             "<mrow>" +
-             (fb ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mrow></mfenced>" : "") + 
-             "</mrow>" +
+             (fa ? "<mfenced>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mfenced>" : "") +
+             (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + 
              "</msup>";
   }
   if (this.isNegation()) {
     // assert(fa === false);
-      return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mrow></mfenced>" : "") + "</mrow>";
+      return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + "</mrow>";
   }
   //TODO: fix spaces (matrix parsing)
   return "<mrow>" + 
-         (fa ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mrow></mfenced>" : "") +
-         "<mo>" + (s === "*" ? "&times;" : (s === "-" ? "&minus;" : s)) + "</mo>" + 
-         (fb ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mrow></mfenced>" : "") + 
+         (fa ? "<mfenced>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mfenced>" : "") +
+         (s === '*' ? '<mo>&times;</mo>' : (s === '-' ? '<mo>&minus;</mo>' : '<mo>' + s + '</mo>')) +
+         (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + 
          "</mrow>";
 };
 Expression.Symbol.prototype.toMathML = function (options) {
@@ -344,9 +354,12 @@ Expression.Symbol.prototype.toMathML = function (options) {
                        indexes[j] +
                        (/^\d+$/.exec(indexes[j]) != undefined ? "</mn>" : "</mi>");
     }
+    if (indexes.length > 1) {
+      indexesMathML = "<mrow>" + indexesMathML + "</mrow>";
+    }
     return "<msub>" + 
-           "<mrow>" + "<mi>" + s.slice(0, i) + "</mi>" + "</mrow>" +
-           "<mrow>" + indexesMathML + "</mrow>" + 
+           "<mi>" + s.slice(0, i) + "</mi>" +
+           indexesMathML +
            "</msub>";
   }
   return "<mi>" + s + "</mi>";
@@ -356,17 +369,18 @@ Expression.Negation.prototype.toMathML = function (options) {
   var fb = this.getPrecedence() + (this.isRightToLeftAssociative() ? -1 : 0) >= b.getPrecedence();
   fb = fb || b.isUnaryPlusMinus();
   // assert(fa === false);
-  return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced open=\"(\" close=\")\"><mrow>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mrow></mfenced>" : "") + "</mrow>";
+  return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + "</mrow>";
 };
 
-Condition.prototype.toMathML = function (printOptions) {
-  return this._toStringInternal(function (e) {
-    return e.toMathML(printOptions);
+Condition.prototype.toMathML = function (options) {
+  var s = this._toStringInternal(function (e) {
+    return e.toMathML(options);
   }, "<mo>,</mo>", "<mo>&ne;</mo><mn>0</mn>", "<mo>=</mo><mn>0</mn>");
+  return '<mrow>' + s + '</mrow>';
 };
 
 Expression.Complex.prototype.toMathML = function (options) {
-  return "<mrow>" + this.toStringInternal(options, "<mo>&#x2062;</mo>", "<mi>i</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
+  return "<mrow>" + this.toStringInternal(options, "<mo>&#x2062;</mo>", "<mi>&#x2148;</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
 };
 
 Expression.GF2.prototype.toMathML = function (options) {

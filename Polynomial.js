@@ -541,7 +541,7 @@
         if (n === 2) {
           var m = x.real.multiply(x.real).add(x.imaginary.multiply(x.imaginary)).squareRoot();
           var g = nthRootInternal(2, x.real.add(m).divide(Expression.TWO));
-          var d = nthRootInternal(2, x.real.negate(m).add(m).divide(Expression.TWO));
+          var d = nthRootInternal(2, x.real.negate().add(m).divide(Expression.TWO));
           if (g != undefined && d != undefined) {
             var result = g.add((x.imaginary.compareTo(Expression.ZERO) < 0 ? d.negate() : d).multiply(Expression.I));
             return result;

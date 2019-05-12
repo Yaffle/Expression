@@ -299,15 +299,15 @@ Condition.prototype._toStringInternal = function (toString, comma, neq, eqz) {
     //throw new RangeError();
     return "";
   }
-  var s = "";
+  var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
-    s += comma + toString(this.array[i].expression) + (this.array[i].operator === Condition.NEZ ? neq : "") + (this.array[i].operator === Condition.EQZ ? eqz : "");
+    s += (i !== 0 ? comma : '') + toString(this.array[i].expression) + (this.array[i].operator === Condition.NEZ ? neq : '') + (this.array[i].operator === Condition.EQZ ? eqz : '');
   }
-  return s.slice(comma.length);
+  return s;
 };
-Condition.prototype.toString = function (printOptions) {
+Condition.prototype.toString = function (options) {
   return this._toStringInternal(function (e) {
-    return e.toString(printOptions);
+    return e.toString(options);
   }, ", ", " != 0", " == 0");
 };
 

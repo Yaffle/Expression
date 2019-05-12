@@ -8,8 +8,7 @@ import Matrix from './Matrix.js';
 Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hack) {
   function getSolutionSet(matrix) {
     var fullMatrix = matrix.augment(Matrix.Zero(matrix.cols(), 1));
-    //TODO: Matrix.GaussMontante
-    var result = fullMatrix.toRowEchelon(Matrix.GaussJordan, "solving", undefined);
+    var result = fullMatrix.toRowEchelon(Matrix.GaussMontante, "solving", undefined);
     var tmp = Matrix.solveByGaussNext(result.matrix);
     var currentEigenvectors = Matrix.getSolutionSet(tmp).basisVectors;
     return currentEigenvectors;//?
@@ -33,7 +32,7 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
     if (basis.length === 0) {
       throw new Error();
     }
-    return Matrix.Zero(basis[0].rows(), basis[0].rows()).map(function (e, i, j) {
+    return Matrix.Zero(basis.length, basis[0].rows()).map(function (e, i, j) {
       return basis[i].e(j, 0);
     });
   }
@@ -48,6 +47,10 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
       }
     }
     return true;
+  }
+  function isLinearlyIndependentSet(basis, vectors) {
+    // https://math.stackexchange.com/questions/412563/determine-if-vectors-are-linearly-independent
+    return matrixFromBasis(basis.concat(vectors)).rank() === basis.length + vectors.length;
   }
 
   //!TODO: remove
@@ -71,9 +74,9 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
 
   var basis = [];
   var blocks = [];
-  //var bs = null;
   for (var i = 0; i < eigenvalues.length; i += 1) {
     // https://en.wikipedia.org/wiki/Generalized_eigenvector#Computation_of_generalized_eigenvectors
+    var basisCorrespondingToTheEigenvalue = []; // TODO: optimize (n**3 -> n**2)
     var eigenvalue = eigenvalues[i];
     var algebraicMultiplicity = multiplicities[i];
     var B = A.subtract(Matrix.I(n).scale(eigenvalue));
@@ -83,29 +86,32 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
     }
     m += 1;
     while (--m >= 1) {
-      var z = 0;
-      var pm = B.pow(m - 1).rank() - 2 * B.pow(m).rank() + B.pow(m + 1).rank();
+      //var z = 0;
+      //var pm = B.pow(m - 1).rank() - 2 * B.pow(m).rank() + B.pow(m + 1).rank();
       var solutionSet = getSolutionSet(B.pow(m));  // "kernel of A"
-      for (var j = 0; j < solutionSet.length && z < pm; j += 1) {
+      for (var j = 0; j < solutionSet.length; j += 1) {
         var solution = solutionSet[j];
+        //if (z < pm) {
         //console.log(B.pow(m).augment(solution).rank(), m, n);
-        // (bs == null || bs.augment(solution).rank() > bs.rank())
         if (!isSolution(B.pow(m - 1), solution)) {
-          var tmp = [];
+          var chain = [];
           var s = solution;
           for (var k = 0; k < m; k += 1) {
-            tmp.push(s);
-            //bs = bs == null ? s : bs.augment(s);
+            chain.push(s);
             s = B.multiply(s);
           }
-          z += 1;
-          tmp.reverse();
-          basis = basis.concat(tmp);
-          blocks.push({
-            size: m,
-            eigenvalue: eigenvalue
-          });
+          chain.reverse();
+          if (isLinearlyIndependentSet(basisCorrespondingToTheEigenvalue, chain)) {
+            //z += 1;
+            basis = basis.concat(chain);
+            basisCorrespondingToTheEigenvalue = basisCorrespondingToTheEigenvalue.concat(chain);
+            blocks.push({
+              size: m,
+              eigenvalue: eigenvalue
+            });
+          }
         }
+        //}
       }
     }
   }
@@ -171,4 +177,4 @@ var getInverse = function (A, eigenvalues, multiplicities, P) {
   var P_INVESRED = X.multiply(B).transpose();
   return Expression._unscaleInverseMatrix(P_INVESRED, P);
 };
-
+Expression._getInverse = getInverse;

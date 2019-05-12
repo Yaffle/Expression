@@ -176,7 +176,7 @@
     }),
 
     new Operator("exp", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return Expression.E.pow(a);
+      return a.exp();
     }),
     new Operator("log", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       throw new RangeError("NotSupportedError");
@@ -303,7 +303,7 @@
       rows.push(row);
     }
     //position = Input.parseCharacter(input, position, closingBracket);
-    return new ParseResult(context.wrap(new Expression.Matrix(Matrix.padRows(rows, null))), position);
+    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), position);
   };
 
   var parseLaTeXMatrix = function (input, position, context, kind) {
@@ -333,7 +333,7 @@
     if (Input.startsWith(input, position, "\\end" + kind)) {
       position = Input.trimLeft(input, position, ("\\end" + kind).length);
     }
-    return new ParseResult(context.wrap(new Expression.Matrix(Matrix.padRows(rows, null))), position);
+    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), position);
   };
 
   var parseLaTeXArgument = function (input, position, context) {
@@ -438,7 +438,7 @@
   var whiteSpaces = /^\s+/;
   var digits = /^\d+/;
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
-  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9](?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?)/;
+  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
   var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]+/;
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
 
@@ -834,6 +834,12 @@
         hit({digit: y.name});
       }
       return String.fromCharCode(y.code);
+    }
+    if (charCode === 0x2147) {
+      return "e";
+    }
+    if (charCode === 0x2148) {
+      return "i";
     }
     return undefined;
   };

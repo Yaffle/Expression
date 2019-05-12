@@ -35,7 +35,12 @@
   NonSimplifiedExpression.prototype.pow = function (y) {
     return new NonSimplifiedExpression(new Expression.Exponentiation(this, y));
   };
+  
+  NonSimplifiedExpression.prototype.exp = function () {
+    return new NonSimplifiedExpression(Expression.E).pow(this);
+  };
 
+/*
   NonSimplifiedExpression.prototype.powExpression = function (x) {
     return new NonSimplifiedExpression(new Expression.Exponentiation(x, this));
   };
@@ -66,6 +71,7 @@
   NonSimplifiedExpression.prototype.divideExpression = function (x) {
     return new NonSimplifiedExpression(new Expression.Division(x, this));
   };
+*/
 
   NonSimplifiedExpression.prototype.squareRoot = function () {
     return new NonSimplifiedExpression(new Expression.SquareRoot(this));
