@@ -40,7 +40,20 @@ Expression.Division.prototype.toLaTeX = function (options) {
   return "\\frac{" + this.a.toLaTeX(options) + "}{" + this.b.toLaTeX(options) + "}";
 };
 Expression.Symbol.prototype.toLaTeX = function (options) {
-  return this.symbol;
+  var i = this.symbol.indexOf('_');
+  var symbol = i === -1 ? this.symbol : this.symbol.slice(0, i);
+  var index = i === -1 ? '' : this.symbol.slice(i + 1);
+  if (symbol === '\u2147') {
+    symbol = 'e';
+  } else if (symbol === '\u2148') {
+    symbol = 'i';
+  }
+  if (symbol.length === 1 && symbol.charCodeAt(0) >= 0x03B1 && symbol.charCodeAt(0) <= 0x03B1 + 24) {
+    var greek = " alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho varsigma sigma tau upsilon phi chi psi omega ";
+    symbol = greek.split(' ')[symbol.charCodeAt(0) - 0x03B1 + 1];
+    symbol = '\\' + symbol;
+  }
+  return symbol + (index !== '' ? '_' : '') + (index.length > 1 ? '{' + index.replace(/\(|\)/g, '') + '}' : index);
 };
 Expression.Matrix.prototype.toLaTeX = function (options) {
   var x = this.matrix;

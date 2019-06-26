@@ -55,6 +55,7 @@ FixedPointContext.prototype.max = function (x, y) {
   return this.compareTo(x, y) < 0 ? y : x;
 };
 
+
 // https://en.wikipedia.org/wiki/Interval_arithmetic
 function Interval(a, b) {
   this.a = a;
@@ -127,6 +128,41 @@ Interval.Context.prototype.nthRoot = function (A, n) {
   var b = this.c.divide(this.c.fromInteger(x1).b, t.a).b;
   return new Interval(a, b);
 };
+Interval.Context.prototype.exp = function (x) {
+
+  function expp(a, b, scaling) {
+    // a > 0, b > 0, scaling > 0
+    var y = BigInteger.BigInt(1);
+    var t = BigInteger.BigInt(1);
+    var u = BigInteger.BigInt(1);
+    var k = BigInteger.BigInt(0);
+    var denominator = BigInteger.BigInt(1);
+    while (BigInteger.greaterThan(BigInteger.multiply(BigInteger.multiply(t, scaling), BigInteger.BigInt(2)), denominator) ||
+           BigInteger.greaterThan(BigInteger.multiply(a, BigInteger.BigInt(2)), BigInteger.multiply(b, k))) {
+      t = BigInteger.multiply(t, a);
+      k = BigInteger.add(k, BigInteger.BigInt(1));
+      y = BigInteger.add(BigInteger.multiply(y, BigInteger.multiply(k, b)), t);
+      denominator = BigInteger.multiply(denominator, BigInteger.multiply(k, b));
+    }
+    return {
+      numerator: BigInteger.multiply(y, scaling),
+      denominator: denominator
+    };
+  }
+  function exp(a, b, scaling) {
+    if (BigInteger.lessThan(a, BigInteger.BigInt(0))) {
+      var tmp = expp(BigInteger.unaryMinus(a), b, scaling);
+      return BigInteger.divide(BigInteger.multiply(BigInteger.multiply(scaling, scaling), tmp.denominator), tmp.numerator);
+    }
+    var tmp = expp(a, b, scaling);
+    return BigInteger.divide(tmp.numerator, tmp.denominator);
+  }
+
+  var a = exp(x.a, this.scalingCoefficient, this.scalingCoefficient);
+  var b = exp(x.b, this.scalingCoefficient, this.scalingCoefficient);
+  b = BigInteger.add(b, BigInteger.BigInt(1));
+  return new Interval(a, b);
+};
 Interval.Context.prototype.fromInteger = function (a) {
   return this.c.fromInteger(a);
 };
@@ -163,7 +199,24 @@ var evaluateExpression = function (e, context) {
     if (a instanceof Expression.Integer) {
       return context.nthRoot(a.value, n);
     }
+    var y = evaluateExpression(e.a, context);
+    if (y === "CANNOT_DIVIDE" || y == null) {
+      return y;
+    }
+    //TODO: debug
+    var yy = new Interval(context.nthRoot(y.a, n).a, context.nthRoot(y.b, n).b);
+    var s = context.nthRoot(context.scalingCoefficient, n);
+    yy = context.divide(yy, context.multiply(Interval.degenerate(context.scalingCoefficient), s));
+    return yy;
   } else if (e instanceof Expression.BinaryOperation) {
+    if (e.a === Expression.E && e.getS() === "^") {
+      var b = evaluateExpression(e.b, context);
+      if (b === "CANNOT_DIVIDE") {
+        return b;
+      }
+      return context.exp(b);
+    }
+    
     var a = evaluateExpression(e.a, context);
     var b = evaluateExpression(e.b, context);
     if (a === "CANNOT_DIVIDE") {
@@ -184,7 +237,7 @@ var evaluateExpression = function (e, context) {
         return context.divide(a, b);
       } else if (operator === "^") { // Expression.PolynomialRoot^3
         var result = a;
-        var n = Number.parseInt(e.b.value.toString(), 10);//TODO: FIX!
+        var n = e.b.toNumber();//TODO: FIX!
         for (var i = 1; i < n; i += 1) {
           result = context.multiply(result, a);
         }
@@ -259,7 +312,8 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
     }
   }
   //---
-  if (!Expression.has(expression, Expression.NthRoot) &&
+  if (!Expression.has(expression, Expression.Symbol) &&
+      !Expression.has(expression, Expression.NthRoot) &&
       !Expression.has(expression, Expression.PolynomialRoot) &&
       !(expression instanceof Expression.Integer) &&
       !(expression instanceof Expression.Division)) {

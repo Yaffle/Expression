@@ -70,6 +70,19 @@ Condition.prototype._and = function (operator, e) {
     return this._and(operator, e.a);
   }
 
+  //!new
+  if (e.isNegative()) {
+    e = e.negate();
+  }
+  if (e instanceof Expression.Addition && e.a instanceof Expression.Exponentiation && e.a.b.inverse().equals(Expression.TWO) && e.b instanceof Expression.Integer) {
+    if (e.b.compareTo(Expression.ZERO) > 0) {
+      return this._and(operator, Expression.ONE);
+    }
+    //?
+    //TODO: fix
+    return this._and(operator, e.a.a.subtract(e.b.pow(Expression.TWO)));
+  }
+
   var add = function (oldArray, y) {
     if (y.expression instanceof Expression.Multiplication && y.expression.b instanceof Expression.IdentityMatrix) {
       return add(oldArray, {expression: y.expression.a, operator: y.operator});
@@ -96,6 +109,15 @@ Condition.prototype._and = function (operator, e) {
       }
       return oldArray;
     }
+    //TODO: check code coverage, remove extra branches
+    if (Expression.isConstant(y.expression) && !y.expression.equals(Expression.ZERO)) {
+      if (y.operator === Condition.NEZ) {
+        return oldArray;
+      }
+      if (y.operator === Condition.EQZ) {
+        return null;
+      }
+    }
     if (y.expression instanceof Expression.NthRoot) {
       return add(oldArray, {expression: y.expression.a, operator: y.operator});
     }
@@ -121,13 +143,14 @@ Condition.prototype._and = function (operator, e) {
     }
 
     var p = Expression.getMultivariatePolynomial(y.expression);
-    
-    var content = p.p.getContent();
-    if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
-      y = {
-        expression: y.expression.divide(content),
-        operator: y.operator
-      };
+    if (p != null) {
+      var content = p.p.getContent();
+      if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
+        y = {
+          expression: y.expression.divide(content),
+          operator: y.operator
+        };
+      }
     }
 
     var newArray = [];
@@ -162,7 +185,9 @@ Condition.prototype._and = function (operator, e) {
         //  newArray.push(x);
         //}
       }
-      if (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression)) && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
+      if (x.operator === Condition.NEZ && y.operator === Condition.EQZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+        y = y;
+      } else if (x.operator === Condition.EQZ && y.operator === Condition.EQZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
         var g = x.expression.gcd(y.expression);
         if (g instanceof Expression.Integer) {
           return null;
@@ -195,7 +220,7 @@ Condition.prototype._and = function (operator, e) {
         if (//xy != null &&
             //x.operator === Condition.EQZ &&
             //y.operator === Condition.EQZ &&
-            true) {
+            px != null && py != null) {
 
           //if (px != null && px.p.getDegree() !== 1 && py == null) {
             //py = {p: Polynomial.toPolynomial(y.expression, px.v), v: px.v};
@@ -294,21 +319,16 @@ Condition.prototype.isFalse = function () {
 Condition.prototype.isTrue = function () {
   return this === Condition.TRUE;
 };
-Condition.prototype._toStringInternal = function (toString, comma, neq, eqz) {
+Condition.prototype.toString = function (options) {
   if (this === Condition.FALSE || this === Condition.TRUE || this.array.length === 0) {
     //throw new RangeError();
     return "";
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
-    s += (i !== 0 ? comma : '') + toString(this.array[i].expression) + (this.array[i].operator === Condition.NEZ ? neq : '') + (this.array[i].operator === Condition.EQZ ? eqz : '');
+    s += (i !== 0 ? ', ' : '') + this.array[i].expression.toString(options) + (this.array[i].operator === Condition.NEZ ? ' != 0' : '') + (this.array[i].operator === Condition.EQZ ? ' == 0' : '');
   }
   return s;
-};
-Condition.prototype.toString = function (options) {
-  return this._toStringInternal(function (e) {
-    return e.toString(options);
-  }, ", ", " != 0", " == 0");
 };
 
 Condition.TRUE = new Condition(new Array(0));

@@ -222,6 +222,49 @@
     return {quotient: quotient, remainder: remainder};
   };
 
+  Polynomial.pseudoRemainder = function (x, y) {
+    var lcg = y.getLeadingCoefficient();
+    var n = x.getDegree() - y.getDegree();
+    // assertion
+    if (n < 0) {
+      throw new RangeError();
+    }
+    var sx = x.multiply(Polynomial.of(Expression.pow(lcg, n).multiply(lcg)));
+    return sx.divideAndRemainder(y, "throw").remainder;
+  };
+
+  Polynomial.polynomialGCD = function (a, b) {
+    //TODO: fix (place condition for degrees earlier - ?)
+    if (a.getDegree() < b.getDegree()) {
+      //!!!
+      var tmp = a;
+      a = b;
+      b = tmp;
+    }
+
+    var contentA = a.getContent();
+    var contentB = b.getContent();
+    var ppA = a.divideAndRemainder(Polynomial.of(contentA), "throw").quotient;
+    var ppB = b.divideAndRemainder(Polynomial.of(contentB), "throw").quotient;
+    var A = ppA;
+    var B = ppB;
+    while (!B.equals(Polynomial.ZERO)) {
+      var r = Polynomial.pseudoRemainder(A, B);
+      //! 2018-05-12
+      if (!r.equals(Polynomial.ZERO)) {
+        // https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Primitive_pseudo-remainder_sequence
+        // ExpressionParser.parse("(x^8+x^6-3x^4-3x^3+8x^2+2x-5)/(3x^6+5x^4-4x^2-9x+21)")
+        r = r.divideAndRemainder(Polynomial.of(r.getContent()), "throw").quotient;
+        //console.log(r.toString());
+      }
+      //!
+      A = B;
+      B = r;
+    }
+    var c = contentA.gcd(contentB);
+    return Polynomial.of(c).multiply(A.divideAndRemainder(Polynomial.of(A.getContent()), "throw").quotient);
+  };
+
   Polynomial.prototype.calcAt = function (point) {//!!!
     var n = Expression.ZERO;
     var lastDegree = -1;
@@ -284,7 +327,7 @@
     var newData = new PolynomialData(coefficients.length);
     for (var i = 0; i < coefficients.length; i += 1) {
       var x = coefficients[i];
-      var d = Number.parseInt(x.degree.toString(), 10);
+      var d = x.degree.toNumber();
       var c = x.coefficient;
       newData.add(d, c);
     }
@@ -529,7 +572,18 @@
       }
       if (x instanceof Expression.Exponentiation) {
         var N = Expression.Integer.fromNumber(n);
-        return x.b.remainder(N).equals(Expression.ZERO) ? x.a.pow(x.b.divide(N)) : undefined;
+        if (x.b instanceof Expression.Integer) {
+          if (x.b.remainder(N).equals(Expression.ZERO)) {
+            return x.a.pow(x.b.divide(N));
+          }
+          //return undefined;
+        }
+        if (x.a instanceof Expression.Integer || x.a === Expression.E) {//?
+          return x.a.pow(x.b.divide(N));
+        }
+        if (x.b instanceof Expression.Division && x.b.a instanceof Expression.Integer && x.b.a.remainder(N).equals(Expression.ZERO)) {//TODO: 
+          return x.a.pow(x.b.divide(N));
+        }
       }
       if (x instanceof Expression.Multiplication) {
         var sa = nthRootInternal(n, x.a);
@@ -566,7 +620,9 @@
         var e = 0;
         var result = Expression.ONE;
         var rest = Expression.ONE;
-        Expression.everySimpleDivisor(x, function (f) {
+        var t = x;
+        while (!t.equals(Expression.ONE) && !t.equals(Expression.ONE.negate())) {
+          var f = Expression.simpleDivisor(t);
           if (e === 0) {
             lastFactor = f;
             e += 1;
@@ -581,8 +637,8 @@
             lastFactor = f;
             e = 1;
           }
-          return result != undefined;
-        });
+          t = t.divide(f);
+        }
         if (result !== Expression.ONE) {
           if (e !== 0) {
             rest = rest.multiply(Expression.pow(lastFactor, e));
@@ -592,6 +648,10 @@
             return result.multiply(rn);
           }
         }
+      }
+      if (x instanceof Expression.Exponentiation && x.a instanceof Expression.Symbol) {
+        var b = x.b.divide(Expression.Integer.fromNumber(n));
+        return b.equals(Expression.ONE) ? x.a : new Expression.Exponentiation(x.a, b);
       }
       var y = undefined;
       try {
@@ -603,6 +663,9 @@
     };
 
     var nthRoot = function (n, x, np) {
+      if (n === 1) {
+        return x;
+      }
       var y = nthRootInternal(n, x);
       if (y == undefined) {
         if (!(x instanceof Expression.Integer)) {
@@ -655,23 +718,25 @@
         var q = Polynomial.from(newData);
         var qRoots = q.getroots();
         var n = np.getDegree();//TODO: 2018-02-04
-        var ok = false;//?
+        //var ok = false;//?
         for (var k = 0; k < qRoots.length; k += 1) {
           var qRoot = qRoots[k];
           var s = nthRoot(g, qRoot, np);
           if (s != undefined) {
             roots.push(s);
-            np = np.divideAndRemainder(Polynomial.of(s.negate(), Expression.ONE)).quotient;
+            var d = Polynomial.of(s.negate(), Expression.ONE);
             if (g % 2 === 0) {
               roots.push(s.negate());
-              np = np.divideAndRemainder(Polynomial.of(s, Expression.ONE)).quotient;
+              d = Polynomial.of(nthRoot(g / 2, qRoot, np).negate(), Expression.ZERO, Expression.ONE);
             }
+            np = np.divideAndRemainder(d).quotient;
           }
-          ok = ok || Expression.has(qRoot, Expression.Complex);//?
+          //ok = ok || Expression.has(qRoot, Expression.Complex);//?
         }
         if (callback != undefined) {
           callback({content: content, roots: roots, newPolynomial: np, type: "t = x^g", g: g, allZeros: allZeros});//TODO: ?
         }
+        var ok = true;
         if (n !== np.getDegree() && ok) {
           np = continueWithNewPolynomial(roots, np);
         }
@@ -686,6 +751,7 @@
       var c = np.getCoefficient(0);
 
       var D = b.multiply(b).subtract(Expression.TWO.multiply(Expression.TWO).multiply(a).multiply(c));
+      D = D.simplifyExpression();
       var sD = nthRoot(2, D, np);
       if (typeof hit === "function") {
         hit({getroots: {quadratic: (sD == undefined ? (D instanceof Expression.Integer ? D.compareTo(Expression.ZERO) : "?" + D.toString()) : "OK")}});
@@ -761,7 +827,7 @@
       }
     }
 
-    if (np.getDegree() > 2) {
+    if (np.getDegree() >= 2) {
       var n = roots.length;
       np = np.doRationalRootTest(function (sp, q) {
         roots.push(sp.divide(q));
@@ -839,9 +905,9 @@
       if (typeof hit === "function") {
         hit({getroots: {cubic: (delta instanceof Expression.Integer ? delta.compareTo(Expression.ZERO) : "?") + "-" + (delta0 instanceof Expression.Integer ? delta0.compareTo(Expression.ZERO) : "?")}});
       }
-      if (delta0.equals(Expression.ZERO)) {
-        //TODO: link to a^3+3a^2b+3ab^2+b^3=0 - ?
-        if (delta.equals(Expression.ZERO)) {
+      if (delta.equals(Expression.ZERO)) {
+        if (delta0.equals(Expression.ZERO)) {
+          //TODO: link to a^3+3a^2b+3ab^2+b^3=0 - ?
           // -b/(3*a)
           var root = b.negate().divide(THREE.multiply(a));
           roots.push(root);
@@ -854,24 +920,8 @@
           }
           return roots;
         } else {
-          // 2*b^3-9*a*b*c+27*a^2*d
-          var delta1 = TWO.multiply(b.pow(THREE)).subtract(NINE.multiply(a).multiply(b).multiply(c)).add(TWENTY_SEVEN.multiply(a.pow(TWO)).multiply(d));
-          var C = nthRoot(3, delta1, np);
-          if (C != undefined) {
-            var root = np.getCoefficient(2).add(C).add(delta0.divide(C)).negate().divide(THREE.multiply(np.getCoefficient(3)));
-            roots.push(root);
-            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
-            if (callback != undefined) {
-              callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
-            }
-            np = continueWithNewPolynomial(roots, np);
-            return roots;
-          }
-        }
-      } else {
-        // https://github.com/nicolewhite/algebra.js/blob/master/src/equations.js
-        // https://en.wikipedia.org/wiki/Cubic_function#Multiple_roots.2C_.CE.94_.3D_0
-        if (delta.equals(Expression.ZERO)) {
+          // https://github.com/nicolewhite/algebra.js/blob/master/src/equations.js
+          // https://en.wikipedia.org/wiki/Cubic_function#Multiple_roots.2C_.CE.94_.3D_0
           // a double root
           // 9*a*d-b*c
           var root = NINE.multiply(a).multiply(d).subtract(b.multiply(c)).divide(TWO.multiply(delta0));
@@ -885,8 +935,28 @@
             callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
           }
           return roots;
+        }
+      } else {
+        // 2*b^3-9*a*b*c+27*a^2*d
+        var delta1 = TWO.multiply(b.pow(THREE)).subtract(NINE.multiply(a).multiply(b).multiply(c)).add(TWENTY_SEVEN.multiply(a.pow(TWO)).multiply(d));
+        var C = undefined;
+        if (delta0.equals(Expression.ZERO)) {
+          C = nthRoot(3, delta1, np);
         } else {
-          //?
+          var tmp = nthRoot(2, delta1.pow(TWO).subtract(FOUR.multiply(delta0.pow(THREE))), np);
+          if (tmp != undefined) {
+            C = nthRoot(3, delta1.add(tmp).divide(TWO), np);
+          }
+        }
+        if (C != undefined) {
+          var root = b.add(C).add(delta0.divide(C)).negate().divide(THREE.multiply(a));
+          roots.push(root);
+          np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
+          if (callback != undefined) {
+            callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
+          }
+          np = continueWithNewPolynomial(roots, np);
+          return roots;
         }
       }
     }
@@ -900,7 +970,7 @@
             var k = np.getCoefficient(i);
             //TODO: ilog2(k)
             if (!k.equals(Expression.ZERO)) {
-              c *= k instanceof Expression.Integer ? Math.floor(Math.log(Math.abs(Number.parseInt(k.toString(), 10)) + 0.5) / Math.log(2)) + 1 : 1;
+              c *= k instanceof Expression.Integer ? Math.floor(Math.log(Math.abs(k.toNumber()) + 0.5) / Math.log(2)) + 1 : 1;
             }
           }
           return c <= 4 * 1024;
@@ -936,12 +1006,12 @@
     //!2018-12-23
     if (np.getDegree() > 2) {
       // https://en.wikipedia.org/wiki/Square-free_polynomial
-      var gcd = function (a, b) {
-        return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
-      };
+      //var gcd = function (a, b) {
+      //  return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
+      //};
       var f = np;
       var d = f.derive();
-      var a0 = gcd(f, d);
+      var a0 = Polynomial.polynomialGCD(f, d);
       if (a0.getDegree() > 0) {
         //TODO: merge with a code for Kronecker's method
         a0 = a0.scale(a0.getContent().inverse());//!?

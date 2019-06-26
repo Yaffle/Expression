@@ -468,6 +468,16 @@
     if (!this.isSquare()) {
       throw new RangeError("NonSquareMatrixException");
     }
+    if (this.rows() === 2) {
+      var a = this.e(0, 0);
+      var b = this.e(0, 1);
+      var c = this.e(1, 0);
+      var d = this.e(1, 1);
+      var det = a.multiply(d).subtract(b.multiply(c));
+      return Matrix.Zero(this.rows(), this.rows()).map(function (e, i, j) {
+        return (i === 0 ? (j === 0 ? d : b.negate()) : (j === 0 ? c.negate() : a)).divide(det);
+      });
+    }
     var m = this.augment(Matrix.I(this.rows()));
     //m = m.toRowEchelon(Matrix.GaussJordan, "inverse", undefined).matrix;
     m = m.toRowEchelon(Matrix.GaussMontante, "inverse", undefined).matrix;

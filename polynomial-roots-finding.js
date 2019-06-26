@@ -101,7 +101,7 @@ ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
     return Expression.ZERO.toMathML(options);
   }
   //return this.e.toMathML(options);
-  var tmp = toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
+  var tmp = toDecimalStringInternal(this.e, options != null && options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
   return tmp;
 };
 
@@ -336,8 +336,12 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return {a: a, b: b};
   };
 
+  //var gcd = function (a, b) {
+  //  return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
+  //};
+  
   var gcd = function (a, b) {
-    return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
+    return b.getDegree() === -1 ? a : Polynomial.polynomialGCD(a, b);
   };
 
   Polynomial.prototype.hasRoot = function (polynomialRoot) {

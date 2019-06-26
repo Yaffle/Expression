@@ -150,4 +150,141 @@
     return +1;
   };
 
+  Complex.prototype.remainderInteger = function (x) {
+    return Complex.prototype.remainder.call(x, this);
+  };
+
+  Complex.prototype.remainder = function (y) {
+    function norm(x) {
+      return x instanceof Expression.Integer ? x.multiply(x) : x.multiply(x.conjugate());
+    }
+    function roundDivision(a, b) {
+      if (b.compareTo(Expression.ZERO) < 0) {
+        b = b.negate();
+        a = a.negate();
+      }
+      var sign = a.compareTo(Expression.ONE) < 0 ? Expression.ONE.negate() : Expression.ONE;
+      return a.add(b.truncatingDivide(Expression.TWO).multiply(sign)).truncatingDivide(b);
+    }
+    var x = this;
+    var n = y instanceof Expression.Integer ? x : x.multiply(y.conjugate());
+    var d = y instanceof Expression.Integer ? y : y.multiply(y.conjugate());
+    //TODO: fix
+    var q1 = n instanceof Complex ? roundDivision(n.real, d) : roundDivision(n, d);
+    var q2 = n instanceof Complex ? roundDivision(n.imaginary, d) : Expression.ZERO;
+    var q = q2.compareTo(Expression.ZERO) === 0 ? q1 : new Complex(q1, q2);
+    var r =  x.subtract(y.multiply(q));
+    if (norm(r).compareTo(norm(y)) >= 0) {
+      throw new Error();
+    }
+    return r;
+  };
+
+  Complex.prototype.primeFactor = function () {
+    function primeFactor(n) {
+      var i = 2;
+      var s = 0;
+      var r = Math.floor(Math.sqrt(n + 0.5));
+      while (i <= r) {
+        if (n % i === 0) {
+          return i;
+        }
+        i += s === 2 ? 2 : s + 1;
+        s += 1;
+        if (s === 4) {
+          s = 2;
+        }
+      }
+      return n;
+    }
+    function factors(n) {
+      var p = n > 1 ? primeFactor(n) : 1;
+      var e = 0;
+      var t = 1;
+      var f = null;
+      var fs = null;
+      var i = 1;
+      return {
+        //[Symbol.iterator]: function () {
+        //  return this;
+        //},
+        //get done() {
+        //  return this.value == null;
+        //},
+        value: null,
+        next: function () {
+          if (p === 1) {
+            this.value = null;
+            return this;
+          }
+          if (fs == null) {
+            if (n % p === 0) {
+              t *= p;
+              n /= p;
+              e += 1;
+              this.value = t;
+              return this;
+            }
+            fs = factors(n);
+            i = t;
+          }
+          if (i === t) {
+            i = 1;
+            f = fs.next().value;
+          } else {
+            i *= p;
+          }
+          this.value = f == null ? null : f * i;
+          return this;
+        }
+      };
+    }
+    function canBeSquare(n) {
+      // https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/#comment-15700
+      //var bitset = 0;
+      //for (var i = 0; i < 32; i += 1) {
+      //  bitset |= 1 << ((i * i) % 32);
+      //}
+      var bitset = 33751571;
+      var result = (bitset >> (n & 31)) & 1;
+      return result;
+    }
+    function norm(a, b) {
+      return a * a + b * b;
+    }
+    function hasDivisor(r, i, a, b) {
+      var d = a * a + b * b;
+      var x = r * a + i * b;
+      var y = i * a - r * b;
+      return x % d === 0 && y % d === 0;
+    }
+
+    var r = this.real.toNumber();
+    var i = this.imaginary.toNumber();
+    var n = norm(r, i);
+    if (n > (9007199254740991 + 1) / 2) {
+      throw new RangeError("NotSupportedError");
+    }
+
+    for (var fs = factors(n), p = fs.next().value; p != null; p = fs.next().value) {
+      var b = 0;
+      while (p - b * b > 0) {
+        if (canBeSquare(p - b * b)) {
+          var a = Math.floor(Math.sqrt(p - b * b + 0.5));
+          if (a * a === p - b * b) {
+            if (norm(a, b) > 1 && hasDivisor(r, i, a, b)) {
+              return b === 0 ? new Expression.Complex(Expression.ZERO, Expression.Integer.fromNumber(a)) : new Complex(Expression.Integer.fromNumber(a), Expression.Integer.fromNumber(b));
+            }
+          }
+        }
+        b += 1;
+      }
+    }
+
+    if (n > 1) {
+      throw new Error();
+    }
+    return this;
+  };
+
   Expression.Complex = Complex;

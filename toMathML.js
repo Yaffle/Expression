@@ -31,17 +31,24 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
     return (isLast && isFirst ? "<mn>0</mn>" : "");
   }
   var isNegative = false;
-  if (coefficient.isNegative()) {
+  if (coefficient.isNegative() && !isFirst) {
     isNegative = true;
     coefficient = coefficient.negate();//?
   }
-  var coefficientString = coefficient.toMathML(options);
   var precedenceOfMultiptication = new Expression.Multiplication(Expression.ZERO, Expression.ZERO).getPrecedence();
   var areBracketsRequired = coefficient.getPrecedence() < precedenceOfMultiptication; //?
+  var c = coefficient.equals(Expression.ONE);
   //TODO: fix
-  return (isFirst && !isNegative ? '' : (isNegative ? '<mo>&minus;</mo>' : '<mo>+</mo>')) +
-         (coefficient.equals(Expression.ONE) ? "" : (areBracketsRequired && coefficientString !== "" ? "<mfenced>" + coefficientString + "</mfenced>" : coefficientString) + (coefficientString !== "" ? "<mo>&times;</mo>" : "")) +
-         variable.toMathML(options);
+  return (isFirst ? '' : '') +
+         (!isFirst && isNegative ? '<mo form="infix">&minus;</mo>' : '') +
+         (!isFirst && !isNegative ? '<mo form="infix">+</mo>' : '') +
+         (c ? '' : '<mrow>') +
+         (c || !areBracketsRequired ? '' : '<mrow><mo>(</mo>') +
+         (c ? '' : coefficient.toMathML(options)) +
+         (c || !areBracketsRequired ? '' : '<mo>)</mo></mrow>') +
+         (c ? '' : '<mo>&times;</mo>') +
+         variable.toMathML(options) +
+         (c ? '' : '</mrow>');
 };
 
 
@@ -55,11 +62,34 @@ var complexToMathML = function (real, imaginary, imaginarySign) {
 
 //TODO: move
 Expression.toDecimalString = function (x, options) {
-  var fractionDigits = options.fractionDigits;
-  if (fractionDigits >= 0 && !Expression.has(x, Expression.Symbol) && 
-                             !Expression.has(x, Expression.NonSimplifiedExpression) &&
-                             !Expression.has(x, Expression.Matrix) &&
-                             !Expression.has(x, Expression.Polynomial)) {
+  
+  function isConstant(e) {
+    if (e instanceof Expression.Symbol) {
+      return false;
+    }
+    if (e instanceof Expression.NonSimplifiedExpression) {
+      return false;
+    }
+    if (e instanceof Expression.Matrix) {
+      return false;
+    }
+    if (e instanceof Expression.Polynomial) {
+      return false;
+    }
+    if (e instanceof Expression.BinaryOperation) {
+      return (e.a === Expression.E || isConstant(e.a)) && isConstant(e.b);
+    }
+    if (e instanceof Expression.Negation) {
+      return isConstant(e.b);
+    }
+    if (e instanceof Expression.Function) {
+      return isConstant(e.a);
+    }
+    return true;
+  }
+
+  var fractionDigits = options != null ? options.fractionDigits : -1;
+  if (fractionDigits >= 0 && isConstant(x)) {
     return toDecimalStringInternal(x, fractionDigits, decimalToMathML, complexToMathML);
   }
   return undefined;
@@ -123,7 +153,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
     result += "<menclose notation=\"none\" href=\"#\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
   }
 
-  result += braces == undefined ? '<mfenced>' : '<mfenced open="' + braces[0] + '" close="' + braces[1] + '">';
+  result += braces == undefined ? '<mrow><mo>(</mo>' : '<mrow>' + (braces[0] === ' ' ? '' : '<mo>' + braces[0] + '</mo>');
   var columnlinesAttribute = "";
   if (columnlines !== 0 && cols - 1 > 0) {
     var k = -1;
@@ -163,8 +193,10 @@ Expression.Matrix.prototype.toMathML = function (options) {
           result += "<mstyle mathvariant=\"bold\">";
           result += "<menclose notation=\"circle\">";
         }
-        if (verticalStrike !== -1 || horizontalStrike !== -1) {
-          result += "<menclose notation=\"none " + (verticalStrike === j ? " " + "verticalstrike" : "") + (horizontalStrike === i ? " " + "horizontalstrike" : "") + "\">";
+        if (verticalStrike === j || horizontalStrike === i) {
+          var notation = ((verticalStrike === j ? " " + "verticalstrike" : "") +
+                          (horizontalStrike === i ? " " + "horizontalstrike" : "")).slice(1);
+          result += "<menclose notation=\"" + notation + "\">";
         }
         if (useColumnspacing) {
           result += "<mpadded width=\"+0.8em\" lspace=\"+0.4em\">";
@@ -181,7 +213,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
         if (useColumnspacing) {
           result += "</mpadded>";
         }
-        if (verticalStrike !== -1 || horizontalStrike !== -1) {
+        if (verticalStrike === j || horizontalStrike === i) {
           result += "</menclose>";
         }
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
@@ -194,12 +226,12 @@ Expression.Matrix.prototype.toMathML = function (options) {
     }
   }
   result += "</mtable>";
-  result += "</mfenced>";
+  result += braces == undefined ? '<mo>)</mo></mrow>' : (braces[1] === ' ' ? '' : '<mo>' + braces[1] + '</mo>') + '</mrow>';
 
   if (useMatrixContainer) {
     result += "</menclose>";
 
-    result += "<mtext data-x=\"TODO\">";
+    result += "<mtext>";
     result += "<button type=\"button\" class=\"matrix-menu-show matrix-menu-show-new\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\">&#x2630;</button>";
     result += "</mtext>";
 
@@ -218,7 +250,7 @@ Expression.Determinant.prototype.toMathML = function (options) {
     //TODO: fix
     return x.a.toMathML(options);
   }
-  return "<mfenced open=\"" + "|" + "\" close=\"" + "|" + "\">" + x.a.toMathML(options) + "</mfenced>";
+  return "<mrow><mo>|</mo>" + x.a.toMathML(options) + "<mo>|</mo></mrow>";
 };
 Expression.Transpose.prototype.toMathML = function (options) {
   var x = this;
@@ -265,12 +297,15 @@ Expression.Function.prototype.toMathML = function (options) {
   return "<mrow>" +
          (typeof i18n !== "undefined" ? "<mi>" + (x.name === "rank" ? i18n.rankDenotation : (x.name === "sin" ? i18n.sinDenotation : (x.name === "tan" ? i18n.tanDenotation : x.name))) + "</mi>" : "<mi>" + x.name + "</mi>") +
          "<mo>&#x2061;</mo>" +
-         (fa ? "<mfenced>" : "") +
+         (fa ? "<mrow><mo>(</mo>" : "") +
          x.a.toMathML(Expression.setTopLevel(true, options)) +
-         (fa ? "</mfenced>" : "") +
+         (fa ? "<mo>)</mo></mrow>" : "") +
          "</mrow>";
 };
 Expression.Division.prototype.toMathML = function (options) {
+  if (options != null && options.nofractions) {
+    return Expression.BinaryOperation.prototype.toMathML.call(this, options);
+  }
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
@@ -282,7 +317,7 @@ Expression.Division.prototype.toMathML = function (options) {
   //if (numerator.isNegative()) {
   //  return "<mrow><mo>&minus;</mo>" + x.negate().toMathML(options) + "</mrow>";
   //}
-  return "<mfrac>" + numerator.toMathML(Expression.setTopLevel(false, options)) + "" + denominator.toMathML(Expression.setTopLevel(false, options)) + "</mfrac>";
+  return "<mfrac>" + numerator.toMathML(Expression.setTopLevel(true, options)) + "" + denominator.toMathML(Expression.setTopLevel(true, options)) + "</mfrac>";
 };
 
 Expression.Integer.prototype.toMathML = function (options) {
@@ -295,9 +330,11 @@ Expression.Integer.prototype.toMathML = function (options) {
   return tmp.slice(0, 1) === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp.slice(1) + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
 };
 Expression.BinaryOperation.prototype.toMathML = function (options) {
-  if (options.fractionDigits >= 0 &&
+  if (options != null &&
+      options.fractionDigits >= 0 &&
       this.unwrap() instanceof Expression.Exponentiation &&
       this.unwrap().a.unwrap() instanceof Expression.Symbol &&
+      this.unwrap().a.unwrap() !== Expression.E &&
       (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
     options = Object.assign({}, options, {fractionDigits: -1});
   }
@@ -305,6 +342,36 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   if (d != undefined) {
     return d;
   }
+
+  //!2019-05-16
+  if (this instanceof Expression.Addition) {
+    var s = [];
+    var b = null;
+    for (var additions = this.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      if (b != null) {
+        var n = false;
+        if (b.isNegative()) {
+          n = true;
+          b = b.negateCarefully();
+        }
+        var fence = this.getPrecedence() >= b.getPrecedence();
+        fence = fence || b.isUnaryPlusMinus();
+        s.push((fence ? '<mrow><mo>(</mo>' : '') + b.toMathML(Expression.setTopLevel(fence, options)) + (fence ? '<mo>)</mo></mrow>' : ''));
+        s.push(n ? '<mo>&minus;</mo>' : '<mo>+</mo>');
+      }
+      b = x;
+    }
+    s = s.reverse().join('');
+    var a = b;
+    var fence = a.getPrecedence() + (a.isRightToLeftAssociative() ? -1 : 0) < this.getPrecedence();
+    if (options != undefined && options.isTopLevel != undefined && options.isTopLevel === false) {
+      fence = fence || a.isUnaryPlusMinus();
+    }
+    s = (fence ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fence || options == undefined || options.isTopLevel, options)) + (fence ? "<mo>)</mo></mrow>" : "") + s;
+    return '<mrow>' + s + '</mrow>';
+  }
+
+  //!
   var a = this.a;
   var b = this.b;
   var isSubtraction = false;
@@ -325,22 +392,31 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   var s = isSubtraction ? "-" : this.getS();
 
   if (this instanceof Expression.Exponentiation) {
+    if (a.unwrap() === Expression.E && b.unwrap() instanceof Expression.Matrix) {
+      return '<mrow><mi>exp</mi><mo>&#x2061;</mo>' + b.toMathML(options) + '</mrow>';
+    }
+    var boptions = options;
+    if (!(a.unwrap() instanceof Expression.Matrix)) {
+      boptions = Object.assign({}, options || {}, {nofractions: true});
+    }
+
       return "<msup>" + 
-             (fa ? "<mfenced>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mfenced>" : "") +
-             (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + 
+             (fa ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "<mo>)</mo></mrow>" : "") +
+             (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, boptions)) + (fb ? "<mo>)</mo></mrow>" : "") + 
              "</msup>";
   }
   if (this.isNegation()) {
     // assert(fa === false);
-      return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + "</mrow>";
-  }
+      return "<mrow><mo>&minus;</mo>" + (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + "</mrow>";
+  }  
   //TODO: fix spaces (matrix parsing)
   return "<mrow>" + 
-         (fa ? "<mfenced>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "</mfenced>" : "") +
-         (s === '*' ? '<mo>&times;</mo>' : (s === '-' ? '<mo>&minus;</mo>' : '<mo>' + s + '</mo>')) +
-         (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + 
+         (fa ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "<mo>)</mo></mrow>" : "") +
+         (s === '*' ? '<mo>&times;</mo>' : (s === '-' ? '<mo>&minus;</mo>' : (s === '/' ? '<mo>&#x2215;</mo>' : '<mo>' + s + '</mo>'))) +
+         (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + 
          "</mrow>";
 };
+
 Expression.Symbol.prototype.toMathML = function (options) {
   var x = this;
   var s = x.symbol;
@@ -369,14 +445,22 @@ Expression.Negation.prototype.toMathML = function (options) {
   var fb = this.getPrecedence() + (this.isRightToLeftAssociative() ? -1 : 0) >= b.getPrecedence();
   fb = fb || b.isUnaryPlusMinus();
   // assert(fa === false);
-  return "<mrow><mo>&minus;</mo>" + (fb ? "<mfenced>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "</mfenced>" : "") + "</mrow>";
+  return "<mrow><mo>&minus;</mo>" + (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + "</mrow>";
 };
 
 Condition.prototype.toMathML = function (options) {
-  var s = this._toStringInternal(function (e) {
-    return e.toMathML(options);
-  }, "<mo>,</mo>", "<mo>&ne;</mo><mn>0</mn>", "<mo>=</mo><mn>0</mn>");
-  return '<mrow>' + s + '</mrow>';
+  if (this === Condition.FALSE || this === Condition.TRUE || this.array.length === 0) {
+    //throw new RangeError();
+    return "";
+  }
+  var s = '';
+  for (var i = 0; i < this.array.length; i += 1) {
+    s += (i !== 0 ? '<mo>,</mo>' : '');
+    s += '<mrow>';
+    s += this.array[i].expression.toMathML(options) + (this.array[i].operator === Condition.NEZ ? '<mo>&ne;</mo><mn>0</mn>' : '') + (this.array[i].operator === Condition.EQZ ? '<mo>=</mo><mn>0</mn>' : '');
+    s += '</mrow>';
+  }
+  return this.array.length === 1 ? s : '<mrow>' + s + '</mrow>';
 };
 
 Expression.Complex.prototype.toMathML = function (options) {
@@ -397,7 +481,7 @@ Expression.Degrees.prototype.toMathML = function (options) {
 NonSimplifiedExpression.prototype.toMathML = function (options) {
   //?
   //options = options.fractionDigits >= 0 ? Object.assign({}, options, {fractionDigits: -1}) : options;
-  if (options.printId != undefined) {
+  if (options != null && options.printId != undefined) {
     return "<mrow id=\"" + this.getId() + "\">" + this.e.toMathML(options) + "</mrow>";
   }
   return this.e.toMathML(options);

@@ -841,6 +841,21 @@
     if (charCode === 0x2148) {
       return "i";
     }
+    if (charCode === 0x2215) {
+      return "/";
+    }
+    if (charCode === 0x2713) {
+      return "\u221A";
+    }
+    if (charCode === 0x2061) {
+      return " ";
+    }
+    if (charCode === 0x2062) {
+      return "*";
+    }
+    if (charCode === 0x2063) {
+      return ",";
+    }
     return undefined;
   };
   //var replaceRegExp = /[...]/g;

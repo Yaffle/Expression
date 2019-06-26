@@ -304,7 +304,7 @@ Sin.prototype = Object.create(Expression.Function.prototype);
 //TODO: new 2017-04-26
 var simplifyConstantValueInternal = function (a, type) {
   a = a.remainder(Integer.fromNumber(360));
-  var d = Number.parseInt(a.toString(), 10);
+  var d = a.toNumber();
   if (type === "cos") {
     d = 90 - d;
     if (d >= 360 - 90) {
@@ -345,8 +345,17 @@ var simplifyConstantValueInternal = function (a, type) {
   if (d === 18) {
     return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().subtract(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
   }
+  if (d === 36) {
+    // http://www.maths.surrey.ac.uk/hosted-sites/R.Knott/Fibonacci/simpleTrig.html#section4.2
+    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
+    return Expression.TWO.subtract(Expression.TWO.subtract(phi).squareRoot()).squareRoot().divide(Expression.TWO);
+  }
   if (d === 54) {
     return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().add(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
+  }
+  if (d === 72) {
+    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
+    return Expression.TWO.add(phi).squareRoot().divide(Expression.TWO);
   }
   return undefined;
 };
@@ -376,7 +385,7 @@ var simplifyConstantValue = function (x, type) {
     b = x.b;
   }
   if (a != undefined && b != undefined) {
-    b = Number.parseInt(b.toString(), 10);
+    b = b.toNumber();
     if (b >= 1 && b <= 180 && 180 % b === 0) {
       var d = a.multiply(Integer.fromNumber(Math.floor(180 / b)));
       return simplifyConstantValueInternal(d, type);

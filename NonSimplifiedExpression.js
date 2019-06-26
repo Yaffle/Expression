@@ -39,6 +39,9 @@
   NonSimplifiedExpression.prototype.exp = function () {
     return new NonSimplifiedExpression(Expression.E).pow(this);
   };
+  NonSimplifiedExpression.prototype.inverse = function () {
+    return new NonSimplifiedExpression(Expression.ONE).divide(this);
+  };
 
 /*
   NonSimplifiedExpression.prototype.powExpression = function (x) {
