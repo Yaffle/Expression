@@ -92,8 +92,8 @@ ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
   var decimalToMathML = function (sign, number) {
     return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
   };
-  var complexToMathML = function (real, imaginary, imaginarySign) {
-    return real + (imaginarySign >= 0 ? "<mo>+</mo>" : "") + imaginary + "<mo>&#x2062;</mo><mi>i</mi>";
+  var complexToMathML = function (real, imaginarySign, imaginaryAbs) {
+    return '<mrow>' + real + (imaginarySign > 0 ? '<mo>+</mo>' : '<mo>&minus;</mo>') + (imaginaryAbs !== '' ? imaginaryAbs + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
   };
 
   //TODO:

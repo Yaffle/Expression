@@ -643,6 +643,9 @@
           if (e !== 0) {
             rest = rest.multiply(Expression.pow(lastFactor, e));
           }
+          if (t.equals(Expression.ONE.negate())) {
+            rest = rest.multiply(t);
+          }
           var rn = nthRootInternal(n, rest);
           if (rn != undefined) {
             return result.multiply(rn);
@@ -684,9 +687,7 @@
       } : undefined);
       for (var i = 0; i < rs.length; i += 1) {
         roots.push(rs[i]);
-        np = np.divideAndRemainder(Polynomial.of(rs[i].negate(), Expression.ONE)).quotient;
       }
-      return np;
     };
 
     if (np.getDegree() >= 2) {
@@ -734,11 +735,12 @@
           //ok = ok || Expression.has(qRoot, Expression.Complex);//?
         }
         if (callback != undefined) {
-          callback({content: content, roots: roots, newPolynomial: np, type: "t = x^g", g: g, allZeros: allZeros});//TODO: ?
+          var type = allZeros ? (g === 2 ? "applyDifferenceOfSquaresRule" : (g === 3 ? "applyDifferenceOfCubesRule" : "applyDifferenceOfNthPowersRule")) : "t = x^g";
+          callback({content: content, roots: roots, newPolynomial: np, type: type, g: g});//TODO: ?
         }
         var ok = true;
         if (n !== np.getDegree() && ok) {
-          np = continueWithNewPolynomial(roots, np);
+          continueWithNewPolynomial(roots, np);
         }
         return roots;
       }
@@ -833,7 +835,6 @@
         roots.push(sp.divide(q));
         return true;
       });
-
       if (n !== roots.length) {
         if (typeof hit === "function") {
           hit({getroots: {rational: ""}});
@@ -842,7 +843,7 @@
           callback({content: content, roots: roots, newPolynomial: np, type: "useTheRationalRootTest"});
         }
         if (np.getDegree() > 0) {
-          np = continueWithNewPolynomial(roots, np);
+          continueWithNewPolynomial(roots, np);
         }
         return roots;
       }
@@ -955,7 +956,7 @@
           if (callback != undefined) {
             callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
           }
-          np = continueWithNewPolynomial(roots, np);
+          continueWithNewPolynomial(roots, np);
           return roots;
         }
       }
@@ -1029,7 +1030,7 @@
           if (typeof hit === "function") {
             hit({getroots: {squareFreeRoot: np.toString()}});
           }
-          np = continueWithNewPolynomial(roots, np);
+          continueWithNewPolynomial(roots, np);
           return roots;
         }
       }

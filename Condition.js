@@ -146,6 +146,18 @@ Condition.prototype._and = function (operator, e) {
     if (p != null) {
       var content = p.p.getContent();
       if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
+        // content * y.expression.divide(content)
+        if (operator === Condition.NEZ) {
+          var tmp = add(oldArray, {expression: y.expression.divide(content), operator: Condition.NEZ});
+          if (tmp == null) {
+            return null;
+          }
+          return add(tmp, {expression: content, operator: Condition.NEZ});
+        }
+        while (p != null) {
+          content = p.p.getContent();
+          p = Expression.getMultivariatePolynomial(content);
+        }
         y = {
           expression: y.expression.divide(content),
           operator: y.operator

@@ -258,8 +258,8 @@ var decimalToString = function (sign, number) {
   return (sign < 0 ? "-" : "") + number;
 };
 
-var complexToString = function (real, imaginary, imaginarySign) {
-  return real + (imaginarySign >= 0 ? "+" : "") + imaginary + "i";
+var complexToString = function (real, imaginary) {
+  return real + (imaginary.indexOf('-') === -1 ? '+' : '') + imaginary + 'i';
 };
 
 var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStringCallback) {
@@ -282,14 +282,43 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
   decimalToStringCallback = decimalToStringCallback || decimalToString;
   complexToStringCallback = complexToStringCallback || complexToString;
   
-  if (expression instanceof Expression.Division) {
+  if (expression instanceof Expression.Division || expression instanceof Expression.Addition) {
     var numerator = expression.getNumerator();//.unwrap();
     var denominator = expression.getDenominator();//.unwrap();
-    if (numerator instanceof Expression.Complex && denominator instanceof Expression.Integer) {
-      var real = toDecimalStringInternal(new Expression.Division(numerator.real, denominator), fractionDigits, decimalToStringCallback, complexToStringCallback);
-      var imaginary = toDecimalStringInternal(new Expression.Division(numerator.imaginary, denominator), fractionDigits, decimalToStringCallback, complexToStringCallback);
-      var imaginarySign = numerator.imaginary.compareTo(Expression.ZERO);
-      return complexToStringCallback(real, imaginary, imaginarySign);
+    if (denominator instanceof Expression.Integer) {
+      if (numerator instanceof Expression.Addition || numerator instanceof Expression.Multiplication || numerator instanceof Expression.Complex) {
+        var realValue = Expression.ZERO;
+        var imaginaryValue = Expression.ZERO;
+        var ok = true;
+        var e = numerator;
+        for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+          var c = null;
+          var r = Expression.ONE;
+          for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+            if (c == null && y instanceof Expression.Complex) {
+              c = y;
+            } else if (y instanceof Expression.NthRoot) {//TODO: ?
+              r = r.multiply(y);
+            } else {
+              ok = false;
+            }
+          }
+          realValue = realValue.add(r.multiply(c == null ? Expression.ONE : c.real));
+          imaginaryValue = imaginaryValue.add(c != null ? r.multiply(c.imaginary) : Expression.ZERO);
+        }
+        if (ok && !imaginaryValue.equals(Expression.ZERO)) {
+          realValue = realValue.divide(denominator);
+          imaginaryValue = imaginaryValue.divide(denominator);
+          var is = 1;
+          if (imaginaryValue.isNegative()) {
+            is = -1;
+            imaginaryValue = imaginaryValue.negateCarefully();
+          }
+          var real = toDecimalStringInternal(realValue, fractionDigits, decimalToStringCallback, complexToStringCallback);
+          var imaginary = toDecimalStringInternal(imaginaryValue, fractionDigits, decimalToStringCallback, complexToStringCallback);
+          return complexToStringCallback(realValue.equals(Expression.ZERO) ? '' : real, is, imaginaryValue.equals(Expression.ONE) ? '' : imaginary);
+        }
+      }
     }
   }
   //TODO: remove - ?

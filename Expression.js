@@ -507,9 +507,17 @@
   };
 
   var getBase = function (x) {
+    //TODO: ?
+    //if (x instanceof NthRoot) {
+    //  return x.a;
+    //}
     return x instanceof Exponentiation ? x.a : x;
   };
   var getExponent = function (x) {
+    //TODO: ?
+    //if (x instanceof NthRoot) {
+    //  return Expression.Integer.fromNumber(x.n);
+    //}
     return x instanceof Exponentiation ? x.b : Expression.ONE;
   };
 
@@ -1721,6 +1729,13 @@
       return new Exponentiation(x, y);
     }
     if (x instanceof Exponentiation) {
+      var t = x.b.multiply(y);
+      if (t.getNumerator() instanceof Integer && t.getDenominator() instanceof Integer) {//TODO: ?
+        var i = t.getNumerator().truncatingDivide(t.getDenominator());
+        if (i.compareTo(Expression.ZERO) > 0) {
+          return x.a.pow(i).multiply(x.a.pow(t.subtract(i)));
+        }
+      }
       return x.a.pow(x.b.multiply(y));
     }
     if (x instanceof Integer && (x.compareTo(Expression.ZERO) === 0 || x.compareTo(Expression.ONE) === 0 || x.compareTo(Expression.ONE.negate()) === 0)) {
@@ -1996,6 +2011,9 @@
   Expression.setTopLevel = setTopLevel;
 
   BinaryOperation.prototype.toString = function (options) {
+    //if (this instanceof Division && this.isNegative()) {
+    //  return '-' + this.negateCarefully().toString(options);
+    //}
     var a = this.a;
     var b = this.b;
     var isSubtraction = false;
@@ -2027,7 +2045,7 @@
     }
     return (fa ? "(" : "") + a.toString(setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? ")" : "") + s + (fb ? "(" : "") + b.toString(setTopLevel(fb, options)) + (fb ? ")" : "");
   };
-
+  
   //?
   Expression.prototype.unwrap = function () {
     return this;
@@ -2082,6 +2100,7 @@
     if (x instanceof Exponentiation && y instanceof Integer) {
       return +1;//?
     }
+
     return compare4Multiplication(getBase(x), getBase(y));
   };
 
@@ -2495,7 +2514,7 @@
       if (n === 2) {
       //if (qq.norm() === -1 * Math.pow(ngcd(qq.a, qq.b), 2)) {
         //TODO: 6, 21, 33, 37, 57, 73
-        if ([2, 3, 5, 7, 11, 13, 17, 19, 29, 41, 6, 21, 33, 57].indexOf(qq.D) !== -1) { // https://oeis.org/A048981
+        if (' 2, 3, 5, 7, 11, 13, 17, 19, 29, 41, 6, 21, 33, 57,'.indexOf(' ' + qq.D + ',') !== -1) { // https://oeis.org/A048981
         if (qq.a > 0 && qq.b > 0 || qq.a > 0 && qq.norm() > 0 || qq.b > 0 && qq.norm() < 0) {
         qi = qq;
         } else {
@@ -2679,16 +2698,19 @@
 
     //!2019-06-20
     var v = getVariable(x);
-    if (v instanceof Expression.Symbol && n === 2) {
+    if (v instanceof Expression.Symbol && (n === 2 || n === 3)) {
       var p = Polynomial.toPolynomial(x, v);
       if (p.getDegree() === 1 && p.getCoefficient(0) instanceof Integer && p.getCoefficient(1) instanceof Integer) {
         //TODO:
+        var c = p.getContent();
+        if (!c.equals(Expression.ONE)) {
+          return x.divide(c)._nthRoot(n).multiply(c._nthRoot(n));
+        }
         if (p.getCoefficient(1).compareTo(Expression.ZERO) > 0) {
-          var c = p.getContent();
-          if (!c.equals(Expression.ONE)) {
-            return x.divide(c)._nthRoot(n).multiply(c._nthRoot(n));
-          }
           return new Expression.Exponentiation(x, Expression.ONE.divide(Expression.Integer.fromNumber(n)));
+        } else {
+          //!TODO: fix
+          return Epxression.I.multiply(new Expression.Exponentiation(x.negate(), Expression.ONE.divide(Expression.Integer.fromNumber(n))));
         }
       }
       /*if (p.getDegree() > 1) {
@@ -3578,3 +3600,8 @@ ExpressionWithCondition.prototype.toMathML = function (options) {
 };
 
   export default Expression;
+
+  //TODO: ?
+  Addition.prototype.compare4MultiplicationNthRoot = function (x) {
+    return +1;
+  };

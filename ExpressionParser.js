@@ -627,9 +627,12 @@
           operand = tmp.result;
           position = tmp.position;
           isDecimalFraction = true;
-        } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
-          tmp = parseLaTeXMatrix(input, position, context, Input.startsWith(input, position, "\\begin{pmatrix}") ? "{pmatrix}" : "{matrix}");
+        } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{vmatrix}") || Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
+          tmp = parseLaTeXMatrix(input, position, context, Input.startsWith(input, position, "\\begin{vmatrix}") ? "{vmatrix}" : (Input.startsWith(input, position, "\\begin{pmatrix}") ? "{pmatrix}" : "{matrix}"));
           operand = tmp.result;
+          if (Input.startsWith(input, position, "\\begin{vmatrix}")) {
+            operand = operand.determinant();//!
+          }
           position = tmp.position;
         } else if ((match = Input.exec(input, position, symbols)) != undefined) {
           var symbolName = match;
@@ -671,7 +674,7 @@
       }
 
       if (!ok && firstCharacterCode === "\\".charCodeAt(0) && !Input.startsWith(input, position, "\\\\")) { // isAlpha(Input.getFirst(input, position + 1))
-        if (!Input.startsWith(input, position + 1, "end{pmatrix}") && !Input.startsWith(input, position + 1, "end{matrix}")) {
+        if (!Input.startsWith(input, position + 1, "end{vmatrix}") && !Input.startsWith(input, position + 1, "end{pmatrix}") && !Input.startsWith(input, position + 1, "end{matrix}")) {
         // TODO: LaTeX - ?
         ok = true;
         position += 1;

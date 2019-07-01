@@ -33,7 +33,7 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
   var isNegative = false;
   if (coefficient.isNegative() && !isFirst) {
     isNegative = true;
-    coefficient = coefficient.negate();//?
+    coefficient = coefficient.negateCarefully();//?
   }
   var precedenceOfMultiptication = new Expression.Multiplication(Expression.ZERO, Expression.ZERO).getPrecedence();
   var areBracketsRequired = coefficient.getPrecedence() < precedenceOfMultiptication; //?
@@ -55,9 +55,8 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
 var decimalToMathML = function (sign, number) {
   return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
 };
-
-var complexToMathML = function (real, imaginary, imaginarySign) {
-  return real + (imaginarySign >= 0 ? "<mo>+</mo>" : "") + imaginary + "<mo>&#x2062;</mo><mi>i</mi>";
+var complexToMathML = function (real, imaginarySign, imaginaryAbs) {
+  return '<mrow>' + real + (imaginarySign > 0 ? '<mo>+</mo>' : '<mo>&minus;</mo>') + (imaginaryAbs !== '' ? imaginaryAbs + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
 };
 
 //TODO: move
@@ -296,7 +295,7 @@ Expression.Function.prototype.toMathML = function (options) {
   //TODO: fix
   return "<mrow>" +
          (typeof i18n !== "undefined" ? "<mi>" + (x.name === "rank" ? i18n.rankDenotation : (x.name === "sin" ? i18n.sinDenotation : (x.name === "tan" ? i18n.tanDenotation : x.name))) + "</mi>" : "<mi>" + x.name + "</mi>") +
-         "<mo>&#x2061;</mo>" +
+         "<mo>&af;</mo>" +
          (fa ? "<mrow><mo>(</mo>" : "") +
          x.a.toMathML(Expression.setTopLevel(true, options)) +
          (fa ? "<mo>)</mo></mrow>" : "") +
@@ -315,9 +314,12 @@ Expression.Division.prototype.toMathML = function (options) {
   var numerator = x.getNumerator();
   //???
   //if (numerator.isNegative()) {
-  //  return "<mrow><mo>&minus;</mo>" + x.negate().toMathML(options) + "</mrow>";
+  //  return "<mrow><mo>&minus;</mo>" + x.negateCarefully().toMathML(options) + "</mrow>";
   //}
-  return "<mfrac>" + numerator.toMathML(Expression.setTopLevel(true, options)) + "" + denominator.toMathML(Expression.setTopLevel(true, options)) + "</mfrac>";
+  return "<mfrac>" +
+         numerator.toMathML(Expression.setTopLevel(true, options)) + 
+         denominator.toMathML(Expression.setTopLevel(true, options)) +
+         "</mfrac>";
 };
 
 Expression.Integer.prototype.toMathML = function (options) {
@@ -393,7 +395,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
 
   if (this instanceof Expression.Exponentiation) {
     if (a.unwrap() === Expression.E && b.unwrap() instanceof Expression.Matrix) {
-      return '<mrow><mi>exp</mi><mo>&#x2061;</mo>' + b.toMathML(options) + '</mrow>';
+      return '<mrow><mi>exp</mi><mo>&af;</mo>' + b.toMathML(options) + '</mrow>';
     }
     var boptions = options;
     if (!(a.unwrap() instanceof Expression.Matrix)) {
@@ -464,7 +466,7 @@ Condition.prototype.toMathML = function (options) {
 };
 
 Expression.Complex.prototype.toMathML = function (options) {
-  return "<mrow>" + this.toStringInternal(options, "<mo>&#x2062;</mo>", "<mi>&#x2148;</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
+  return "<mrow>" + this.toStringInternal(options, "<mo>&it;</mo>", "<mi>&ii;</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
 };
 
 Expression.GF2.prototype.toMathML = function (options) {
@@ -475,7 +477,7 @@ Expression.GF2Value.prototype.toMathML = function (options) {
   return "<mrow>" + "<mn>" + this.value.toString() + "</mn>" + "</mrow>";
 };
 Expression.Degrees.prototype.toMathML = function (options) {
-  return "<mrow>" + this.value.toMathML(options) + "<mo>&#x2062;</mo><mi>&deg;</mi></mrow>";
+  return "<mrow>" + this.value.toMathML(options) + "<mo>&it;</mo><mi>&deg;</mi></mrow>";
 };
 
 NonSimplifiedExpression.prototype.toMathML = function (options) {

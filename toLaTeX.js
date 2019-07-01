@@ -18,8 +18,8 @@ Expression.NthRoot.prototype.toLaTeX = function (options) {
   return "\\sqrt[" + this.n + "]{" + this.a.toLaTeX(options) + "}";
 };
 Expression.BinaryOperation.prototype.toLaTeX = function (options) {
-  var a = this.a;
-  var b = this.b;
+  var a = this.a.unwrap();
+  var b = this.b.unwrap();
   var fa = a.getPrecedence() + (a.isRightToLeftAssociative() ? -1 : 0) < this.getPrecedence();
   var fb = this.getPrecedence() + (this.isRightToLeftAssociative() ? -1 : 0) >= b.getPrecedence();
   fa = fa || a.isUnaryPlusMinus();
@@ -56,17 +56,24 @@ Expression.Symbol.prototype.toLaTeX = function (options) {
   return symbol + (index !== '' ? '_' : '') + (index.length > 1 ? '{' + index.replace(/\(|\)/g, '') + '}' : index);
 };
 Expression.Matrix.prototype.toLaTeX = function (options) {
-  var x = this.matrix;
+  var isDeterminant = this instanceof Expression.Determinant;
+  var x = isDeterminant ? this.a.unwrap().matrix : this.matrix;
   var s = "";
-  s += "\\begin{pmatrix}\n";
+  s += "\\begin{" + (isDeterminant ? 'vmatrix' : 'pmatrix') + "}\n";
   for (var i = 0; i < x.rows(); i += 1) {
     for (var j = 0; j < x.cols(); j += 1) {
       var e = x.e(i, j);
       s += e.toLaTeX(options) + (j + 1 < x.cols() ? " & " : (i + 1 < x.rows() ? " \\\\" : "") + "\n");
     }
   }
-  s += "\\end{pmatrix}";
+  s += "\\end{" + (isDeterminant ? 'vmatrix' : 'pmatrix') + "}";
   return s;
+};
+Expression.Determinant.prototype.toLaTeX = function (options) {
+  if (this.a.unwrap() instanceof Expression.Matrix) {
+    return Expression.Matrix.prototype.toLaTeX.call(this, options);
+  }
+  return Expression.Function.prototype.toLaTeX.call(this, options);
 };
 Expression.Complex.prototype.toLaTeX = function (options) {
   return this.toString(options);
