@@ -451,9 +451,13 @@ Expression.Negation.prototype.toMathML = function (options) {
 };
 
 Condition.prototype.toMathML = function (options) {
-  if (this === Condition.FALSE || this === Condition.TRUE || this.array.length === 0) {
-    //throw new RangeError();
-    return "";
+  if (this === Condition.TRUE || this === Condition.FALSE) {
+    // 1) no need; 2) no way to distinguish TRUE and FALSE
+    throw new TypeError();
+  }
+  if (this.array.length === 0) {
+    // assertion
+    throw new TypeError();
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {

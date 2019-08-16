@@ -187,7 +187,11 @@
     }),
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
-    })    
+    }),
+    
+    new Operator("\\end", 1, RIGHT_TO_LEFT, 0, function (a) {
+      throw new RangeError("NotSupportedError");
+    })
   ];
 
   function OperationSearchCache() {
@@ -307,7 +311,7 @@
   };
 
   var parseLaTeXMatrix = function (input, position, context, kind) {
-    position = Input.trimLeft(input, position, ("\\begin" + kind).length);
+    position = Input.trimLeft(input, position, ("\\begin{" + kind + "}").length);
     var rows = [];
     var firstRow = true;
     while (firstRow || (Input.getFirst(input, position) === "\\".charCodeAt(0) && Input.startsWith(input, position, "\\\\"))) {
@@ -324,14 +328,14 @@
         } else {
           position = Input.trimLeft(input, position, 1);
         }
-        var tmp = parseExpression(input, position, context, false, MULTIPLICATION.precedence, undefined);
+        var tmp = parseExpression(input, position, context, true, ADDITIVE_PRECEDENCE - 1, undefined);
         position = tmp.position;
         row.push(tmp.result);
       }
       rows.push(row);
     }
-    if (Input.startsWith(input, position, "\\end" + kind)) {
-      position = Input.trimLeft(input, position, ("\\end" + kind).length);
+    if (Input.startsWith(input, position, "\\end{" + kind + "}")) {
+      position = Input.trimLeft(input, position, ("\\end{" + kind + "}").length);
     }
     return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), position);
   };
@@ -531,6 +535,9 @@
           }
         }
       }
+      if (op != null && op.name === "\\" && isMatrixElement) {//TODO: optimize
+        op = null;
+      }
 
       if (firstCharacterCode === "f".charCodeAt(0) && op == undefined && (left == undefined && precedence <= UNARY_PRECEDENCE || precedence < MULTIPLICATION.precedence) && Input.startsWith(input, position, "frac")) { // !isAlpha(Input.getFirst(input, position + "frac".length))
         // https://en.wikipedia.org/wiki/Operand#Positioning_of_operands - prefix notation
@@ -627,8 +634,16 @@
           operand = tmp.result;
           position = tmp.position;
           isDecimalFraction = true;
-        } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{vmatrix}") || Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
-          tmp = parseLaTeXMatrix(input, position, context, Input.startsWith(input, position, "\\begin{vmatrix}") ? "{vmatrix}" : (Input.startsWith(input, position, "\\begin{pmatrix}") ? "{pmatrix}" : "{matrix}"));
+        } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{bmatrix}") || Input.startsWith(input, position, "\\begin{vmatrix}") || Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
+          var kind = "matrix";
+          if (Input.startsWith(input, position, "\\begin{bmatrix}")) {
+            kind = "bmatrix";
+          } else if (Input.startsWith(input, position, "\\begin{vmatrix}")) {
+            kind = "vmatrix";
+          } else if (Input.startsWith(input, position, "\\begin{pmatrix}")) {
+            kind = "pmatrix";
+          }
+          tmp = parseLaTeXMatrix(input, position, context, kind);
           operand = tmp.result;
           if (Input.startsWith(input, position, "\\begin{vmatrix}")) {
             operand = operand.determinant();//!
@@ -674,7 +689,7 @@
       }
 
       if (!ok && firstCharacterCode === "\\".charCodeAt(0) && !Input.startsWith(input, position, "\\\\")) { // isAlpha(Input.getFirst(input, position + 1))
-        if (!Input.startsWith(input, position + 1, "end{vmatrix}") && !Input.startsWith(input, position + 1, "end{pmatrix}") && !Input.startsWith(input, position + 1, "end{matrix}")) {
+        if (!Input.startsWith(input, position + 1, "end{bmatrix}") && !Input.startsWith(input, position + 1, "end{vmatrix}") && !Input.startsWith(input, position + 1, "end{pmatrix}") && !Input.startsWith(input, position + 1, "end{matrix}")) {
         // TODO: LaTeX - ?
         ok = true;
         position += 1;

@@ -302,76 +302,84 @@ function Sin(x) {
 Sin.prototype = Object.create(Expression.Function.prototype);
 
 //TODO: new 2017-04-26
-var simplifyConstantValueInternal = function (a, type) {
-  a = a.remainder(Integer.fromNumber(360));
-  var d = a.toNumber();
-  if (type === "cos") {
-    d = 90 - d;
-    if (d >= 360 - 90) {
-      d -= 360;
-    }
+var simplifyConstantValueInternal = function (d) {
+  if (d >= +360 || d <= -360) {
+    throw new RangeError();
   }
   if (d < 0) {
     d += 360;
   }
-  var s = d >= 180 ? Expression.ONE.negate() : Expression.ONE;
   if (d >= 180) {
-    d -= 180;
+    d = d - 180;
+    var tmp = simplifyConstantValueInternal(d);
+    return tmp == null ? null : tmp.negate();
   }
-  if (d >= 90) {
+  if (d > 90) {
     d = 180 - d;
+    var tmp = simplifyConstantValueInternal(d);
+    return tmp == null ? null : tmp.negate();
   }
+
+  function f(d) {
+    // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#Calculated_trigonometric_values_for_sine_and_cosine
+    var x = simplifyConstantValueInternal(d * 2);
+    return x == null ? null : Expression.TWO.add(Expression.TWO.multiply(x)).squareRoot().divide(Expression.TWO);
+  }
+
   if (d === 0) {
-    return s.multiply(Expression.ZERO);
+    return Expression.ONE;
   }
   if (d === 15) {
-    return s.multiply(Expression.TWO.add(Expression.ONE).squareRoot().subtract(Expression.ONE).divide(Expression.TWO.multiply(Expression.TWO.squareRoot())));
+    return f(d);
   }
   if (d === 30) {
-    return s.multiply(Expression.ONE.divide(Expression.TWO));
+    return Expression.ONE.add(Expression.TWO).squareRoot().divide(Expression.TWO);
+  }
+  if (d === 22.5) {
+    return f(d);
   }
   if (d === 45) {
-    return s.multiply(Expression.ONE.divide(Expression.TWO.squareRoot()));
+    return Expression.ONE.divide(Expression.TWO.squareRoot());
   }
   if (d === 60) {
-    return s.multiply(Expression.ONE.add(Expression.TWO).squareRoot().divide(Expression.TWO));
+    return Expression.ONE.divide(Expression.TWO);
+  }
+  if (d === 67.5) {
+    return f(d);
   }
   if (d === 75) {
-    return s.multiply(Expression.TWO.add(Expression.ONE).squareRoot().add(Expression.ONE).divide(Expression.TWO.multiply(Expression.TWO.squareRoot())));
+    return f(d);
   }
   if (d === 90) {
-    return s.multiply(Expression.ONE);
+    return Expression.ZERO;
   }
   if (d === 18) {
-    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().subtract(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
+    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
+    return Expression.TWO.add(phi).squareRoot().divide(Expression.TWO);
   }
   if (d === 36) {
+    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().add(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
+  }
+
+  if (d === 54) {
     // http://www.maths.surrey.ac.uk/hosted-sites/R.Knott/Fibonacci/simpleTrig.html#section4.2
     var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
     return Expression.TWO.subtract(Expression.TWO.subtract(phi).squareRoot()).squareRoot().divide(Expression.TWO);
   }
-  if (d === 54) {
-    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().add(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
-  }
   if (d === 72) {
-    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
-    return Expression.TWO.add(phi).squareRoot().divide(Expression.TWO);
+    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().subtract(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
   }
+
   return undefined;
 };
 
 var simplifyConstantValue = function (x, type) {
-  if (x instanceof Integer) {
-    if (x.compareTo(Expression.ZERO) === 0) {
-      return simplifyConstantValueInternal(Expression.ZERO, type);
-    }
-  }
-  if (x instanceof Expression.Degrees) {
-    return simplifyConstantValueInternal(x.value.simplify(), type);
-  }
   var a = undefined;
   var b = undefined;
-  if (x === Expression.PI) {
+  if (x instanceof Integer && x.compareTo(Expression.ZERO) === 0) {
+    a = Expression.ZERO;
+    b = Expression.ONE;
+  } else if (x === Expression.PI) {
     a = Expression.ONE;
     b = Expression.ONE;
   } else if (x instanceof Multiplication && x.a instanceof Integer && x.b === Expression.PI) {
@@ -383,12 +391,28 @@ var simplifyConstantValue = function (x, type) {
   } else if (x instanceof Division && x.b instanceof Integer && x.a instanceof Multiplication && x.a.a instanceof Integer && x.a.b === Expression.PI) {
     a = x.a.a;
     b = x.b;
+  } else if (x instanceof Expression.Degrees) {
+    var t = x.value.simplify();
+    if (t instanceof Integer) {
+      a = t;
+      b = Integer.fromNumber(180);
+    } else {
+      throw new TypeError();
+    }
   }
   if (a != undefined && b != undefined) {
     b = b.toNumber();
-    if (b >= 1 && b <= 180 && 180 % b === 0) {
-      var d = a.multiply(Integer.fromNumber(Math.floor(180 / b)));
-      return simplifyConstantValueInternal(d, type);
+    var k = 2;
+    if (b >= 1 && b <= 180 && (180 * k) % b === 0) {
+      var d = a.multiply(Integer.fromNumber(Math.floor((180 * k) / b))).remainder(Integer.fromNumber(360 * k)).toNumber();
+      d /= k;
+      if (type === "sin") {
+        d = 90 - d;
+        if (d >= 360 - 90) {
+          d -= 360;
+        }
+      }
+      return simplifyConstantValueInternal(d);
     }
   }
   return undefined;

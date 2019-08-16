@@ -1,4 +1,5 @@
   import Expression from './Expression.js';
+  import QuadraticInteger from './QuadraticInteger.js';
 
   var Integer = Expression.Integer;
 
@@ -181,64 +182,7 @@
   };
 
   Complex.prototype.primeFactor = function () {
-    function primeFactor(n) {
-      var i = 2;
-      var s = 0;
-      var r = Math.floor(Math.sqrt(n + 0.5));
-      while (i <= r) {
-        if (n % i === 0) {
-          return i;
-        }
-        i += s === 2 ? 2 : s + 1;
-        s += 1;
-        if (s === 4) {
-          s = 2;
-        }
-      }
-      return n;
-    }
-    function factors(n) {
-      var p = n > 1 ? primeFactor(n) : 1;
-      var e = 0;
-      var t = 1;
-      var f = null;
-      var fs = null;
-      var i = 1;
-      return {
-        //[Symbol.iterator]: function () {
-        //  return this;
-        //},
-        //get done() {
-        //  return this.value == null;
-        //},
-        value: null,
-        next: function () {
-          if (p === 1) {
-            this.value = null;
-            return this;
-          }
-          if (fs == null) {
-            if (n % p === 0) {
-              t *= p;
-              n /= p;
-              e += 1;
-              this.value = t;
-              return this;
-            }
-            fs = factors(n);
-            i = t;
-          }
-          if (i === t) {
-            i = 1;
-            f = fs.next().value;
-          } else {
-            i *= p;
-          }
-          this.value = f == null ? null : f * i;
-          return this;
-        }
-      };
-    }
+
     function canBeSquare(n) {
       // https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/#comment-15700
       //var bitset = 0;
@@ -247,7 +191,7 @@
       //}
       var bitset = 33751571;
       var result = (bitset >> (n & 31)) & 1;
-      return result;
+      return result === 1;
     }
     function norm(a, b) {
       return a * a + b * b;
@@ -266,7 +210,7 @@
       throw new RangeError("NotSupportedError");
     }
 
-    for (var fs = factors(n), p = fs.next().value; p != null; p = fs.next().value) {
+    for (var fs = QuadraticInteger._factors(n), p = fs.next().value; p != null; p = fs.next().value) {
       var b = 0;
       while (p - b * b > 0) {
         if (canBeSquare(p - b * b)) {

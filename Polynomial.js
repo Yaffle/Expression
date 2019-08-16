@@ -218,6 +218,10 @@
       var pq = Polynomial.of(q);
       quotient = quotient.add(pq.shift(n));
       remainder = remainder.subtract(p.multiply(pq).shift(n));
+      if (remainder.getDegree() - p.getDegree() === n) {
+        // to avoid the infite loop
+        throw new TypeError("there is a some problem with the expression evaluation");//!
+      }
     }
     return {quotient: quotient, remainder: remainder};
   };
@@ -405,13 +409,9 @@
 
     return np;
   };
-
-  Polynomial.prototype._getFactorByKroneckersMethod = function () {
-    // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
-    // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
-    // https://en.wikipedia.org/wiki/Vandermonde_matrix
-    var np = this;
-    var isInteger = function (c) {
+  
+  Polynomial.prototype._hasIntegerLikeCoefficients = function () {
+    var isIntegerLike = function (c) {
       if (c instanceof Expression.Integer) {
         return true;
       }
@@ -419,21 +419,29 @@
         return true;
       }
       if (c instanceof Expression.Addition) {
-        return isInteger(c.a) && isInteger(c.b);
+        return isIntegerLike(c.a) && isIntegerLike(c.b);
       }
       if (c instanceof Expression.Multiplication) {
-        return isInteger(c.a) && isInteger(c.b);
+        return isIntegerLike(c.a) && isIntegerLike(c.b);
       }
       if (c instanceof Expression.Exponentiation) {
-        return isInteger(c.a) && c.b instanceof Expression.Integer;
+        return isIntegerLike(c.a) && c.b instanceof Expression.Integer;
       }
       return false;
     };
-    var integerCoefficients = true;
-    for (var i = 0; i <= np.getDegree(); i += 1) {
-      integerCoefficients = integerCoefficients && isInteger(np.getCoefficient(i));
+    var integerLikeCoefficients = true;
+    for (var i = 0; i <= this.getDegree(); i += 1) {
+      integerLikeCoefficients = integerLikeCoefficients && isIntegerLike(this.getCoefficient(i));
     }
-    if (!integerCoefficients) {
+    return integerLikeCoefficients;
+  };
+
+  Polynomial.prototype._getFactorByKroneckersMethod = function () {
+    // https://ru.wikipedia.org/wiki/%D0%9C%D0%B5%D1%82%D0%BE%D0%B4_%D0%9A%D1%80%D0%BE%D0%BD%D0%B5%D0%BA%D0%B5%D1%80%D0%B0
+    // https://ru.wikipedia.org/wiki/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%BF%D0%BE%D0%BB%D1%8F%D1%86%D0%B8%D0%BE%D0%BD%D0%BD%D1%8B%D0%B9_%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%87%D0%BB%D0%B5%D0%BD_%D0%9B%D0%B0%D0%B3%D1%80%D0%B0%D0%BD%D0%B6%D0%B0
+    // https://en.wikipedia.org/wiki/Vandermonde_matrix
+    var np = this;
+    if (!np._hasIntegerLikeCoefficients()) {
       return undefined;
     }
     var n = np.getDegree();
@@ -656,11 +664,20 @@
         var b = x.b.divide(Expression.Integer.fromNumber(n));
         return b.equals(Expression.ONE) ? x.a : new Expression.Exponentiation(x.a, b);
       }
+      if (!Expression.isConstant(x) && x.isNegative() && (n === 2 || n % 2 !== 0)) {
+        x = x.negate();
+        var c = nthRootInternal(n, x);
+        return c == null ? null : Expression.ONE.negate()._nthRoot(n).multiply(c);
+      }
+      if (x instanceof Expression.Integer && x.isNegative() && n % 2 === 0) {//?
+        return nthRootInternal(n / 2, x._nthRoot(2));
+      }
       var y = undefined;
       try {
         y = x._nthRoot(n);
       } catch (error) {
         //TODO:
+        console.error(error);
       }
       return y;
     };
@@ -953,10 +970,27 @@
           var root = b.add(C).add(delta0.divide(C)).negate().divide(THREE.multiply(a));
           roots.push(root);
           np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
-          if (callback != undefined) {
-            callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
+
+          if (true) {
+            var C1 = C.multiply(Expression.ONE.negate().add(THREE.squareRoot().multiply(Expression.I)).divide(TWO)); // C*(-1+sqrt(3)*i)/2
+            var root = b.add(C1).add(delta0.divide(C1)).negate().divide(THREE.multiply(a));
+            roots.push(root);
+            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
+
+            var C2 = C.multiply(Expression.ONE.negate().subtract(THREE.squareRoot().multiply(Expression.I)).divide(TWO)); // C*(-1-sqrt(3)*i)/2
+            var root = b.add(C2).add(delta0.divide(C2)).negate().divide(THREE.multiply(a));
+            roots.push(root);
+            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;
+            if (callback != undefined) {
+              callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
+            }
+          } else {
+            if (callback != undefined) {
+              callback({content: content, roots: roots, newPolynomial: np, type: "solveCubicEquation"});
+            }
+            continueWithNewPolynomial(roots, np);
           }
-          continueWithNewPolynomial(roots, np);
+
           return roots;
         }
       }

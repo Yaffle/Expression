@@ -28,6 +28,9 @@ function ilog2(n) {
 // https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method
 // https://stackoverflow.com/a/15979957/839199y
 function nthRoot(S, n) {
+  if (n < 2 || n % 2 === 0 && BigInteger.lessThan(S, 0)) {
+    throw new RangeError();
+  }
   if (!BigInteger.lessThan(BigInteger.BigInt(2), n)) {
     var t = BigInteger.toNumber(S);
     if (t < (9007199254740991 + 1) / 2) {

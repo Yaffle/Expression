@@ -66,24 +66,44 @@ Condition.prototype._and = function (operator, e) {
   if (contains(this.array, operator === Condition.EQZ ? Condition.NEZ : Condition.EQZ, e)) {
     return Condition.FALSE;
   }
-  if (e instanceof Expression.Exponentiation && e.b instanceof Expression.Integer && e.b.compareTo(Expression.ZERO) > 0 && e.a instanceof Expression.Symbol) {
+  if (e instanceof Expression.Exponentiation &&
+      e.b instanceof Expression.Integer &&
+      e.b.compareTo(Expression.ZERO) > 0 &&
+      e.a instanceof Expression.Symbol) {
     return this._and(operator, e.a);
   }
 
-  //!new
-  if (e.isNegative()) {
-    e = e.negate();
-  }
-  if (e instanceof Expression.Addition && e.a instanceof Expression.Exponentiation && e.a.b.inverse().equals(Expression.TWO) && e.b instanceof Expression.Integer) {
-    if (e.b.compareTo(Expression.ZERO) > 0) {
-      return this._and(operator, Expression.ONE);
-    }
-    //?
-    //TODO: fix
-    return this._and(operator, e.a.a.subtract(e.b.pow(Expression.TWO)));
-  }
-
   var add = function (oldArray, y) {
+    var e = y.expression;//!
+
+    //!new
+    if (e.isNegative()) {
+      return add(oldArray, {expression: e.negate(), operator: y.operator});
+    }
+
+    // (x-1)^(1/2)
+    if (e instanceof Expression.Exponentiation &&
+        e.b.getNumerator() instanceof Expression.Integer &&
+        !e.b.getDenominator().equals(Expression.ONE)) {
+      return add(oldArray, {expression: e.a, operator: y.operator});
+    }
+
+    // (4*k+1)^(1/2)+1
+    if (e instanceof Expression.Addition &&
+        e.a instanceof Expression.Exponentiation &&
+        Expression.isConstant(e.b) && //!
+        e.a.b.getDenominator() instanceof Expression.Integer &&
+        !e.a.b.getDenominator().equals(Expression.ONE)) {
+      if (e.a.b.getDenominator().remainder(Expression.TWO).equals(Expression.ZERO) && !e.b.isNegative()) {
+        return add(oldArray, {expression: Expression.ONE, operator: y.operator});
+      }
+      //if (!e.b.negate().pow(e.a.b.inverse()).pow(e.a.b).equals(e.b.negate())) {
+      //  return add(oldArray, {expression: Expression.ONE, operator: y.operator});
+      //}
+      //TODO: fix
+      return add(oldArray, {expression: e.a.a.pow(e.a.b.getNumerator()).subtract(e.b.negate().pow(e.a.b.getDenominator())), operator: y.operator});
+    }
+
     if (y.expression instanceof Expression.Multiplication && y.expression.b instanceof Expression.IdentityMatrix) {
       return add(oldArray, {expression: y.expression.a, operator: y.operator});
     }
@@ -163,13 +183,23 @@ Condition.prototype._and = function (operator, e) {
           operator: y.operator
         };
       }
+      if (p != null && p.p.getDegree() > 1 && p.p.getCoefficient(0).equals(Expression.ZERO)) {
+        if (operator === Condition.NEZ) {
+          var tmp = add(oldArray, {expression: p.v, operator: Condition.NEZ});
+          if (tmp == null) {
+            return null;
+          }
+          return add(tmp, {expression: y.expression.divide(p.v), operator: Condition.NEZ});
+        }
+      }
     }
 
     var newArray = [];
     for (var i = 0; i < oldArray.length; i += 1) {
       var x = oldArray[i];
-      if (x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
-          x.operator === Condition.EQZ && y.operator === Condition.NEZ) {
+      if ((x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
+           x.operator === Condition.EQZ && y.operator === Condition.NEZ) &&
+           Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
         var g = x.expression.gcd(y.expression);
         while (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
           if (x.operator === Condition.EQZ) {
@@ -315,6 +345,9 @@ Condition.prototype._and = function (operator, e) {
   if (newArray == null) {
     return Condition.FALSE;
   }
+  if (newArray.length === 0) {
+    return Condition.TRUE;
+  }
   
   return new Condition(newArray);
 };
@@ -332,9 +365,13 @@ Condition.prototype.isTrue = function () {
   return this === Condition.TRUE;
 };
 Condition.prototype.toString = function (options) {
-  if (this === Condition.FALSE || this === Condition.TRUE || this.array.length === 0) {
-    //throw new RangeError();
-    return "";
+  if (this === Condition.TRUE || this === Condition.FALSE) {
+    // 1) no need; 2) no way to distinguish TRUE and FALSE
+    throw new TypeError();
+  }
+  if (this.array.length === 0) {
+    // assertion
+    throw new TypeError();
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
