@@ -8,6 +8,18 @@ function modPow(base, exponent, modulus, accumulator) {
   return !BigInteger.lessThan(BigInteger.BigInt(0), exponent) ? accumulator : modPow(BigInteger.remainder(BigInteger.multiply(base, base), modulus), BigInteger.divide(exponent, BigInteger.BigInt(2)), modulus, !BigInteger.lessThan(BigInteger.remainder(exponent, BigInteger.BigInt(2)), BigInteger.BigInt(1)) ? BigInteger.remainder(BigInteger.multiply(accumulator, base), modulus) : accumulator);
 }
 
+function bitLength(n) {
+  var x = BigInteger.toNumber(n);
+  return x < 1 / 0 ? Math.floor(Math.log(x) / Math.log(2)) : 1024 + bitLength(BigInteger.divide(n, BigInteger.exponentiate(2, 1024)));
+}
+
+function log(n) {
+  //n = f * 2**e
+  //Math.log(n) = Math.log(f) + Math.log(2) * e;
+  var x = BigInteger.toNumber(n);
+  return x < 1 / 0 ? Math.log(x) : Math.log(BigInteger.toNumber(BigInteger.divide(n, BigInteger.exponentiate(2, bitLength(n) - 53))) + Math.log(2) * (bitLength(n) - 53));
+}
+
 // isPrime implementation is stolen from:
 // https://github.com/peterolson/BigInteger.js
 // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Deterministic_variants
@@ -27,7 +39,7 @@ function isPrime(n) {
     d = BigInteger.divide(d, BigInteger.BigInt(2));
     s += 1;
   }
-  for (var a = min(BigInteger.subtract(n, BigInteger.BigInt(1)), BigInteger.BigInt(Math.floor(2 * Math.pow(Math.log(BigInteger.toNumber(n)), 2)))); !BigInteger.lessThan(a, BigInteger.BigInt(2)); a = BigInteger.subtract(a, BigInteger.BigInt(1))) {
+  for (var a = min(BigInteger.subtract(n, BigInteger.BigInt(1)), BigInteger.BigInt(Math.floor(2 * Math.pow(log(n), 2)))); !BigInteger.lessThan(a, BigInteger.BigInt(2)); a = BigInteger.subtract(a, BigInteger.BigInt(1))) {
     var adn = modPow(a, d, n, BigInteger.BigInt(1));
     if (BigInteger.lessThan(adn, BigInteger.BigInt(1)) || BigInteger.lessThan(BigInteger.BigInt(1), adn)) {
       for (var r = 0, x = adn; BigInteger.lessThan(x, BigInteger.subtract(n, BigInteger.BigInt(1))); r += 1, x = BigInteger.remainder(BigInteger.multiply(x, x), n)) {
@@ -124,6 +136,11 @@ function primeFactor(n) {
   var x = BigInteger.toNumber(n);
   if (x <= 9007199254740991) {
     return BigInteger.BigInt(primeFactorUsingWheel2(x));
+  }
+  var s = BigInteger.toNumber(gcd(n, BigInteger.BigInt(304250263527210))); // a primorial
+  if (s !== 1) {
+    //TODO: use-cases - ?
+    return BigInteger.BigInt(primeFactorUsingWheel2(s));
   }
   return primeFactorByPollardRho(n);
 }

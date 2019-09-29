@@ -291,9 +291,9 @@ Expression.CholeskyDecomposition = function (matrix) {
         }
         var x = sum == null ? A.e(j, j) : A.e(j, j).subtract(sum);
         //TODO: fix
-        if (x instanceof Expression.Integer && x.compareTo(Expression.ZERO) < 0) {
-          throw new RangeError("NonPositiveDefiniteMatrix");
-        }
+        //if (x instanceof Expression.Integer && x.compareTo(Expression.ZERO) < 0) {
+        //  throw new RangeError("NonPositiveDefiniteMatrix");
+        //}
         e = x.squareRoot();
       } else {
         var sum = null;
@@ -308,6 +308,8 @@ Expression.CholeskyDecomposition = function (matrix) {
     }
   }
   return {
-    L: new Expression.Matrix(Matrix.padRows(L, null))
+    L: Matrix.padRows(L, null)
   };
 };
+
+

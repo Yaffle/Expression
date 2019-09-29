@@ -271,7 +271,7 @@
   Matrix.GaussMontante = "Gauss-Montante";
 
   function ToRowEchelonOptions(method, usage, callback) {
-    if (usage !== "determinant" && usage !== "inverse" && usage !== "solving" && usage !== "") {
+    if (usage !== "determinant" && usage !== "inverse" && usage !== "solving" && usage !== "LU-decomposition" && usage !== "" && usage !== "row-reduction") {
       throw new RangeError();
     }
     if (method !== Matrix.Gauss && method !== Matrix.GaussJordan && method !== Matrix.GaussMontante) {
@@ -364,7 +364,7 @@
             var found = false;
             if (pivotOriginRow === pivotRow - 1) {//!
               var row = pivotRow;
-              while (row < matrix.rows() && !(matrix.e(row, pivotColumn) instanceof Expression.Integer && !matrix.e(row, pivotColumn).equals(Expression.ZERO))) {
+              while (row < matrix.rows() && !((condition.andZero(matrix.e(row, pivotColumn)).isFalse() || options.usage === "LU-decomposition") && !matrix.e(row, pivotColumn).equals(Expression.ZERO))) {
                 row += 1;
               }
               if (row < matrix.rows()) {
@@ -383,6 +383,15 @@
                 } else if (c1.isFalse()) {
                   state = ZERO;
                 } else {
+                  if (options.usage === "row-reduction") {
+                    var tmp = Matrix.toRowEchelonStep(matrix, pivotRow, pivotColumn, pivotOriginRow, previousPivot, Object.assign({}, options, {callback: null}), condition);
+                    var m = tmp.matrix.slice(pivotOriginRow + 1, matrix.rows(), pivotColumn, matrix.cols()).map(function (e, i, j) {
+                      return c2.andNotZero(e).isFalse() ? Expression.ZERO : e;
+                    });
+                    if (m.eql(Matrix.Zero(m.rows(), m.cols()))) {
+                      return matrix.toRowEchelonInternal(options, pivotRow, pivotColumn, pivotOriginRow, previousPivot, NOT_ZERO, condition);
+                    }
+                  }
                   return {
                     matrix: matrix,
                     c1: c1,
@@ -474,6 +483,9 @@
       var c = this.e(1, 0);
       var d = this.e(1, 1);
       var det = a.multiply(d).subtract(b.multiply(c));
+      if (det.equals(Expression.ZERO)) {
+        throw new RangeError("SingularMatrixException");
+      }
       return Matrix.Zero(this.rows(), this.rows()).map(function (e, i, j) {
         return (i === 0 ? (j === 0 ? d : b.negate()) : (j === 0 ? c.negate() : a)).divide(det);
       });
@@ -748,6 +760,19 @@
     return Matrix.Zero(this.rows() - 1, this.cols() - 1).map(function (e, i, j) {
       return that.e(i < k ? i : i + 1, j < l ? j : j + 1);
     });
+  };
+
+  Matrix.toRowEchelonWithCallback = function (matrix, method, usage, changeCallback, resultCallback) {
+    var result = matrix.toRowEchelonXXX(method, usage, changeCallback, Condition.TRUE);
+    var w = function (result) {
+      if (result.c1 == undefined && result.c2 == undefined) {
+        resultCallback(result);
+      } else {
+        w(result.a1());
+        w(result.a2());
+      }
+    };
+    w(result);
   };
 
   export default Matrix;

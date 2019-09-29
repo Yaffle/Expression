@@ -10,7 +10,7 @@ Condition.EQZ = " == 0";
 
 Condition.prototype._and = function (operator, e) {
   if (operator !== Condition.NEZ && operator !== Condition.EQZ) {
-    throw new Error();
+    throw new TypeError();
   }
   if (e == undefined) {
     throw new RangeError();

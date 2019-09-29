@@ -297,7 +297,7 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
           for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
             if (c == null && y instanceof Expression.Complex) {
               c = y;
-            } else if (y instanceof Expression.NthRoot) {//TODO: ?
+            } else if (y instanceof Expression.NthRoot || y instanceof Expression.Integer) {//TODO: ?
               r = r.multiply(y);
             } else {
               ok = false;
@@ -309,14 +309,9 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
         if (ok && !imaginaryValue.equals(Expression.ZERO)) {
           realValue = realValue.divide(denominator);
           imaginaryValue = imaginaryValue.divide(denominator);
-          var is = 1;
-          if (imaginaryValue.isNegative()) {
-            is = -1;
-            imaginaryValue = imaginaryValue.negateCarefully();
-          }
           var real = toDecimalStringInternal(realValue, fractionDigits, decimalToStringCallback, complexToStringCallback);
           var imaginary = toDecimalStringInternal(imaginaryValue, fractionDigits, decimalToStringCallback, complexToStringCallback);
-          return complexToStringCallback(realValue.equals(Expression.ZERO) ? '' : real, is, imaginaryValue.equals(Expression.ONE) ? '' : imaginary);
+          return complexToStringCallback(realValue.equals(Expression.ZERO) ? '' : real, imaginaryValue.equals(Expression.ONE) ? '' : imaginary);
         }
       }
     }

@@ -55,13 +55,10 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
 var decimalToMathML = function (sign, number) {
   return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
 };
-var complexToMathML = function (real, imaginarySign, imaginaryAbs) {
-  return '<mrow>' + real + (imaginarySign > 0 ? '<mo>+</mo>' : '<mo>&minus;</mo>') + (imaginaryAbs !== '' ? imaginaryAbs + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
+var complexToMathML = function (real, imaginary) {
+  return '<mrow>' + real + (imaginary.indexOf('<mo>&minus;</mo>') !== -1 ? '<mo>&minus;</mo>' : '<mo>+</mo>') + (imaginary !== '' ? imaginary.replace(/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>/g, '<mn>$1</mn>') + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
 };
 
-//TODO: move
-Expression.toDecimalString = function (x, options) {
-  
   function isConstant(e) {
     if (e instanceof Expression.Symbol) {
       return false;
@@ -87,11 +84,21 @@ Expression.toDecimalString = function (x, options) {
     return true;
   }
 
+//TODO: move
+Expression.toDecimalString = function (x, options) {
   var fractionDigits = options != null ? options.fractionDigits : -1;
   if (fractionDigits >= 0 && isConstant(x)) {
     return toDecimalStringInternal(x, fractionDigits, decimalToMathML, complexToMathML);
   }
   return undefined;
+};
+
+var getPrecedence = function (x, options) {
+  var fractionDigits = options != null ? options.fractionDigits : -1;
+  if (fractionDigits >= 0 && isConstant(x) && Expression.has(x, Expression.Complex)) {
+    return new Expression.Addition(Expression.ONE, Expression.ONE).getPrecedence();
+  }
+  return x.getPrecedence();
 };
 
 Expression.idCounter = 0;
@@ -231,7 +238,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
     result += "</menclose>";
 
     result += "<mtext>";
-    result += "<button type=\"button\" class=\"matrix-menu-show matrix-menu-show-new\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\">&#x2630;</button>";
+    result += "<button type=\"button\" class=\"matrix-menu-show\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\"></button>";
     result += "</mtext>";
 
     result += "</munder>";
@@ -356,7 +363,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
           n = true;
           b = b.negateCarefully();
         }
-        var fence = this.getPrecedence() >= b.getPrecedence();
+        var fence = this.getPrecedence() >= getPrecedence(b, options);
         fence = fence || b.isUnaryPlusMinus();
         s.push((fence ? '<mrow><mo>(</mo>' : '') + b.toMathML(Expression.setTopLevel(fence, options)) + (fence ? '<mo>)</mo></mrow>' : ''));
         s.push(n ? '<mo>&minus;</mo>' : '<mo>+</mo>');
@@ -470,7 +477,7 @@ Condition.prototype.toMathML = function (options) {
 };
 
 Expression.Complex.prototype.toMathML = function (options) {
-  return "<mrow>" + this.toStringInternal(options, "<mo>&it;</mo>", "<mi>&ii;</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", function (x, options) { return x.toMathML(options); }) + "</mrow>";
+  return this.toStringInternal(options, "<mo>&it;</mo>", "<mi>&ii;</mi>", "<mo>&minus;</mo>", "<mo>+</mo>", "<mrow>", "</mrow>", function (x, options) { return x.toMathML(options); });
 };
 
 Expression.GF2.prototype.toMathML = function (options) {
@@ -494,5 +501,5 @@ NonSimplifiedExpression.prototype.toMathML = function (options) {
 };
   
 Expression.prototype.toMathML = function (options) {
-  throw new Error();
+  throw new TypeError();
 };

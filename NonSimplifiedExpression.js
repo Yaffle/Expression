@@ -76,6 +76,10 @@
   };
 */
 
+  NonSimplifiedExpression.prototype.addExpression = function (x) {
+    throw new TypeError();
+  };
+
   NonSimplifiedExpression.prototype.squareRoot = function () {
     return new NonSimplifiedExpression(new Expression.SquareRoot(this));
   };

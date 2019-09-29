@@ -9,7 +9,7 @@
 
 var separateSinCos = function (e) {
   if (!(e instanceof Multiplication)) {
-    throw new Error();
+    throw new TypeError();
   }
   var sinCos = undefined;
   var other = undefined;
@@ -52,7 +52,7 @@ var contractTrigonometryInternal = function (a, b) {
   if (a instanceof Cos && b instanceof Cos) {
     return ax.subtract(bx).cos().divide(Expression.TWO).add(ax.add(bx).cos().divide(Expression.TWO));
   }
-  throw new Error();
+  throw new TypeError();
 };
 
 // page 306
@@ -113,7 +113,7 @@ var contractTrigonometryRules = function (u) {
     if (d instanceof Multiplication) {
       return expandMainOp(c.multiply(contractTrigonometryProduct(d)));
     }
-    throw new Error();
+    throw new TypeError();
   }
   if (v instanceof Addition) {
     var s = Expression.ZERO;
@@ -178,7 +178,7 @@ var map = function (f, u) {
     //TODO: fix
     return u;//?
   }
-  throw new Error();
+  throw new TypeError();
 };
 
 // page 303
@@ -192,7 +192,7 @@ var expandTrigonometryRulesInternal = function (a, b, type) {
     // sin(a + b) = sin(a) * cos(b) + cos(a) * sin(b)
     return expandTrigonometryRules(a, "sin").multiply(expandTrigonometryRules(b, "cos")).add(expandTrigonometryRules(a, "cos").multiply(expandTrigonometryRules(b, "sin")));
   }
-  throw new Error(type);
+  throw new TypeError(type);
 };
 
 var expandTrigonometryRules = function (A, type) {
@@ -202,7 +202,7 @@ var expandTrigonometryRules = function (A, type) {
     var a = A.a;
     var b = A.b;
     if (!(a instanceof Integer)) {
-      throw new Error();
+      throw new TypeError();
     }
     if (a.compareTo(Expression.ONE.negate()) === 0) {
       if (type === "cos") {
@@ -233,7 +233,7 @@ var expandTrigonometryRules = function (A, type) {
       return A.sin();
     }
   }
-  throw new Error();
+  throw new TypeError();
 };
 
 // CA and SC, EA, p. 303
@@ -270,7 +270,7 @@ var contractTrigonometry = function (u) {
     return v;
   }
   return v;//?
-  //throw new Error();
+  //throw new TypeError();
 };
 
 // page 323
@@ -325,18 +325,115 @@ var simplifyConstantValueInternal = function (d) {
     var x = simplifyConstantValueInternal(d * 2);
     return x == null ? null : Expression.TWO.add(Expression.TWO.multiply(x)).squareRoot().divide(Expression.TWO);
   }
+  function ff(x) {//TODO: a+b
+    // cos(2x) = 2cos^2(x)-1
+    var y = simplifyConstantValueInternal(x / 2);
+    return Expression.TWO.multiply(y.multiply(y)).subtract(Expression.ONE);
+  }
+
+  if (d === 3) {
+    // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#3°:_regular_hexacontagon_(60-sided_polygon)
+    return RPN('(2*(5^0.5+1)^0.5*5^(1/4)+2*(3*5^0.5+3)^0.5*5^(1/4)+2^0.5-6^0.5-10^0.5+30^0.5)/16');
+  }
+  if (d === 6) {
+    return ff(d);
+  }
+  if (d === 12) {
+    return ff(d);
+  }
+  if (d === 24) {
+    // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#24°:_sum_12°_+_12°
+    //return RPN('(sqrt(6*(5-sqrt(5)))+sqrt(5)+1)/8');
+    return ff(d);
+  }
+  if (d === 42) {
+    // cos(42) = sin(48) = 2*sin(24)*cos(24)
+    return RPN('2*sin(24)*cos(24)');
+  }
+  if (d === 9) {
+    return RPN('cos(3)cos(6)-sin(3)sin(6)');
+  }
+  if (d === 21) {
+    return RPN('cos(3)cos(18)-sin(3)sin(18)');
+  }
+  if (d === 27) {
+    return RPN('cos(3)cos(24)-sin(3)sin(24)');
+  }
+  if (d === 33) {
+    return RPN('cos(3)cos(30)-sin(3)sin(30)');
+  }
+  if (d === 39) {
+    return RPN('cos(3)cos(36)-sin(3)sin(36)');
+  }
+
+  if (d === 7.5) {
+    // cos(7.5) = cos(67.5 - 60) = cos(3pi/8)*cos(-60) - sin(3pi/8)*sin(-60)
+    return RPN('cos(3pi/8)*cos(-60) - sin(3pi/8)*sin(-60)');
+  }
+  if (d === 90 - 7.5) {
+    // sin(7.5) = sin(67.5 - 60) = sin(3pi/8)*cos(-60) + cos(3pi/8)*sin(-60)
+    return RPN('sin(3pi/8)*cos(-60) + cos(3pi/8)*sin(-60)');
+  }
+  if (d === 90 - 52.5) {
+    // sin(52.5) = sin(67.5 - 15) = sin(3pi/8)*cos(-15) + cos(3pi/8)*sin(-15)
+    return RPN('sin(3pi/8)*cos(-15) + cos(3pi/8)*sin(-15)');
+  }
+  if (d === 52.5) {
+    // cos(52.5) = cos(67.5 - 15) = cos(3pi/8)*cos(-15) - sin(3pi/8)*sin(-15)
+    return RPN('cos(3pi/8)*cos(-15) - sin(3pi/8)*sin(-15)');
+  }
+
+  if (d > 0 && d < 45) {
+    return f(d);
+  }
 
   if (d === 0) {
     return Expression.ONE;
   }
+
+  // https://en.wikipedia.org/wiki/Sine
+  if (d === 90 - 42) {
+    return RPN('(sqrt(30+sqrt(180))-sqrt(5)+1)/8');
+  }
+  if (d === 90 - 39) {
+    return RPN('((2-sqrt(12))*sqrt(5-sqrt(5))+(sqrt(10)+sqrt(2))*(sqrt(3)+1))/16');
+  }
+  if (d === 90 - 33) {
+    // sin(33) = sin(15)cos(18)+sin(18)cos(15)
+    return simplifyConstantValueInternal(15).multiply(simplifyConstantValueInternal(90 - 18)).add(simplifyConstantValueInternal(18).multiply(simplifyConstantValueInternal(90 - 15)));
+  }
+  if (d === 63) {
+    return RPN('(sqrt(20+sqrt(80))-sqrt(10)+sqrt(2))/8');
+  }
+  if (d === 66) {
+    return RPN('(sqrt(3)+sqrt(15)-sqrt(10-sqrt(20)))/8');
+  }
+  if (d === 69) {
+    return RPN('((2+sqrt(12))*sqrt(5-sqrt(5))-(sqrt(10)+sqrt(2))*(sqrt(3)-1))/16')
+  }
+  if (d === 78) {
+    return RPN('(sqrt(10+sqrt(20))+sqrt(3)-sqrt(15))/8');
+  }
+  if (d === 81) {
+    return RPN('(sqrt(10)+sqrt(2)-sqrt(20-sqrt(80)))/8');
+  }
+  if (d === 84) {
+    return RPN('(sqrt(30-sqrt(180))-sqrt(5)-1)/8');
+  }
+  if (d === 87) {
+    return RPN('((2-sqrt(12))*sqrt(5+sqrt(5))+(sqrt(10)-sqrt(2))(sqrt(3)+1))/16');
+  }
+  //TODO: 
+  //TODO: sin(48)
+
   if (d === 15) {
+    return f(d);
+  }
+  if (d === 22.5) {
     return f(d);
   }
   if (d === 30) {
     return Expression.ONE.add(Expression.TWO).squareRoot().divide(Expression.TWO);
-  }
-  if (d === 22.5) {
-    return f(d);
   }
   if (d === 45) {
     return Expression.ONE.divide(Expression.TWO.squareRoot());
@@ -345,7 +442,7 @@ var simplifyConstantValueInternal = function (d) {
     return Expression.ONE.divide(Expression.TWO);
   }
   if (d === 67.5) {
-    return f(d);
+    return f(d).negate();//?
   }
   if (d === 75) {
     return f(d);
@@ -437,7 +534,7 @@ Expression.prototype.sin = function () {
     throw new RangeError("NotSupportedError");
   }
   if (x.isNegative()) {
-    return new Sin(x.negate()).negate();
+    return x.negate().sin().negate();
   }
   var t = simplifyConstantValue(x, "sin");
   if (t != undefined) {
@@ -457,7 +554,7 @@ Expression.prototype.cos = function () {
     throw new RangeError("NotSupportedError");
   }
   if (x.isNegative()) {
-    return new Cos(x.negate());
+    return x.negate().cos();
   }
   var t = simplifyConstantValue(x, "cos");
   if (t != undefined) {

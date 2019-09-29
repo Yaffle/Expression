@@ -92,8 +92,8 @@ ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
   var decimalToMathML = function (sign, number) {
     return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
   };
-  var complexToMathML = function (real, imaginarySign, imaginaryAbs) {
-    return '<mrow>' + real + (imaginarySign > 0 ? '<mo>+</mo>' : '<mo>&minus;</mo>') + (imaginaryAbs !== '' ? imaginaryAbs + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
+  var complexToMathML = function (real, imaginary) {
+    return '<mrow>' + real + (imaginary.indexOf('<mo>&minus;</mo>') !== -1 ? '<mo>&minus;</mo>' : '<mo>+</mo>') + (imaginary !== '' ? imaginary.replace(/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>/g, '<mn>$1</mn>') + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
   };
 
   //TODO:
@@ -212,7 +212,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
 
   SturmSequence.prototype.numberOfRoots = function (interval) {
     if (interval.a.equals(interval.b)) {
-      throw new Error();
+      throw new TypeError();
     }
     return this.signChanges(interval.a) - this.signChanges(interval.b);
   };

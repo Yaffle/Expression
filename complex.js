@@ -108,16 +108,25 @@
     return new Complex(this.real.truncatingDivide(f), this.imaginary.truncatingDivide(f));
   };
 
-  Complex.prototype.toStringInternal = function (options, times, i, minus, plus, toString) {
+  Complex.prototype.toStringInternal = function (options, times, i, minus, plus, start, end, toString) {
+    if (this.real.equals(Expression.ZERO)) {
+      if (this.imaginary.equals(Expression.ONE)) {
+        return i;
+      }
+      if (this.imaginary.equals(Expression.ONE.negate())) {
+        return start + minus + i + end;
+      }
+      return start + toString(this.imaginary, options) + times + i + end;
+    }
     var isNegative = this.imaginary.isNegative();
     var imaginary = (isNegative ? this.imaginary.negateCarefully() : this.imaginary);
-    var si = imaginary.equals(Expression.ONE) ? "" : toString(imaginary, options) + times;
-    var sr = this.real.equals(Expression.ZERO) ? "" : toString(this.real, options);
-    return sr + (isNegative ? minus : (this.real.equals(Expression.ZERO) ? "" : plus)) + si + i;
+    var si = (imaginary.equals(Expression.ONE) ? i : start + toString(imaginary, options) + times + i + end);
+    var sr = toString(this.real, options);
+    return start + sr + (isNegative ? minus : plus) + si + end;
   };
 
   Complex.prototype.toString = function (options) {
-    return this.toStringInternal(options, "", "i", "-", "+", function (x, options) { return x.toString(options); });
+    return this.toStringInternal(options, "", "i", "-", "+", "", "", function (x, options) { return x.toString(options); });
   };
 
   Expression.getComplexConjugate = function (e) {
@@ -176,7 +185,7 @@
     var q = q2.compareTo(Expression.ZERO) === 0 ? q1 : new Complex(q1, q2);
     var r =  x.subtract(y.multiply(q));
     if (norm(r).compareTo(norm(y)) >= 0) {
-      throw new Error();
+      throw new TypeError();
     }
     return r;
   };
@@ -226,7 +235,7 @@
     }
 
     if (n > 1) {
-      throw new Error();
+      throw new TypeError();
     }
     return this;
   };

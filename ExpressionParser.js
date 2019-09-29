@@ -39,6 +39,13 @@
     return a.pow(b);
   });
 
+  var UNARY_PLUS = new Operator("+", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (e) {
+    return e;
+  });
+  var UNARY_MINUS = new Operator("-", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (e) {
+    return e.negate();
+  });
+
   var toDegrees = function (a) {
     if (a instanceof Expression.Integer) {
       return new Expression.Degrees(a);
@@ -55,6 +62,10 @@
   var prepareTrigonometricArgument = function (a) {
     var x = toDegrees(a);
     return x == null ? a : x;
+  };
+
+  var notSupported = function (a) {
+    throw new TypeError();
   };
 
   var operations = [
@@ -80,12 +91,8 @@
     //new Operator("%", 2, LEFT_TO_RIGHT, MULTIPLICATIVE_PRECEDENCE, function (a, b) {
     //  return a.remainder(b);
     //}),
-    new Operator("+", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (e) {
-      return e;
-    }),
-    new Operator("-", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (e) {
-      return e.negate();
-    }),
+    //UNARY_PLUS,
+    //UNARY_MINUS,
     EXPONENTIATION,
     new Operator("**", EXPONENTIATION.arity, EXPONENTIATION.rightToLeftAssociative, EXPONENTIATION.precedence, EXPONENTIATION.i),
     new Operator(".^", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a, b) {
@@ -146,13 +153,6 @@
       return a.GF2();
     }),
 
-    new Operator("sin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      if (a.sin == undefined || a.cos == undefined) {
-        throw new RangeError("NotSupportedError");
-      }
-      a = prepareTrigonometricArgument(a);
-      return a.sin();
-    }),
     new Operator("cos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       if (a.sin == undefined || a.cos == undefined) {
         throw new RangeError("NotSupportedError");
@@ -160,12 +160,21 @@
       a = prepareTrigonometricArgument(a);
       return a.cos();
     }),
-    new Operator("tan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+    new Operator("sin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       if (a.sin == undefined || a.cos == undefined) {
         throw new RangeError("NotSupportedError");
       }
       a = prepareTrigonometricArgument(a);
-      return a.sin().divide(a.cos());
+      return a.sin();
+    }),
+    new Operator("tan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      if (a.sin == undefined || a.cos == undefined) {
+        throw new RangeError("NotSupportedError");
+      }
+      //a = prepareTrigonometricArgument(a);
+      //return a.sin().divide(a.cos());
+      var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
+      return a2.sin().divide(a2.cos().add(Expression.ONE));
     }),
     new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
       var x = toDegrees(a);
@@ -188,264 +197,245 @@
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
     }),
-    
-    new Operator("\\end", 1, RIGHT_TO_LEFT, 0, function (a) {
-      throw new RangeError("NotSupportedError");
+ 
+    new Operator("cosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("sinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+
+    new Operator("arccos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("arcsin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("arctan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("arcosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("arsinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("artanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+
+    new Operator("frac", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a, b) {
+      return a.divide(b);
     })
   ];
 
   function OperationSearchCache() {
-    this.array = new Array(32);
-    for (var i = 0; i < this.array.length; i += 1) {
-      this.array[i] = undefined;
-    }
+    this.map = {};
+    this.re = null;
   }
 
-  var asciiToLowerCase = function (charCode) {
-    return (charCode < 65 ? charCode : (charCode < 91 ? charCode + 32 : (charCode < 128 ? charCode : charCode)));
+  OperationSearchCache.prototype.append = function (operator) {
+    this.map[operator.name.toLowerCase()] = operator;
+    this.re = null;
   };
-
-  OperationSearchCache.prototype.append = function (firstCharCode, operator) {
-    var index = asciiToLowerCase(firstCharCode) % this.array.length;
-    if (this.array[index] == undefined) {
-      this.array[index] = [];
+  OperationSearchCache.prototype.getByName = function (name) {
+    return this.map[name.toLowerCase()];
+  };
+  OperationSearchCache.prototype.getRegExp = function () {
+    // https://stackoverflow.com/questions/3561493/is-there-a-regexp-escape-function-in-javascript
+    var escapeRegExp = function (s) {
+      return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    };
+    // longest: ? "^T" and "^"
+    // ignore case
+    if (this.re == null) {//TODO: ?
+      var names = [];
+      for (var name in this.map) {
+        if (Object.prototype.hasOwnProperty.call(this.map, name)) {
+          names.push(name);
+        }
+      }
+      names.sort(function (a, b) {
+        return a + '\uFFFF' < b + '\uFFFF' ? -1 : +1;
+      });
+      var source = new Array(names.length);
+      for (var i = 0; i < names.length; i += 1) {
+        source[i] = escapeRegExp(names[i]);
+      }
+      this.re = new RegExp('^(?:' + source.join('|') + ')', 'i');
     }
-    this.array[index].push(operator);
-  };
-  OperationSearchCache.prototype.getAll = function (firstCharCode) {
-    var index = asciiToLowerCase(firstCharCode) % this.array.length;
-    return this.array[index];
+    return this.re;
   };
 
   var operationSearchCache = new OperationSearchCache();
 
   var i = -1;
   while (++i < operations.length) {
-    operationSearchCache.append(operations[i].name.charCodeAt(0), operations[i]);
+    operationSearchCache.append(operations[i]);
   }
 
-  function Input() {
-  }
-
-  Input.EOF = -1;
-  Input.trimLeft = function (input, position, skip) {
-    var match = undefined;
-    if ((match = Input.exec(input, position + skip, whiteSpaces)) != undefined) {
-      return position + skip + match.length;
-    }
-    return position + skip;
-  };
-  Input.parseCharacter = function (input, position, characterCode) {
-    var c = Input.getFirst(input, position);
-    if (c !== characterCode) {
-      ExpressionParser.startPosition = position;
-      ExpressionParser.endPosition = position + 1;
-      ExpressionParser.input = input;
-      if (c === -1) {
-        throw new RangeError("UserError: unexpected end of input, '" + String.fromCharCode(characterCode) + "' expected");
-      }
-      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "', '" + String.fromCharCode(characterCode) + "' expected");
-    }
-    return Input.trimLeft(input, position, 1);
-  };
-  Input.getFirst = function (input, position) {
-    return position < input.length ? input.charCodeAt(position) : Input.EOF;
-  };
-  Input.startsWith = function (input, position, s) {
-    var length = s.length;
-    if (position + length > input.length) {
-      return false;
-    }
-    var i = -1;
-    while (++i < length) {
-      if (asciiToLowerCase(input.charCodeAt(position + i)) !== asciiToLowerCase(s.charCodeAt(i))) {
-        return false;
-      }
-    }
-    return true;
-  };
-  Input.exec = function (input, position, regularExpression) {
-    if (position === input.length) {
-      return undefined;
-    }
-    var match = regularExpression.exec(position === 0 ? input : input.slice(position));
-    return match != undefined ? match[0] : undefined;
+  var nextToken = function (tokenizer) {
+    var token = null;
+    do {
+      token = tokenizer.next();
+    } while (token.type === 'whitespace');
+    return token;
   };
 
-  function ParseResult(result, position) {
+  var parsePunctuator = function (tokenizer, token, punctuator) {
+    if (token.type !== 'punctuator' || token.value !== punctuator) {
+      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.endPosition = tokenizer.position;
+      ExpressionParser.input = tokenizer.input;
+      if (token.type === 'EOF') {
+        throw new RangeError("UserError: unexpected end of input, '" + punctuator + "' expected");
+      }
+      throw new RangeError("UserError: unexpected '" + token.value + "', '" + punctuator + "' expected");
+    }
+    token = nextToken(tokenizer);
+    return token;
+  };
+
+  function ParseResult(result, token) {
     this.result = result;
-    this.position = position;
+    this.token = token;
   }
 
-  var parseMatrix = function (input, position, context) {
-    var openingBracket = "{".charCodeAt(0);
-    var closingBracket = "}".charCodeAt(0);
+  var parseMatrix = function (tokenizer, token, context) {
+    var openingBracket = "{";
+    var closingBracket = "}";
 
-    //position = Input.parseCharacter(input, position, openingBracket);
+    var rows = [];
+    var hasNextRow = true;
+    while (hasNextRow) {
+      token = parsePunctuator(tokenizer, token, openingBracket);
+      var row = [];
+      var hasNextCell = true;
+      while (hasNextCell) {
+        var tmp = parseExpression(tokenizer, token, context, 0, undefined);
+        token = tmp.token;
+        row.push(tmp.result);
+        if (token.type === 'punctuator' && token.value === ",") {
+          hasNextCell = true;
+          token = nextToken(tokenizer);
+        } else {
+          hasNextCell = false;
+        }
+      }
+      token = parsePunctuator(tokenizer, token, closingBracket);
+      rows.push(row);
+      if (token.type === 'punctuator' && token.value === ",") {
+        hasNextRow = true;
+        token = nextToken(tokenizer);
+      } else {
+        hasNextRow = false;
+      }
+    }
+    token = parsePunctuator(tokenizer, token, "}");
+    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), token);
+  };
+
+  var parseLaTeXMatrix = function (tokenizer, token, context, kind) {
+    token = nextToken(tokenizer);
     var rows = [];
     var firstRow = true;
-    while (firstRow || Input.getFirst(input, position) === ",".charCodeAt(0)) {
+    while (firstRow || (token.type === 'punctuator' && token.value === '\\\\')) {
       if (firstRow) {
         firstRow = false;
       } else {
-        position = Input.trimLeft(input, position, 1);
-      }
-      position = Input.parseCharacter(input, position, openingBracket);
-      var row = [];
-      var firstCell = true;
-      while (firstCell || Input.getFirst(input, position) === ",".charCodeAt(0)) {
-        if (firstCell) {
-          firstCell = false;
-        } else {
-          position = Input.trimLeft(input, position, 1);
-        }
-        var tmp = parseExpression(input, position, context, true, 0, undefined);
-        position = tmp.position;
-        row.push(tmp.result);
-      }
-      position = Input.parseCharacter(input, position, closingBracket);
-      rows.push(row);
-    }
-    //position = Input.parseCharacter(input, position, closingBracket);
-    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), position);
-  };
-
-  var parseLaTeXMatrix = function (input, position, context, kind) {
-    position = Input.trimLeft(input, position, ("\\begin{" + kind + "}").length);
-    var rows = [];
-    var firstRow = true;
-    while (firstRow || (Input.getFirst(input, position) === "\\".charCodeAt(0) && Input.startsWith(input, position, "\\\\"))) {
-      if (firstRow) {
-        firstRow = false;
-      } else {
-        position = Input.trimLeft(input, position, 2);
+        token = nextToken(tokenizer);
       }
       var row = [];
       var firstCell = true;
-      while (firstCell || Input.getFirst(input, position) === "&".charCodeAt(0)) {
+      while (firstCell || token.type === 'punctuator' && token.value === "&") {
         if (firstCell) {
           firstCell = false;
         } else {
-          position = Input.trimLeft(input, position, 1);
+          token = nextToken(tokenizer);
         }
-        var tmp = parseExpression(input, position, context, true, ADDITIVE_PRECEDENCE - 1, undefined);
-        position = tmp.position;
+        var tmp = parseExpression(tokenizer, token, context, ADDITIVE_PRECEDENCE - 1, undefined);
+        token = tmp.token;
         row.push(tmp.result);
       }
       rows.push(row);
     }
-    if (Input.startsWith(input, position, "\\end{" + kind + "}")) {
-      position = Input.trimLeft(input, position, ("\\end{" + kind + "}").length);
+    if (token.type === 'punctuator' && token.value === "\\end{" + kind + "}") {
+      token = nextToken(tokenizer);
     }
-    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), position);
+    return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), token);
   };
 
-  var parseLaTeXArgument = function (input, position, context) {
-    return parseExpression(input, position, context, true, 0, undefined);
+  var parseLaTeXArgument = function (tokenizer, token, context) {
+    return parseExpression(tokenizer, token, context, 0, undefined);
   };
 
-  var getDecimalFraction = function (integerPartAsString, nonRepeatingFractionalPartAsString, repeatingFractionalPartAsString, exponentSingPartAsString, exponentPartAsString) {
+  var getVulgarFraction = function (vulgarFraction) {
+    var input = normalizeVulgarFractions(vulgarFraction);
+    var e = Expression.Integer.fromString(input.slice(0, input.indexOf('/'))).divide(Expression.Integer.fromString(input.slice(input.indexOf('/') + '/'.length)));
+    return e;
+  };
+
+  var getDecimalFraction = function (integerPart, nonRepeatingFractionalPart, repeatingFractionalPart, exponentPart) {
     var numerator = Expression.ZERO;
-    var denominator = undefined;
-    var factor = undefined;
+    var denominator = Expression.ONE;
 
-    if (integerPartAsString != undefined) {
-      numerator = Expression.Integer.fromString(integerPartAsString);
+    if (integerPart != undefined) {
+      numerator = Expression.Integer.fromString(integerPart);
     }
-    if (nonRepeatingFractionalPartAsString != undefined) {
-      factor = Expression.pow(Expression.TEN, nonRepeatingFractionalPartAsString.length);
-      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(nonRepeatingFractionalPartAsString));
-      denominator = denominator == undefined ? factor : denominator.multiply(factor);
+    if (nonRepeatingFractionalPart != undefined) {
+      var factor = Expression.pow(Expression.TEN, nonRepeatingFractionalPart.length);
+      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(nonRepeatingFractionalPart));
+      denominator = denominator.multiply(factor);
     }
-    if (repeatingFractionalPartAsString != undefined) {
-      factor = Expression.pow(Expression.TEN, repeatingFractionalPartAsString.length).subtract(Expression.ONE);
-      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(repeatingFractionalPartAsString));
-      denominator = denominator == undefined ? factor : denominator.multiply(factor);
+    if (repeatingFractionalPart != undefined) {
+      var factor = Expression.pow(Expression.TEN, repeatingFractionalPart.length).subtract(Expression.ONE);
+      numerator = numerator.multiply(factor).add(Expression.Integer.fromString(repeatingFractionalPart));
+      denominator = denominator.multiply(factor);
     }
-    if (exponentPartAsString != undefined) {
-      factor = Expression.pow(Expression.TEN, Number.parseInt(exponentPartAsString, 10));
-      if (exponentSingPartAsString === "-") {
-        denominator = denominator == undefined ? factor : denominator.multiply(factor);
+    if (exponentPart != undefined) {
+      var exponent = 0 + Number.parseInt(exponentPart, 10);
+      var factor = Expression.pow(Expression.TEN, exponent < 0 ? -exponent : exponent);
+      if (exponent < 0) {
+        denominator = denominator.multiply(factor);
       } else {
         numerator = numerator.multiply(factor);
       }
     }
 
-    var value = denominator == undefined ? numerator : numerator.divide(denominator);
+    var value = numerator.divide(denominator);
     return value;
   };
 
-  var parseDecimalFraction = function (input, position, context, isMatrixElement) {
+  var parseDecimalFraction = function (tokenizer, token, context) {
     var isOnlyInteger = true;
-    var match = undefined;
-    var integerPartAsString = undefined;
-    var nonRepeatingFractionalPartAsString = undefined;
-    var repeatingFractionalPartAsString = undefined;
-    if ((match = Input.exec(input, position, digits)) != undefined) {
-      integerPartAsString = match;
-      position += match.length;
-    }
-    var c = Input.getFirst(input, position);
-    if (c === ".".charCodeAt(0) || (!isMatrixElement && c === ",".charCodeAt(0))) {
-      isOnlyInteger = false;
-      position += 1;
-      if ((match = Input.exec(input, position, digits)) != undefined) {
-        nonRepeatingFractionalPartAsString = match;
-        position += match.length;
-      }
-      c = Input.getFirst(input, position);
-      if (c === "(".charCodeAt(0)) {
-        if ((match = Input.exec(input, position + 1, digits)) != undefined) {
-          c = Input.getFirst(input, position + 1 + match.length);
-          if (c === ")".charCodeAt(0)) {
-            position += 1 + match.length + 1;
-            repeatingFractionalPartAsString = match;
-          }
-        }
-      }
-    }
     var result = undefined;
-    if (integerPartAsString != undefined || nonRepeatingFractionalPartAsString != undefined || repeatingFractionalPartAsString != undefined) {
-      var exponentSingPartAsString = "";
-      var exponentPartAsString = undefined;
-      c = Input.getFirst(input, position);
-      if (c === "e".charCodeAt(0) || c === "E".charCodeAt(0)) {
-        c = Input.getFirst(input, position + 1);
-        if (c === "+".charCodeAt(0) || c === "-".charCodeAt(0)) {
-          exponentSingPartAsString = input.slice(position + 1, position + 2);
-        }
-        if ((match = Input.exec(input, position + 1 + exponentSingPartAsString.length, digits)) != undefined) {
-          position += 1 + exponentSingPartAsString.length + match.length;
-          exponentPartAsString = match;
-        }
-      }
-      result = getDecimalFraction(integerPartAsString, nonRepeatingFractionalPartAsString, repeatingFractionalPartAsString, exponentSingPartAsString, exponentPartAsString);
+    if (token.type === 'integerLiteral') {
+      result = Expression.Integer.fromString(token.value);
       result = context.wrap(result);
-      position = Input.trimLeft(input, position, 0);
+      token = nextToken(tokenizer);
+    } else if (token.type === 'numericLiteral') {
+      var value = token.value;
+      //var match = token.match;
+      var match = decimalFractionWithGroups.exec(value);
+      isOnlyInteger = false;
+      result = getDecimalFraction(match[1], match[2], match[3], match[4]);
+      result = context.wrap(result);
+      token = nextToken(tokenizer);
     }
     //!
     if (isOnlyInteger || result == undefined) {
-      if ((match = Input.exec(input, position, vulgarFractions)) != undefined) {
-        var tmp = parseExpression(normalizeVulgarFractions(match), 0, context, isMatrixElement, 0, undefined);
+      if (token.type === 'vulgarFraction') {
+        var fraction = context.wrap(getVulgarFraction(token.value, context));
         if (result != undefined) {
-          result = ADDITION.i(result, tmp.result).addPosition(position, ADDITION.name.length, input);
+          result = ADDITION.i(result, fraction).addPosition(tokenizer.position - token.value.length, ADDITION.name.length, tokenizer.input);
         } else {
-          result = tmp.result;
+          result = fraction;
         }
-        position = Input.trimLeft(input, position, match.length);
+        token = nextToken(tokenizer);
       }
     }
-    return result != undefined ? new ParseResult(result, position) : undefined;
+    return result != undefined ? new ParseResult(result, token) : undefined;
   };
 
   // TODO: sticky flags - /\s+/y
   var whiteSpaces = /^\s+/;
-  var digits = /^\d+/;
+  var punctuators = /^(?:[,&(){}|]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
+  var integerLiteral = /^\d+(?![\d.,eE])/; // for performance
+  var integerLiteralWithoutComma = /^\d+(?![\d.eE])/; // for performance
+  var decimalFraction = /^\d+(?:[.,]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
+  var decimalFractionWithoutComma = /^\d+(?:[.]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
   var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
-  var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]+/;
+  var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]+/; // superscript digits 2310456789
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
+  var other = /^\S/;
 
+  var decimalFractionWithGroups = /^(\d+)(?:[.,](\d+)?(?:\((\d+)\))?)?(?:[eE]([\+\-]?\d+))?$/;
 
   // s.normalize("NFKD").replace(/[\u2044]/g, "/")
   var normalizeSuperscripts = function (s) {
@@ -459,9 +449,6 @@
       }
       if (charCode === 0x00B9) {
         return "1";
-      }
-      if (charCode === 0x2070) {
-        return "0";
       }
       return (charCode - 0x2074 + 4).toString();
     });
@@ -485,10 +472,6 @@
     });
   };
 
-  var normalizeFullwidthForms = function (charCode) {
-    return String.fromCharCode(charCode - 0xFF01 + 0x0021);
-  };
-
   var normalizeGreek = function (s) {
     var i = s.indexOf("_");
     var k = i === -1 ? s.length : i;
@@ -503,171 +486,168 @@
     return s;
   };
 
-  var parseExpression = function (input, position, context, isMatrixElement, precedence, left) {
+  var parseExpression = function (tokenizer, token, context, precedence, left) {
     var ok = true;
-    var firstCharacterCode = Input.getFirst(input, position);
     var isDecimalFraction = false;
+    var tmp = undefined;
+    var right = undefined;
     //!
 
-    while (firstCharacterCode !== Input.EOF && ok) {
+    while (token.type !== 'EOF' && ok) {
       var op = undefined;
       var operand = undefined;
-      var tmp = undefined;
-      var match = undefined;
-      var right = undefined;
 
-      if (firstCharacterCode < "0".charCodeAt(0) || firstCharacterCode > "9".charCodeAt(0)) {
-        var operationsArray = operationSearchCache.getAll(firstCharacterCode);
-        if (operationsArray != undefined) {
-          var length = operationsArray.length;
-          var bestMatchLength = 0;//? "^T" and "^"
-          var j = -1;
-          while (++j < length) {
-            var candidate = operationsArray[j];
-            if ((left != undefined && (candidate.arity !== 1 || candidate.rightToLeftAssociative !== RIGHT_TO_LEFT || precedence < MULTIPLICATION.precedence) ||
-                 left == undefined && candidate.arity === 1 && candidate.rightToLeftAssociative === RIGHT_TO_LEFT) &&
-                Input.startsWith(input, position, candidate.name) &&
-                //(!candidate.xyz || !isAlpha(Input.getFirst(input, position + candidate.name.length))) &&//TODO: fix - ExpressionParser.parse("George")
-                bestMatchLength < candidate.name.length) {
-              op = candidate;
-              bestMatchLength = op.name.length;
-            }
-          }
+        var bestMatch = token.type === 'operator' ? operationSearchCache.getByName(token.value) : null;
+        if (bestMatch != null) {
+          op = left == null && bestMatch.name === '+' ? UNARY_PLUS : (left == null && bestMatch.name === '-' ? UNARY_MINUS : bestMatch);
         }
-      }
-      if (op != null && op.name === "\\" && isMatrixElement) {//TODO: optimize
-        op = null;
-      }
+        //  if (Input.startsWith(input, position, '\\begin') || Input.startsWith(input, position, '\\end')) {
+        //    op = null;
+        //  }
 
-      if (firstCharacterCode === "f".charCodeAt(0) && op == undefined && (left == undefined && precedence <= UNARY_PRECEDENCE || precedence < MULTIPLICATION.precedence) && Input.startsWith(input, position, "frac")) { // !isAlpha(Input.getFirst(input, position + "frac".length))
-        // https://en.wikipedia.org/wiki/Operand#Positioning_of_operands - prefix notation
-        position = Input.trimLeft(input, position, "frac".length);
-        tmp = parseExpression(input, position, context, isMatrixElement, MULTIPLICATION.precedence, undefined);
-        var a = tmp.result;
-        position = tmp.position;
-        tmp = parseExpression(input, position, context, isMatrixElement, MULTIPLICATION.precedence, undefined);
-        var b = tmp.result;
-        position = tmp.position;
-        // addPosition - ?
-        operand = a.divide(b);
-        ok = true;
-      } else if (op != undefined) {
-        if (precedence > op.precedence + (op.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
+      //if (op != null && op.name === "\\" && Input.startsWith(input, position, "\\\\")) {
+      //  if (isMatrixElement) {//TODO: optimize
+      //    op = null;
+        //} else if (Input.startsWith(input, position + 1, "begin") || Input.startsWith(input, position + 1, "left")) {
+        //  op = null;
+      //  }
+      //}
+
+      if (op != null && op.name === "frac") { // !isAlpha(Input.getFirst(input, position + "frac".length))
+        if (!(left == null && precedence <= UNARY_PRECEDENCE_PLUS_ONE || precedence < MULTIPLICATION.precedence)) {
           ok = false;
         } else {
-          var operatorPosition = position;
-          position = Input.trimLeft(input, position, op.name.length);
+        // https://en.wikipedia.org/wiki/Operand#Positioning_of_operands - prefix notation
+
+        token = nextToken(tokenizer);
+        tmp = parseExpression(tokenizer, token, context, MULTIPLICATION.precedence, undefined);
+        var a = tmp.result;
+        token = tmp.token;
+        tmp = parseExpression(tokenizer, token, context, MULTIPLICATION.precedence, undefined);
+        var b = tmp.result;
+        token = tmp.token;
+        // addPosition - ?
+        operand = op.i(a, b);
+        ok = true;
+        }
+      } else if (op != undefined) {
+        // TODO: check if the checks are needed (tests - ?)
+        if (!(left != undefined && (op.arity !== 1 || op.rightToLeftAssociative !== RIGHT_TO_LEFT || precedence < MULTIPLICATION.precedence) ||
+              left == undefined && op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT) ||
+            //!(!candidate.xyz || !isAlpha(Input.getFirst(input, position + candidate.name.length))) ||//TODO: fix - ExpressionParser.parse("George")
+            precedence > op.precedence + (op.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
+          ok = false;
+        } else {
+          var operatorPosition = tokenizer.position - token.value.length;
+          token = nextToken(tokenizer);
           if (op.arity === 1 && op.rightToLeftAssociative !== RIGHT_TO_LEFT) {
             //TODO: fix
             ExpressionParser.startPosition = operatorPosition;
             ExpressionParser.endPosition = operatorPosition + op.name.length;
-            ExpressionParser.input = input;
-            left = op.i(left).addPosition(operatorPosition, op.name.length, input);
+            ExpressionParser.input = tokenizer.input;
+            left = op.i(left).addPosition(operatorPosition, op.name.length, tokenizer.input);
           } else {
             if (op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT && op.precedence === UNARY_PRECEDENCE_PLUS_ONE && op.name.length > 1 &&
                 (op.name === "sin" || op.name === "cos" || op.name === "sen" || op.name === "tan" || op.name === "tg") &&
-                (Input.startsWith(input, position, EXPONENTIATION.name) || (match = Input.exec(input, position, superscripts)) != null)) {
-              
+                (token.type === 'operator' && token.value === EXPONENTIATION.name || token.type === 'superscript')) {
+              // https://en.wikipedia.org/wiki/Exponentiation#Exponential_notation_for_function_names
+
               // cos^2(x)
               //!new 2017-11-04
               // parse an operator for the exponentiation
-              var exponentiationPosition = position;
+              var exponentiationPosition = tokenizer.position;
 
               var exponentiationLength = 0;
               var middle = null;
-              if (match != null) {
-                exponentiationLength = match.length;
-                position = position + exponentiationLength;
-                middle = Expression.Integer.fromString(normalizeSuperscripts(match));
+              if (token.type === 'superscript') {
+                var superscript = token.value;
+                exponentiationLength = token.value.length;
+                token = nextToken(tokenizer);
+                middle = Expression.Integer.fromString(normalizeSuperscripts(superscript));
               } else {
                 exponentiationLength = EXPONENTIATION.name.length;
-                position = position + exponentiationLength;
-                tmp = parseExpression(input, position, context, isMatrixElement, EXPONENTIATION.precedence, undefined);
-                middle = tmp.result;
-                position = tmp.position;
+                token = nextToken(tokenizer);
+                if (token.type !== 'integerLiteral') {
+                  ok = false;
+                } else {
+                  tmp = parseExpression(tokenizer, token, context, EXPONENTIATION.precedence, undefined);
+                  middle = tmp.result;
+                  token = tmp.token;
+                }
               }
-
-              // parse an operator for the current operator
-              tmp = parseExpression(input, position, context, isMatrixElement, op.precedence, undefined);
-              right = tmp.result;
-              position = tmp.position;
-              operand = EXPONENTIATION.i(op.i(right).addPosition(operatorPosition, op.name.length, input), middle).addPosition(exponentiationPosition, exponentiationLength, input);
+              if (ok) {
+                // parse an operator for the current operator
+                tmp = parseExpression(tokenizer, token, context, op.precedence, undefined);
+                right = tmp.result;
+                token = tmp.token;
+                operand = EXPONENTIATION.i(op.i(right).addPosition(operatorPosition, op.name.length, tokenizer.input), middle).addPosition(exponentiationPosition, exponentiationLength, tokenizer.input);
+              }
             } else {
-              tmp = parseExpression(input, position, context, isMatrixElement, op.precedence, undefined);
+              tmp = parseExpression(tokenizer, token, context, op.precedence, undefined);
               right = tmp.result;
-              position = tmp.position;
+              token = tmp.token;
               //TODO: fix `1/(2-2)`
               ExpressionParser.startPosition = operatorPosition;
               ExpressionParser.endPosition = operatorPosition + op.name.length;
-              ExpressionParser.input = input;
+              ExpressionParser.input = tokenizer.input;
               if (op.arity === 1) {
                 // left <implicit multiplication> operand
-                operand = op.i(right).addPosition(operatorPosition, op.name.length, input);
+                operand = op.i(right).addPosition(operatorPosition, op.name.length, tokenizer.input);
               } else if (op.arity === 2) {
-                left = op.i(left, right).addPosition(operatorPosition, op.name.length, input);
+                left = op.i(left, right).addPosition(operatorPosition, op.name.length, tokenizer.input);
               } else {
                 throw new RangeError();
               }
             }
           }
         }
-      } else if (left == undefined || precedence < MULTIPLICATION.precedence || (precedence === UNARY_PRECEDENCE_PLUS_ONE && isDecimalFraction && (match = Input.exec(input, position, symbols)) != undefined)) {
-        if (firstCharacterCode === "(".charCodeAt(0)) {
-          position = Input.parseCharacter(input, position, "(".charCodeAt(0));
-          tmp = parseExpression(input, position, context, false, 0, undefined);
+      } else if (left == undefined || precedence < MULTIPLICATION.precedence || (precedence === UNARY_PRECEDENCE_PLUS_ONE && isDecimalFraction && token.type === 'symbol')) {
+        if ((tmp = parseDecimalFraction(tokenizer, token, context)) != undefined) {
           operand = tmp.result;
-          position = tmp.position;
-          position = Input.parseCharacter(input, position, ")".charCodeAt(0));
-        } else if (firstCharacterCode === "{".charCodeAt(0)) {
-          position = Input.parseCharacter(input, position, "{".charCodeAt(0));
-          if (Input.getFirst(input, position) === "{".charCodeAt(0)) {
-            tmp = parseMatrix(input, position, context);
-            operand = tmp.result;
-            position = tmp.position;
-          } else {
-            tmp = parseLaTeXArgument(input, position, context);
-            operand = tmp.result;
-            position = tmp.position;
-          }
-          position = Input.parseCharacter(input, position, "}".charCodeAt(0));
-        } else if ((tmp = parseDecimalFraction(input, position, context, isMatrixElement)) != undefined) {
-          operand = tmp.result;
-          position = tmp.position;
+          token = tmp.token;
           isDecimalFraction = true;
-        } else if (firstCharacterCode === "\\".charCodeAt(0) && (Input.startsWith(input, position, "\\begin{bmatrix}") || Input.startsWith(input, position, "\\begin{vmatrix}") || Input.startsWith(input, position, "\\begin{pmatrix}") || Input.startsWith(input, position, "\\begin{matrix}"))) {
-          var kind = "matrix";
-          if (Input.startsWith(input, position, "\\begin{bmatrix}")) {
-            kind = "bmatrix";
-          } else if (Input.startsWith(input, position, "\\begin{vmatrix}")) {
-            kind = "vmatrix";
-          } else if (Input.startsWith(input, position, "\\begin{pmatrix}")) {
-            kind = "pmatrix";
-          }
-          tmp = parseLaTeXMatrix(input, position, context, kind);
+        } else if (token.type === 'punctuator' && token.value === "(") {
+          token = parsePunctuator(tokenizer, token, "(");
+          tmp = parseExpression(tokenizer, token, context, 0, undefined);
           operand = tmp.result;
-          if (Input.startsWith(input, position, "\\begin{vmatrix}")) {
+          token = tmp.token;
+          token = parsePunctuator(tokenizer, token, ")");
+        } else if (token.type === 'punctuator' && token.value === "{") {
+          token = parsePunctuator(tokenizer, token, "{");
+          if (token.type === 'punctuator' && token.value === "{") {
+            tmp = parseMatrix(tokenizer, token, context);
+            operand = tmp.result;
+            token = tmp.token;
+          } else {
+            tmp = parseLaTeXArgument(tokenizer, token, context);
+            operand = tmp.result;
+            token = tmp.token;
+            token = parsePunctuator(tokenizer, token, "}");
+          }
+        } else if (token.type === 'punctuator' && (token.value === "\\begin{bmatrix}" ||
+                                                   token.value === "\\begin{vmatrix}" ||
+                                                   token.value === "\\begin{pmatrix}" ||
+                                                   token.value === "\\begin{matrix}")) {
+          var kind = token.value.slice('\\begin{'.length, -1);
+          tmp = parseLaTeXMatrix(tokenizer, token, context, kind);
+          operand = tmp.result;
+          token = tmp.token;
+          if (kind === 'vmatrix') {
             operand = operand.determinant();//!
           }
-          position = tmp.position;
-        } else if ((match = Input.exec(input, position, symbols)) != undefined) {
-          var symbolName = match;
+        } else if (token.type === 'symbol') {
+          var symbolName = token.value;
           symbolName = normalizeSubscripts(symbolName);
           symbolName = normalizeGreek(symbolName);
           operand = context.get(symbolName);
-          if (operand == undefined) {
-            //TODO: move to context - ?
-            operand = symbolName === "I" || symbolName === "U" || symbolName === "E" ? new Expression.IdentityMatrix(symbolName) : new Expression.Symbol(symbolName);
-            operand = context.wrap(operand);
-          } else {
-            operand = context.wrap(operand);
-          }
-          position = Input.trimLeft(input, position, match.length);
-        } else if (firstCharacterCode === "|".charCodeAt(0) && left == undefined) {
-          position = Input.parseCharacter(input, position, "|".charCodeAt(0));
-          tmp = parseExpression(input, position, context, isMatrixElement, 0, undefined);
+          operand = context.wrap(operand);
+          token = nextToken(tokenizer);
+        } else if (token.type === 'punctuator' && token.value === "|" && left == undefined) {
+          token = parsePunctuator(tokenizer, token, "|");
+          tmp = parseExpression(tokenizer, token, context, 0, undefined);
           operand = tmp.result;
-          position = tmp.position;
-          position = Input.parseCharacter(input, position, "|".charCodeAt(0));
+          token = tmp.token;
+          token = parsePunctuator(tokenizer, token, "|");
           
           operand = operand.determinant();//!
         } else {
@@ -679,49 +659,47 @@
 
       //!TODO: fix
       if (!ok && left != undefined && precedence <= EXPONENTIATION.precedence + (EXPONENTIATION.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
-        if ((match = Input.exec(input, position, superscripts)) != undefined) {
+        if (token.type === 'superscript') {
           // implicit exponentiation
           //TODO: check position
-          left = EXPONENTIATION.i(left, Expression.Integer.fromString(normalizeSuperscripts(match))).addPosition(position, EXPONENTIATION.name.length, input);
-          position = Input.trimLeft(input, position, match.length);
+          var superscript = token.value;
+          left = EXPONENTIATION.i(left, Expression.Integer.fromString(normalizeSuperscripts(superscript))).addPosition(tokenizer.position - token.value.length, EXPONENTIATION.name.length, tokenizer.input);
+          token = nextToken(tokenizer);
           ok = true;//!
         }
       }
 
-      if (!ok && firstCharacterCode === "\\".charCodeAt(0) && !Input.startsWith(input, position, "\\\\")) { // isAlpha(Input.getFirst(input, position + 1))
-        if (!Input.startsWith(input, position + 1, "end{bmatrix}") && !Input.startsWith(input, position + 1, "end{vmatrix}") && !Input.startsWith(input, position + 1, "end{pmatrix}") && !Input.startsWith(input, position + 1, "end{matrix}")) {
+      if (!ok && token.type === 'operator' && token.value === "\\") { // isAlpha(Input.getFirst(input, position + 1))
         // TODO: LaTeX - ?
         ok = true;
-        position += 1;
-        }
+        token = nextToken(tokenizer);
       }
 
       if (operand != undefined) {
         if (left != undefined) {
           // implied multiplication
-          tmp = parseExpression(input, position, context, isMatrixElement, MULTIPLICATION.precedence, operand);
+          var oldPosition = tokenizer.position;
+          tmp = parseExpression(tokenizer, token, context, MULTIPLICATION.precedence, operand);
           var right1 = tmp.result;
-          var position1 = tmp.position;
-          left = MULTIPLICATION.i(left, right1).addPosition(position, MULTIPLICATION.name.length, input);
-          position = position1;
+          token = tmp.token;
+          left = MULTIPLICATION.i(left, right1).addPosition(oldPosition, MULTIPLICATION.name.length, tokenizer.input);
         } else {
           left = operand;
         }
       }
-      firstCharacterCode = Input.getFirst(input, position);
     }
 
     if (left == undefined) {
-      ExpressionParser.startPosition = position;
-      ExpressionParser.endPosition = position + 1;
-      ExpressionParser.input = input;
-      var c = Input.getFirst(input, position);
-      if (c === Input.EOF) {
+      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.endPosition = tokenizer.position;
+      ExpressionParser.input = tokenizer.input;
+      if (token.type === 'EOF') {
         throw new RangeError("UserError: unexpected end of input");//TODO: fix
       }
-      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "'");//TODO: fix
+      //TODO: ?
+      throw new RangeError("UserError: unexpected '" + token.value + "'");//TODO: fix
     }
-    return new ParseResult(left, position);
+    return new ParseResult(left, token);
   };
 
   var replaceHanidec = function (code) {
@@ -805,7 +783,7 @@
     }
     var c = replaceHanidec(code);
     if (c !== -1) {
-      return {code: c, name: "hanidec"};
+      return {code: '0'.charCodeAt(0) + c, name: "hanidec"};
     }
     return undefined;
   };
@@ -840,7 +818,8 @@
       return "/";
     }
     if (charCode >= 0xFF01 && charCode <= 0xFF5E) {
-      return normalizeFullwidthForms(charCode);
+      // normalize full-widht forms:
+      return String.fromCharCode(charCode - 0xFF01 + 0x0021);
     }
     if (charCode === 0x060C || charCode === 0x066B) {
       return ",";
@@ -883,7 +862,7 @@
   //input = input.replace(replaceRegExp, replaceFunction); - slow in Chrome
   var replaceSomeChars = function (input) {
     var lastIndex = 0;
-    var result = "";
+    var result = '';
     for (var i = 0; i < input.length; i += 1) {
       var charCode = input.charCodeAt(i);
       if (charCode > 0x007F || charCode === 0x003A) {
@@ -899,8 +878,84 @@
     return result;
   };
 
+  var config = [
+    {type: 'integerLiteral', re: null},
+    {type: 'numericLiteral', re: null},
+    {type: 'whitespace', re: whiteSpaces},
+    {type: 'punctuator', re: punctuators},
+    {type: 'operator', re: null},
+    {type: 'symbol', re: symbols},
+    {type: 'vulgarFraction', re: vulgarFractions},
+    {type: 'superscript', re: superscripts},
+    {type: 'OTHER', re: other}
+  ];
+
+  function Token(type, value) {
+    this.type = type;
+    this.value = value;
+  }
+
+  Token.EOF = new Token('EOF', '', null);
+
+  function Tokenizer(input, position, states) {
+    this.input = input;
+    this.position = position;
+    this.states = states;
+  }
+
+  Tokenizer.prototype.next = function () {
+    if (this.position >= this.input.length) {
+      return Token.EOF;
+    }
+    // iteration by object keys is slower (?)
+    for (var i = 0; i < config.length; i += 1) {
+      var c = config[i];
+      var type = c.type;
+      var re = c.re;
+      if (re == null) {
+        if (type === 'integerLiteral') {
+          if (this.states != null && this.states.value === '{}') {
+            re = integerLiteralWithoutComma;
+          } else {
+            re = integerLiteral;
+          }
+        } else if (type === 'numericLiteral') {
+          if (this.states != null && this.states.value === '{}') {
+            re = decimalFractionWithoutComma;
+          } else {
+            re = decimalFraction;
+          }
+        } else if (type === 'operator') {
+          re = operationSearchCache.getRegExp();//?TODO: 
+        }
+      }
+      var tmp = re.exec(this.input.slice(this.position));
+      if (tmp != null) {
+        var value = tmp[0];
+        if (type === 'punctuator') {
+          if (value === '(') {
+            this.states = {previous: this.states, value: '()'};
+          } else if (value === ')') {
+            if (this.states != null && this.states.value === '()') {
+              this.states = this.states.previous;
+            }
+          } else if (value === '{') {
+            this.states = {previous: this.states, value: '{}'};
+          } else if (value === '}') {
+            if (this.states != null && this.states.value === '{}') {
+              this.states = this.states.previous;
+            }
+          }
+        }
+        this.position += value.length;
+        return new Token(type, value);
+      }
+    }
+    throw new TypeError();
+  };
+
   var fs = {};//!TODO: remove!!!
-  
+
   function ExpressionParser() {
   }
 
@@ -931,49 +986,54 @@
       }
     }
 
-    var position = 0;
-    position = Input.trimLeft(input, position, 0);
-    var tmp = parseExpression(input, position, context, false, 0, undefined);
-    var c = Input.getFirst(input, tmp.position);
-    if (c !== Input.EOF) {
-      ExpressionParser.startPosition = tmp.position;
-      ExpressionParser.endPosition = tmp.position + 1;
+    var tokenizer = new Tokenizer(input, 0, null);
+    var token = nextToken(tokenizer);
+    var tmp = parseExpression(tokenizer, token, context, 0, undefined);
+    token = tmp.token;
+    if (token.type !== 'EOF') {
+      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.endPosition = tokenizer.position;
       ExpressionParser.input = input;
-      throw new RangeError("UserError: unexpected '" + String.fromCharCode(c) + "'");
+      throw new RangeError("UserError: unexpected '" + token.value + "'");
     }
 
     return tmp.result;
   };
+  
+  globalThis.Tokenizer = Tokenizer;
 
   ExpressionParser.startPosition = -1;
   ExpressionParser.endPosition = -1;
   ExpressionParser.input = "";
 
-  var getConstant = function (e) {
-    if (e === "pi" || e === "\u03C0") {
+  var getConstant = function (symbolName) {
+    if (symbolName === "pi" || symbolName === "\u03C0") {
       return Expression.PI;
     }
-    if (e === "e") {
+    if (symbolName === "e") {
       return Expression.E;
     }
-    if (e === "i") {
+    if (symbolName === "i") {
       return Expression.I;
     }
-    return undefined;
+    if (symbolName === "I" || symbolName === "U" || symbolName === "E") {
+      return new Expression.IdentityMatrix(symbolName);
+    }
+    return new Expression.Symbol(symbolName);
   };
 
   ExpressionParser.Context = function (getter, needsWrap) {
     this.getter = getter;
     this.needsWrap = needsWrap == undefined ? true : needsWrap;
   };
-  ExpressionParser.Context.prototype.get = function (e) {
+  ExpressionParser.Context.prototype.get = function (symbolName) {
     if (this.getter != undefined) {
-      var x = this.getter(e);
+      var x = this.getter(symbolName);
       if (x != undefined) {
         return x;
       }
     }
-    return getConstant(e);
+    return getConstant(symbolName);
   };
   ExpressionParser.Context.prototype.wrap = function (e) {
     if (!this.needsWrap) {
@@ -989,29 +1049,26 @@
       return a.transformNoAnswerExpression(denotation, b);
     });
     //operations.push(newOperation);
-    operationSearchCache.append(newOperation.name.charCodeAt(0), newOperation);
+    operationSearchCache.append(newOperation);
   };
 
-  ExpressionParser.addDenotations = function (operationName, denotations) {
-    var os = operationSearchCache.getAll(operationName.charCodeAt(0));
-    var operation = undefined;
-    var i = -1;
-    while (++i < os.length) {
-      var o = os[i];
-      if (o.name === operationName) {
-        operation = o;
-      }
-    }
-    var added = {};
-    added[operationName] = true;
-    for (var key in denotations) {
-      if (Object.prototype.hasOwnProperty.call(denotations, key)) {
-        var denotation = denotations[key];
-        if (added[denotation] == undefined) {
-          added[denotation] = true;
-          var newOperation = new Operator(denotation, operation.arity, operation.rightToLeftAssociative, operation.precedence, operation.i);
-          //operations.push(newOperation);
-          operationSearchCache.append(newOperation.name.charCodeAt(0), newOperation);
+  ExpressionParser.addDenotations = function (denotationsByOperation) {
+    for (var operationName in denotationsByOperation) {
+      if (Object.prototype.hasOwnProperty.call(denotationsByOperation, operationName)) {
+        var denotations = denotationsByOperation[operationName];
+        var operation = operationSearchCache.getByName(operationName);
+        var added = {};
+        added[operationName] = true;
+        for (var key in denotations) {
+          if (Object.prototype.hasOwnProperty.call(denotations, key)) {
+            var denotation = denotations[key];
+            if (added[denotation] == undefined) {
+              added[denotation] = true;
+              var newOperation = new Operator(denotation, operation.arity, operation.rightToLeftAssociative, operation.precedence, operation.i);
+              //operations.push(newOperation);
+              operationSearchCache.append(newOperation);
+            }
+          }
         }
       }
     }

@@ -30,7 +30,7 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
   }
   function matrixFromBasis(basis) {
     if (basis.length === 0) {
-      throw new Error();
+      throw new TypeError();
     }
     return Matrix.Zero(basis.length, basis[0].rows()).map(function (e, i, j) {
       return basis[i].e(j, 0);
