@@ -40,7 +40,8 @@
         }
         return i === j ? e.pow(n) : Expression.ZERO;
       });
-      return {an: new Expression.Matrix(result), condition: function (e) { return condition !== -1 ? new ExpressionWithCondition(e, n, '>', condition) : e; }};
+      var an = new Expression.Matrix(result);
+      return condition !== -1 ? new ExpressionWithCondition(an, n, '>', condition) : an;
     }
     // https://stackoverflow.com/a/15302448/839199
     var binomialCoefficient = function (n, k) { // binomail coefficient
@@ -141,24 +142,24 @@
         return anm1.e(i, j);
       });
     }
-    var ok2 = true;
     for (var i = 0; i < anm1.rows(); i += 1) {
       for (var j = 0; j < anm1.cols(); j += 1) {
         var e = anm1.e(i, j);
         if (e instanceof Expression.Symbol && e.symbol.slice(0, symbolName.length) === symbolName) {
-          ok2 = false;
+          return undefined;
         }
       }
     }
-    if (ok2 && condition > 0) {
+    if (condition > 0) {
       var cases = [];
       cases.push(new ExpressionWithCondition(new Expression.Matrix(an), n, '>', condition));
       for (var i = 1; i <= condition; i += 1) {
         cases.push(new ExpressionWithCondition(new Expression.Matrix(a.pow(i)), n, '=', i));
       }
-      return {an: new Expression.Cases(cases), condition: function (e) { return e; }};
+      return new Expression.Cases(cases);
     }
-    return !ok2 ? undefined : {an: new Expression.Matrix(an), condition: function (e) { return condition !== -1 ? new ExpressionWithCondition(e, n, '>', condition) : e; }};
+    var e = new Expression.Matrix(an);
+    return condition !== -1 ? new ExpressionWithCondition(e, n, '>', condition) : e;
   };
 
   var enableEX = true;
@@ -301,8 +302,8 @@
       if (!x.matrix.isSquare()) {
         throw new RangeError("NonSquareMatrixException");
       }
-      var tmp = matrixInN(x.matrix, y);
-      if (tmp != undefined) {
+      var an = matrixInN(x.matrix, y);
+      if (an != undefined) {
         //?
         //if (x.matrix.isDiagonal()) {
         //  if (Expression.callback != undefined) {
@@ -315,7 +316,7 @@
           }
         }
 
-        return tmp.condition(tmp.an);
+        return an;
       }
 
       //! 2018-08-26
@@ -338,7 +339,7 @@
                 //TODO more details (A=P*D*P^-1 => A^n=P*D*P^-1 * ... * P*D*P^-1=P*D^n*P^1
                 Expression.callback(new Expression.Event("diagonalize", x));
               }
-              return SL.condition(new Expression.Matrix(tmp.T).multiply(SL.an).multiply(new Expression.Matrix(tmp.T_INVERSED)));
+              return new Expression.Matrix(tmp.T).multiply(SL).multiply(new Expression.Matrix(tmp.T_INVERSED));
             }
           } else {
             var tmp = Expression.getFormaDeJordan(x.matrix, eigenvalues, multiplicities);
@@ -352,7 +353,7 @@
                 Expression.callback(new Expression.Event("Jordan-decomposition", x));
               }
               //TODO: details !!!
-              return JN.condition(new Expression.Matrix(tmp.P).multiply(JN.an).multiply(new Expression.Matrix(tmp.P_INVERSED)));
+              return new Expression.Matrix(tmp.P).multiply(JN).multiply(new Expression.Matrix(tmp.P_INVERSED));
             }
           }
         }
