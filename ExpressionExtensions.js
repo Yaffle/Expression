@@ -183,9 +183,9 @@ Expression.LUDecomposition = function (matrix) {
   var P = Matrix.I(N);
   var swapFlag = false;
   var pivotRow = 0;
-  for (var n = 0; n < N; n += 1) {
-    var c = pivotRow;
-    if (n < matrix.cols()) {
+  for (var n = 0; n < matrix.cols(); n += 1) {
+    if (pivotRow < N) {
+      var c = pivotRow;
       if (a.e(pivotRow, n).equals(Expression.ZERO)) {
         for (var k = pivotRow + 1; k < N && c === pivotRow; k += 1) {
           if (!a.e(k, n).equals(Expression.ZERO)) {

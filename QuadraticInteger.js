@@ -2,10 +2,21 @@
 // https://en.wikipedia.org/wiki/Factorization#Unique_factorization_domains
 /*global Expression*/
 
+
+// It is possible to use the comparision operators if a is a safe integer or BigIntegerInternal or BigInt and n is a safe integer:
+// a < n
+// a <= n
+// a > n
+// a >= n
+// a == n
+// a != n
+
+
 import nthRoot from './nthRoot.js';
 import BigInteger from './BigInteger.js';
 
 import primeFactor from './primeFactor.js';
+
 /*
 
       if (qi instanceof QuadraticInteger && qi.a < 0 || qi.b < 0) {
@@ -16,11 +27,19 @@ import primeFactor from './primeFactor.js';
 */
 
   function ngcd(a, b) {
-    return b == 0 ? a : ngcd(b, a % b);
+    while (b != 0) {
+      var t = BigInteger.remainder(a, b);
+      a = b;
+      b = t;
+    }
+    return a;
   }
 
 // a + b*sqrt(D)
 function QuadraticInteger(a, b, D) {
+  a = BigInteger.BigInt(a);
+  b = BigInteger.BigInt(b);
+  D = BigInteger.BigInt(D);  
   //TODO:
   if (typeof a === "number" && Math.abs(a) > 9007199254740991) {
     throw new TypeError();
@@ -34,10 +53,12 @@ function QuadraticInteger(a, b, D) {
 }
 QuadraticInteger.prototype.multiply = function (y) {
   var x = this;
-  if (x.D !== y.D) {
+  if (!BigInteger.equal(x.D, y.D)) {
     throw new TypeError();
   }
-  return new QuadraticInteger(x.a * y.a + x.b * y.b * y.D, x.a * y.b + x.b * y.a, x.D);
+  var a = BigInteger.add(BigInteger.multiply(x.a, y.a), BigInteger.multiply(BigInteger.multiply(x.b, y.b), y.D));
+  var b = BigInteger.add(BigInteger.multiply(x.a, y.b), BigInteger.multiply(x.b, y.a));
+  return new QuadraticInteger(a, b, x.D);
 };
 QuadraticInteger.prototype.conjugate = function (y) {
   return new QuadraticInteger(this.a, -this.b, this.D);
@@ -46,12 +67,19 @@ QuadraticInteger.prototype.norm = function () {
   //var x = this.a * this.a;
   //var y = this.b * this.b;
   //return x % this.D + (((x - x % this.D) / this.D) - y) * this.D;
-  var a = BigInteger.BigInt(this.a);
-  var b = BigInteger.BigInt(this.b);
-  var D = BigInteger.BigInt(this.D);
+  var a = this.a;
+  var b = this.b;
+  var D = this.D;
   var aa = BigInteger.multiply(a, a);
   var bb = BigInteger.multiply(b, b);
-  return BigInteger.toNumber(BigInteger.subtract(aa, BigInteger.multiply(bb, D)));
+  var norm = BigInteger.subtract(aa, BigInteger.multiply(bb, D));
+  if (typeof norm === "number" && Math.abs(norm) > 9007199254740991) {
+    throw new TypeError();
+  }
+  if (typeof this.a === "number" && norm >= -9007199254740991 && norm <= +9007199254740991) {
+    norm = BigInteger.toNumber(norm);
+  }
+  return norm;
 };
 QuadraticInteger.prototype.truncatingDivideInteger = function (x) {
   return new QuadraticInteger(x.toBigInt(), Expression.ZERO.toBigInt(), this.D).truncatingDivide(this);
@@ -64,15 +92,15 @@ QuadraticInteger.prototype.truncatingDivide = function (y) {
     y = new QuadraticInteger(y.toBigInt(), Expression.ZERO.toBigInt(), this.D);
   }
   var x = this;
-  if (x.D !== y.D) {
+  if (!BigInteger.equal(x.D, y.D)) {
     throw new TypeError();
   }
   var n = x.multiply(y.conjugate());
   var d = y.norm();
-  return n.a % d == 0 && n.b % d == 0 ? new QuadraticInteger(n.a / d, n.b / d, x.D) : null;
+  return BigInteger.remainder(n.a, d) == 0 && BigInteger.remainder(n.b, d) == 0 ? new QuadraticInteger(BigInteger.divide(n.a, d), BigInteger.divide(n.b, d), x.D) : null;
 };
 QuadraticInteger.prototype.negate = function () {
-  return new QuadraticInteger(-this.a, -this.b, this.D);
+  return new QuadraticInteger(BigInteger.unaryMinus(this.a), BigInteger.unaryMinus(this.b), this.D);
 };
 
 /*
@@ -94,21 +122,16 @@ function primeFactor(n) {
   return n;
 }
 */
-function primeFactorX(n) {
-  if (typeof n !== "number") {
-    return BigInt(primeFactor(BigInteger.BigInt(n.toString())));
-  }
-  return primeFactor(BigInteger.BigInt(n));
-}
+
 function factors(n) {
   if (n < 1) {
     throw new TypeError();
   }
-  var p = n > 1 ? primeFactorX(n) : n / n;
-  var t = n / n;
+  var p = n > 1 ? primeFactor(n) : BigInteger.BigInt(1);
+  var t = BigInteger.BigInt(1);
   var f = null;
   var fs = null;
-  var i = n / n;
+  var i = BigInteger.BigInt(1);
   return {
     //[Symbol.iterator]: function () {
     //  return this;
@@ -123,22 +146,22 @@ function factors(n) {
         return this;
       }
       if (fs == null) {
-        if (n % p == 0) {
-          t *= p;
-          n /= p;
+        if (BigInteger.remainder(n, p) == 0) {
+          t = BigInteger.multiply(t, p);
+          n = BigInteger.divide(n, p);
           this.value = t;
           return this;
         }
         fs = factors(n);
         i = t;
       }
-      if (i === t) {
-        i = i / i;
+      if (BigInteger.equal(i, t)) {
+        i = BigInteger.BigInt(1);
         f = fs.next().value;
       } else {
-        i *= p;
+        i = BigInteger.multiply(i, p);
       }
-      this.value = f == null ? null : f * i;
+      this.value = f == null ? null : BigInteger.multiply(f, i);
       return this;
     }
   };
@@ -149,59 +172,66 @@ QuadraticInteger._factors = function (n) {
 };
 
 function abs(a) {
-  return a < 0 ? -a : (a - a) + a;
+  return a < 0 ? BigInteger.unaryMinus(a) : a;
 }
 
 QuadraticInteger.prototype.primeFactor = function () {
 
   function gcd(a, b) {
-    return b == 0 ? a : gcd(b, a % b);
+    while (b != 0) {
+      var t = BigInteger.remainder(a, b);
+      a = b;
+      b = t;
+    }
+    return a;
   }
 
   function sqrt(n) {
-    //?
-    if (typeof n === "number") {
-      return Math.floor(Math.sqrt(n));
-    }
-    return BigInt(nthRoot(BigInteger.BigInt(n.toString()), 2).toString());
+    return nthRoot(n, 2);
   }
 
   var a = this.a;
   var b = this.b;
   var D = this.D;
+  var g = abs(gcd(a, D));
   if (g == D) {//TODO: g != 1 - ?
-    return new QuadraticInteger(a - a, b / b, g);
+    return new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), D);
   }
   var g = abs(gcd(a, b));
+  //!
+  //while (BigInteger.remainder(g, 2) == 0) {
+  //  g = BigInteger.divide(g, 2);
+  //}
+  //!
   if (g != 1) {
     //TODO:
     //return new QuadraticInteger(primeFactor(Math.abs(g)), 0, D);
     return new QuadraticInteger(QuadraticInteger._factors(g).next().value, b - b, D);
   }
-  var g = abs(gcd(a, D));
   var norm = this.norm();
   function quadraticIntegers(norm, D, b) {
     while (true) {
-      if (typeof norm === "number") {//TODO: 
-      if (-norm + D * b * b > 9007199254740991 || norm + D * b * b > 9007199254740991) {
+      var bbD = BigInteger.multiply(BigInteger.multiply(b, b), D);
+      //if (typeof norm === "number") {//TODO: 
+      if (BigInteger.add(BigInteger.unaryMinus(norm), bbD) > 9007199254740991 || BigInteger.add(norm, bbD) > 9007199254740991) {
         throw new RangeError(norm);
       }
-      }
-      var guess = norm + D * b * b;
+      //}
+      var guess = BigInteger.add(norm, bbD);
       if (guess >= 0) {
         var a = sqrt(guess);
-        if (guess === a * a) { // && Math.abs(gcd(a, b)) === 1
+        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(gcd(a, b)) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
-      var guess = -norm + D * b * b;
+      var guess = BigInteger.add(BigInteger.unaryMinus(norm), bbD);
       if (guess >= 0) {
         var a = sqrt(guess);
-        if (guess === a * a) { // && Math.abs(gcd(a, b)) === 1
+        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(gcd(a, b)) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
-      ++b;
+      b = BigInteger.add(b, BigInteger.BigInt(1));
     }
   }
   if (a == 0 || b == 0) {
@@ -209,10 +239,10 @@ QuadraticInteger.prototype.primeFactor = function () {
   }
   if (norm == 1 || norm == -1) {
     // https://en.wikipedia.org/wiki/Quadratic_field#Orders_of_quadratic_number_fields_of_small_discriminant
-    var unit = quadraticIntegers(D / D, D, D / D);
+    var unit = quadraticIntegers(BigInteger.BigInt(1), D, BigInteger.BigInt(1));
     var uniti = unit.conjugate();
     var x = this;
-    if (x.b * x.a < 1) {
+    if (BigInteger.multiply(x.b, x.a) < 1) {
       return x.a < 0 ? uniti.negate() : uniti;
     }
     return unit;
@@ -220,6 +250,7 @@ QuadraticInteger.prototype.primeFactor = function () {
 
   var v = this;
   for (var fs = factors(abs(norm)), p = fs.next().value; p != null; p = fs.next().value) {
+  //if (!BigInteger.greaterThan(BigInteger.multiply(p, p), norm) || BigInteger.equal(abs(norm), p)) {
     // ? https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/
     /*if (D === 17) {
       var t = Math.abs(norm);
@@ -229,24 +260,21 @@ QuadraticInteger.prototype.primeFactor = function () {
       p = t === 1 ? norm : primeFactor(t);
     }*/
     if (p == 2 && (D == 5 || D == 13 || D == 17 || D == 21 || D == 29 || D == 33 || D == 41 || D == 57)) {
-      //p = 4;
-      p = p - p;
-      ++p;
-      ++p;
-      ++p;
-      ++p;
+      p = BigInteger.BigInt(4);
     }
-    var i = quadraticIntegers(p, D, D - D);
+    var i = quadraticIntegers(p, D, BigInteger.BigInt(0));
     //console.log(i + '');
     var x = v.truncatingDivide(i);
     if (x != null) {
-      return i;
+      return this.equals(i) ? i : i.primeFactor();
     }
     var x = v.truncatingDivide(i.conjugate());
     if (x != null) {
-      return i.conjugate();
+      return this.equals(i.conjugate()) ? i.conjugate() : i.conjugate().primeFactor();
     }// 1+9sqrt(2)
+  //}
   }
+  
   //console.log('!');
   return this;
   //throw new TypeError();
@@ -269,14 +297,14 @@ QuadraticInteger.prototype.equals = function (y) {
   if (!(y instanceof QuadraticInteger)) {
     throw new TypeError();
   }
-  return x.a === y.a && x.b === y.b && x.D === y.D;
+  return BigInteger.equal(x.a, y.a) && BigInteger.equal(x.b, y.b) && BigInteger.equal(x.D, y.D);
 };
 QuadraticInteger.prototype.subtract = function (y) {
   var x = this;
-  if (x.D !== y.D) {
+  if (!BigInteger.equal(x.D, y.D)) {
     throw new TypeError();
   }
-  return new QuadraticInteger(x.a - y.a, x.b - y.b, x.D);
+  return new QuadraticInteger(BigInteger.subtract(x.a, y.a), BigInteger.subtract(x.b, y.b), x.D);
 };
 QuadraticInteger.prototype.isDivisibleBy = function (y) {
   if (y instanceof AlmostQuadraticInteger) {
@@ -315,7 +343,7 @@ QuadraticInteger.prototype.remainder = function (y) {
     y = new QuadraticInteger(y.toBigInt(), Expression.ZERO.toBigInt(), this.D);
   }
   var x = this;
-  if (x.D !== y.D) {
+  if (!BigInteger.equal(x.D, y.D)) {
     throw new TypeError();
   }
   var n = x.multiply(y.conjugate());
@@ -323,22 +351,22 @@ QuadraticInteger.prototype.remainder = function (y) {
   if (d == 1 || d == -1) { // y.isUnit()
     return x.subtract(x);
   }
-  var q1 = (n.a - n.a % d) / d;
-  var q2 = (n.b - n.b % d) / d;
+  var q1 = BigInteger.divide(BigInteger.subtract(n.a, BigInteger.remainder(n.a, d)), d);
+  var q2 = BigInteger.divide(BigInteger.subtract(n.b, BigInteger.remainder(n.b, d)), d);
   if (q1 == 0 && q2 == 0) {
-    if (abs(x.norm()) >= abs(y.norm())) {
+    //if (abs(x.norm()) >= abs(y.norm())) {
       //?
-      if (x.a > y.a && y.a > 0) {
-        return x.subtract(y.multiply(new QuadraticInteger((x.a - x.a % y.a) / y.a, x.D - x.D, x.D)));
+      if (BigInteger.greaterThan(x.a, y.a) && y.a > 0) {
+        return x.subtract(y.multiply(new QuadraticInteger(BigInteger.divide(BigInteger.subtract(x.a, BigInteger.remainder(x.a, y.a)), y.a), BigInteger.BigInt(0), x.D)));
       }
-      if (x.a > -y.a && y.a < 0) {
-        return x.subtract(y.multiply(new QuadraticInteger((x.a - x.a % -y.a) / -y.a, x.D - x.D, x.D)));
+      if (BigInteger.greaterThan(x.a, BigInteger.unaryMinus(y.a)) && y.a < 0) {
+        return x.subtract(y.multiply(new QuadraticInteger(BigInteger.divide(BigInteger.subtract(x.a, BigInteger.remainder(x.a, BigInteger.unaryMinus(y.a))), BigInteger.unaryMinus(y.a)), BigInteger.BigInt(0), x.D)));
       }
       if (y.b == 0) {
-        return new QuadraticInteger(x.D.constructor(1), x.D - x.D, x.D);//?
+        return new QuadraticInteger(BigInteger.BigInt(1), BigInteger.BigInt(0), x.D);//?
       }
-    throw new RangeError("NotSupportedError");//TODO:!!!
-    }
+    //throw new RangeError("NotSupportedError");//TODO:!!!
+    //}
   }
   var q = new QuadraticInteger(q1, q2, x.D);
   return x.subtract(y.multiply(q));
@@ -348,6 +376,15 @@ QuadraticInteger.prototype.remainderInteger = function (x) {
 };
 QuadraticInteger.prototype.toExpression = function () {
   return Expression.Integer.fromBigInt(this.a).add(Expression.Integer.fromBigInt(this.b).multiply(Expression.Integer.fromBigInt(this.D).squareRoot()));
+};
+
+QuadraticInteger.prototype.abs = function () {
+  if (this.a <= 0 && this.b <= 0 ||
+      this.a < 0 && this.norm() > 0 ||
+      this.b < 0 && this.norm() < 0) {
+    return this.negate();
+  }
+  return this;
 };
 
 //TODO: merge with the QuadraticInteger.toQuadraticInteger
@@ -373,8 +410,10 @@ export default QuadraticInteger;
 // new QuadraticInteger(1, 1, 2).remainder(new QuadraticInteger(1, 1, 2))
 // new QuadraticInteger(2, 2, 2).truncatingDivide(new QuadraticInteger(2, 2, 2))
 
-//!
 function toQuadraticInteger(e) {
+  //if (e instanceof Expression.Complex) {//!
+  //  return e;
+  //}
   if (e instanceof Expression.Addition) {
     var g = e.a.gcd(e.b);
     if (!g.equals(Expression.ONE)) {
@@ -401,6 +440,17 @@ function toQuadraticInteger(e) {
 //!
 
 QuadraticInteger.toQuadraticInteger = toQuadraticInteger;
+
+QuadraticInteger.gcd = function (x, y) {
+  var a = x;
+  var b = y;
+  while (!b.equals(Expression.ZERO)) {
+    var t = a.remainder(b);
+    a = b;
+    b = t;
+  }
+  return a;
+};
 
 /*
 QuadraticInteger.prototype.compareTo = function (e) {
@@ -621,7 +671,7 @@ globalThis.QuadraticInteger = QuadraticInteger;
 
 
 
-// RPN('((17^0.5+7)**3)**(1/3)') + ''
+// ExpressionParser.parse('((17^0.5+7)**3)**(1/3)') + ''
 
 
 //TODO: 
@@ -647,6 +697,11 @@ function AlmostQuadraticInteger(k, qi) { // k * qi
 }
 
 //AlmostQuadraticInteger.prototype = Object.create(null);
+
+AlmostQuadraticInteger.prototype.toString = function () {
+  return '(' + this.k + ')' + '*' + '(' + this.qi + ')';
+};
+
 AlmostQuadraticInteger.prototype.isValid = function () {
   return this.qi.isValid();
 };
@@ -659,7 +714,7 @@ AlmostQuadraticInteger.prototype.equals = function (y) {
   return this.qi.toExpression().multiply(this.k).equals(y.toExpression());
 };
 AlmostQuadraticInteger.prototype.primeFactor = function () {
-  return this.k.toBigInt() !== this.qi.D ? this.k.primeFactor() : new QuadraticInteger(this.qi.D.constructor(0), this.qi.D.constructor(1), this.qi.D);
+  return !BigInteger.equal(this.k.toBigInt(), this.qi.D) ? this.k.primeFactor() : new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), this.qi.D);
 };
 AlmostQuadraticInteger.prototype.isUnit = function () {
   return false;//!
@@ -668,18 +723,18 @@ AlmostQuadraticInteger.prototype.isDivisibleBy = function (y) {
   var g = y.toExpression().pow(Expression.TWO).gcd(this.k.pow(Expression.TWO)).squareRoot();
   var nk = this.k.divide(g);
   if (g instanceof Expression.SquareRoot && g.a.toBigInt() != y.D) {
-    return this.qi.multiply(new QuadraticInteger(this.k.toBigInt(), y.D.constructor(0), this.qi.D)).isDivisibleBy(y);//?TODO: fix
+    return this.qi.multiply(new QuadraticInteger(this.k.toBigInt(), BigInteger.BigInt(0), this.qi.D)).isDivisibleBy(y);//?TODO: fix
   }
-  return this.qi.isDivisibleBy(y.truncatingDivide(g instanceof Expression.SquareRoot ? new QuadraticInteger(this.qi.D.constructor(0), this.qi.D.constructor(1), g.a.toBigInt()) : g));
+  return this.qi.isDivisibleBy(y.truncatingDivide(g instanceof Expression.SquareRoot ? new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), g.a.toBigInt()) : g));
 };
 AlmostQuadraticInteger.prototype.truncatingDivide = function (y) {
   //TODO: Fix
   var g = y.toExpression().pow(Expression.TWO).gcd(this.k.pow(Expression.TWO)).squareRoot();
   var nk = this.k.divide(g);
   if (g instanceof Expression.SquareRoot && g.a.toBigInt() != y.D) {
-    return this.qi.multiply(new QuadraticInteger(this.k.toBigInt(), y.D.constructor(0), this.qi.D)).truncatingDivide(y);//?TODO: fix
+    return this.qi.multiply(new QuadraticInteger(this.k.toBigInt(), BigInteger.BigInt(0), this.qi.D)).truncatingDivide(y);//?TODO: fix
   }
-  var nq = this.qi.truncatingDivide(y.truncatingDivide(g instanceof Expression.SquareRoot ? new QuadraticInteger(this.qi.D.constructor(0), this.qi.D.constructor(1), g.a.toBigInt()) : g));
+  var nq = this.qi.truncatingDivide(y.truncatingDivide(g instanceof Expression.SquareRoot ? new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), g.a.toBigInt()) : g));
   if (nq.b == 0) {
     // || nq.a == 0 - 2*sqrt(2)
     return nk.multiply(nq.toExpression());
@@ -690,6 +745,22 @@ AlmostQuadraticInteger.prototype.truncatingDivide = function (y) {
   return nk.equals(Expression.ONE) ? nq : new AlmostQuadraticInteger(nk, nq);
 };
 AlmostQuadraticInteger.prototype.remainder = function (y) {
+  if (y instanceof QuadraticInteger) {
+    var x = this.toExpression().divide(y.toExpression());
+    var n = x.getNumerator();
+    var d = x.getDenominator();
+    if (d.equals(Expression.ONE)) {
+      return Expression.ZERO;
+    }
+    if (d instanceof Expression.Integer) {
+      d = new QuadraticInteger(d.toBigInt(), 0, this.qi.D);
+    } else {
+      d = toQuadraticInteger(d);
+    }
+    if (d == null) debugger;
+    return toQuadraticInteger(n).remainder(d);
+  }
+
   var g = y.toExpression().gcd(this.k);
   //TODO: ?
   var remainder = this.qi.remainder(y.truncatingDivide(g));
@@ -725,4 +796,3 @@ AlmostQuadraticInteger.prototype.remainderInteger = function (x) {
 
 
 // new QuadraticInteger(7, 1, 17).remainder(new QuadraticInteger(3, 1, 17))
-

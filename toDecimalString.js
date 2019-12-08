@@ -120,7 +120,7 @@ Interval.Context.prototype.nthRoot = function (A, n) {
   var c = this.scalingCoefficient;
   var sA = BigInteger.multiply(A, BigInteger.exponentiate(c, BigInteger.BigInt(n)));
 
-  var x0 = nthRoot(sA, BigInteger.BigInt(n));
+  var x0 = nthRoot(sA, n);
   var x1 = BigInteger.lessThan(BigInteger.exponentiate(x0, BigInteger.BigInt(n)), sA) ? BigInteger.add(x0, BigInteger.BigInt(1)) : x0;
 
   var t = this.c.fromInteger(c);
@@ -161,6 +161,36 @@ Interval.Context.prototype.exp = function (x) {
   var a = exp(x.a, this.scalingCoefficient, this.scalingCoefficient);
   var b = exp(x.b, this.scalingCoefficient, this.scalingCoefficient);
   b = BigInteger.add(b, BigInteger.BigInt(1));
+  return new Interval(a, b);
+};
+Interval.Context.prototype.pi = function () {
+  // https://en.wikipedia.org/wiki/Approximations_of_π#Arctangent
+  function f(n) {
+    var result = BigInteger.BigInt(1);
+    for (var i = 1; i <= n; i += 1) {
+      result = BigInteger.multiply(result, BigInteger.BigInt(i));
+    }
+    return result;
+  }
+  function calculatePI(precision) {
+    var iterations = Math.floor(10 * (precision + 1) / 3) + 1;
+    var scale = f(2 * iterations + 1);
+    var pi = BigInteger.BigInt(0);
+    var n = 0;
+    var nf = BigInteger.BigInt(1);
+    var _2np1f = BigInteger.BigInt(1);
+    while (n <= iterations) {
+      var x = BigInteger.multiply(BigInteger.multiply(BigInteger.divide(scale, _2np1f), BigInteger.multiply(nf, nf)), BigInteger.exponentiate(2, n + 1));
+      pi = BigInteger.add(pi, x);
+      n += 1;
+      nf = BigInteger.multiply(nf, n);
+      _2np1f = BigInteger.multiply(_2np1f, BigInteger.BigInt(2 * n));
+      _2np1f = BigInteger.multiply(_2np1f, BigInteger.BigInt(2 * n + 1));
+    }
+    return BigInteger.divide(BigInteger.multiply(pi, BigInteger.exponentiate(10, precision)), scale);
+  }
+  var a = calculatePI(this.precision);
+  var b = BigInteger.add(a, BigInteger.BigInt(1));
   return new Interval(a, b);
 };
 Interval.Context.prototype.fromInteger = function (a) {
@@ -250,7 +280,12 @@ var evaluateExpression = function (e, context) {
     return context.divide(context.fromIntegers(i.a.getNumerator().multiply(cd.divide(i.a.getDenominator())).value,
                                                i.b.getNumerator().multiply(cd.divide(i.b.getDenominator())).value),
                           context.fromInteger(cd.value));
+  } else if (e === Expression.E) {
+    return context.exp(context.fromInteger(BigInteger.BigInt(1)));
+  } else if (e === Expression.PI) {
+    return context.pi();
   }
+
   return undefined;
 };
 
@@ -325,7 +360,7 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
       var scale = BigInteger.exponentiate(BigInteger.BigInt(10), BigInteger.BigInt(fractionDigits));
       var sA = BigInteger.multiply(A, BigInteger.exponentiate(scale, BigInteger.BigInt(n)));
 
-      var x0 = nthRoot(sA, BigInteger.BigInt(n));
+      var x0 = nthRoot(sA, n);
       var x1 = BigInteger.lessThan(BigInteger.exponentiate(x0, BigInteger.BigInt(n)), sA) ? BigInteger.add(x0, BigInteger.BigInt(1)) : x0;
 
       // root - x0 < x1 - root

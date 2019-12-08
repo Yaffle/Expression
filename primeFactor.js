@@ -1,4 +1,5 @@
 import BigInteger from './BigInteger.js';
+import nthRoot from './nthRoot.js';
 
 function min(a, b) {
   return BigInteger.lessThan(a, b) ? a : b;
@@ -110,23 +111,27 @@ function primeFactorByPollardRho(n) {
       xFixed = x;
     }
   }
-  var a = primeFactorByPollardRho(factor);
-  var b = primeFactorByPollardRho(BigInteger.divide(n, factor));
+  var a = primeFactor(factor);
+  var b = primeFactor(BigInteger.divide(n, factor));
   return BigInteger.lessThan(a, b) ? a : b;
 }
 
-function primeFactorUsingWheel2(n) {
+var WHEEL3 = [1, 2, 2, 4, 2, 4, 2, 4, 6, 2, 6];
+
+function primeFactorUsingWheel(n) {
+  var steps = WHEEL3;
+  var cycle = 3;
+  var sn = Math.floor(Math.sqrt(n + 0.5));
   var i = 2;
   var s = 0;
-  var r = Math.floor(Math.sqrt(n + 0.5));
-  while (i <= r) {
+  while (i <= sn) {
     if (n % i === 0) {
       return i;
     }
-    i += s === 2 ? 2 : s + 1;
+    i += steps[s];
     s += 1;
-    if (s === 4) {
-      s = 2;
+    if (s === steps.length) {
+      s = cycle;
     }
   }
   return n;
@@ -134,13 +139,28 @@ function primeFactorUsingWheel2(n) {
 
 function primeFactor(n) {
   var x = BigInteger.toNumber(n);
+  if (x < 1) {
+    throw new TypeError("primeFactor of a negative integer");
+  }
+
+  //! optimize n = f**2
+  var f = nthRoot(n, 2);
+  if (BigInteger.equal(BigInteger.exponentiate(f, BigInteger.BigInt(2)), n)) {
+    return primeFactor(f);
+  }
+  //! optimize n = f**3
+  var f = nthRoot(n, 3);
+  if (BigInteger.equal(BigInteger.exponentiate(f, BigInteger.BigInt(3)), n)) {
+    return primeFactor(f);
+  }
+
   if (x <= 9007199254740991) {
-    return BigInteger.BigInt(primeFactorUsingWheel2(x));
+    return BigInteger.BigInt(primeFactorUsingWheel(x));
   }
   var s = BigInteger.toNumber(gcd(n, BigInteger.BigInt(304250263527210))); // a primorial
   if (s !== 1) {
     //TODO: use-cases - ?
-    return BigInteger.BigInt(primeFactorUsingWheel2(s));
+    return BigInteger.BigInt(primeFactorUsingWheel(s));
   }
   return primeFactorByPollardRho(n);
 }

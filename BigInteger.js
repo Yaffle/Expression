@@ -148,7 +148,7 @@
       sign = 1;
     }
     var radix = 10;
-    if (from === 0 && s.length >= 2 && s.charCodeAt(0) === 48) {
+    if (from === 0 && length >= 2 && s.charCodeAt(0) === 48) {
       if (s.charCodeAt(1) === 98) {
         radix = 2;
         from = 2;
@@ -205,6 +205,9 @@
     }
     if (typeof x === "string") {
       return fromString(x);
+    }
+    if (x instanceof BigIntegerInternal) {
+      return x;
     }
     throw new RangeError();
   };
@@ -784,11 +787,17 @@
     if (typeof x === "number") {
       return x;
     }
-    var value = 0 + Number(x);
-    if (value >= -9007199254740991 && value <= +9007199254740991) {
-      return value;
+    if (typeof x === "string") {
+      var value = 0 + Number(x);
+      if (value >= -9007199254740991 && value <= +9007199254740991) {
+        return value;
+      }
+      return Internal.BigInt(x);
     }
-    return Internal.BigInt(x);
+    if (Internal.BigInt(x) === x) {
+      return x;
+    }
+    throw new RangeError();
   };
   // Conversion to Number:
   BigInteger.toNumber = function (x) {

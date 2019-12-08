@@ -82,9 +82,10 @@ Condition.prototype._and = function (operator, e) {
     }
 
     // (x-1)^(1/2)
-    if (e instanceof Expression.Exponentiation &&
-        e.b.getNumerator() instanceof Expression.Integer &&
-        !e.b.getDenominator().equals(Expression.ONE)) {
+    if (e instanceof Expression.Exponentiation// &&
+        //e.b.getNumerator() instanceof Expression.Integer &&
+        //!e.b.getDenominator().equals(Expression.ONE)
+        ) {
       return add(oldArray, {expression: e.a, operator: y.operator});
     }
 
@@ -178,10 +179,16 @@ Condition.prototype._and = function (operator, e) {
           content = p.p.getContent();
           p = Expression.getMultivariatePolynomial(content);
         }
-        y = {
-          expression: y.expression.divide(content),
-          operator: y.operator
-        };
+        //!new
+        if (Expression.isConstant(content)) {
+          if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
+            return add(oldArray, {expression: y.expression.divide(content), operator: Condition.EQZ});
+          }
+        }
+        //y = {
+        //  expression: y.expression.divide(content),
+        //  operator: y.operator
+        //};
       }
       if (p != null && p.p.getDegree() > 1 && p.p.getCoefficient(0).equals(Expression.ZERO)) {
         if (operator === Condition.NEZ) {

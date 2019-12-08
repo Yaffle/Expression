@@ -775,4 +775,23 @@
     w(result);
   };
 
+  Matrix.prototype.isDiagonal = function () {
+    return this.eql(this.map(function (e, i, j) {
+      return i !== j ? Expression.ZERO : e;
+    }));
+  };
+  Matrix.prototype.isNilpotent = function () {
+    return this.eql(this.map(function (e, i, j) {
+      return j <= i ? Expression.ZERO : e;
+    }));
+  };
+  //TODO: use in solution steps (?)
+  Matrix.prototype.isJordanMatrix = function () {//TODO: fix
+    var that = this;
+    return this.eql(this.map(function (e, i, j) {
+      return i === j ? e : (j === i + 1 && that.e(i, i).equals(that.e(i + 1, i + 1)) ? Expression.ONE : Expression.ZERO);
+    }));
+  };
+
+
   export default Matrix;

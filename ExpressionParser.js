@@ -110,12 +110,15 @@
     new Operator("cbrt", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.cubeRoot();
     }),
+    new Operator("\u221C", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
+      return a.pow(Expression.ONE.divide(Expression.TWO.add(Expression.TWO)));
+    }),
     new Operator("rank", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.rank();
     }),
     new Operator("adjugate", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.adjugate();
-    }),    
+    }),
     //new Operator("trace", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
     //  return Expression.transformTrace(a);
     //}),
@@ -154,27 +157,28 @@
     }),
 
     new Operator("cos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      if (a.sin == undefined || a.cos == undefined) {
-        throw new RangeError("NotSupportedError");
-      }
       a = prepareTrigonometricArgument(a);
       return a.cos();
     }),
     new Operator("sin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      if (a.sin == undefined || a.cos == undefined) {
-        throw new RangeError("NotSupportedError");
-      }
       a = prepareTrigonometricArgument(a);
       return a.sin();
     }),
     new Operator("tan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      if (a.sin == undefined || a.cos == undefined) {
-        throw new RangeError("NotSupportedError");
-      }
       //a = prepareTrigonometricArgument(a);
       //return a.sin().divide(a.cos());
       var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
       return a2.sin().divide(a2.cos().add(Expression.ONE));
+    }),
+    new Operator("cot", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      if (a instanceof Expression.Matrix) {
+        a = prepareTrigonometricArgument(a);
+        return a.cos().divide(a.sin());
+      }
+      //a = prepareTrigonometricArgument(a);
+      //return a.cos().divide(a.sin());
+      var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
+      return a2.cos().add(Expression.ONE).divide(a2.sin());
     }),
     new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
       var x = toDegrees(a);
@@ -197,10 +201,16 @@
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
     }),
- 
-    new Operator("cosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("sinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+
+    new Operator("cosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.exp().add(a.negate().exp()).divide(Expression.TWO);
+    }),
+    new Operator("sinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.exp().subtract(a.negate().exp()).divide(Expression.TWO);
+    }),
+    new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.exp().subtract(a.negate().exp()).divide(a.exp().add(a.negate().exp()));
+    }),
 
     new Operator("arccos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
     new Operator("arcsin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
@@ -211,7 +221,25 @@
 
     new Operator("frac", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a, b) {
       return a.divide(b);
-    })
+    }),
+
+    new Operator("!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
+      a = a.unwrap();
+      if (!(a instanceof Expression.Integer)) {
+        throw new TypeError();
+      }
+      //return a.factorial();
+      if (a.compareTo(Expression.ZERO) < 0) {
+        throw new TypeError();
+      }
+      var f = Expression.ONE;
+      for (var i = a; i.compareTo(Expression.ONE) >= 0; i = i.subtract(Expression.ONE)) {
+        f = f.multiply(i);
+      }
+      return f;
+    }),
+    new Operator("!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported), // to not parse 3!! as (3!)!, see https://en.wikipedia.org/wiki/Double_factorial
+    new Operator("!!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported)
   ];
 
   function OperationSearchCache() {
@@ -320,11 +348,10 @@
     return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), token);
   };
 
-  var parseLaTeXMatrix = function (tokenizer, token, context, kind) {
-    token = nextToken(tokenizer);
+  var parseLaTeXMatrix = function (tokenizer, token, context, rowSeparator) {
     var rows = [];
     var firstRow = true;
-    while (firstRow || (token.type === 'punctuator' && token.value === '\\\\')) {
+    while (firstRow || (token.type === 'punctuator' && token.value === rowSeparator)) {
       if (firstRow) {
         firstRow = false;
       } else {
@@ -343,9 +370,6 @@
         row.push(tmp.result);
       }
       rows.push(row);
-    }
-    if (token.type === 'punctuator' && token.value === "\\end{" + kind + "}") {
-      token = nextToken(tokenizer);
     }
     return new ParseResult(context.wrap(Expression.Matrix.fromArray(rows)), token);
   };
@@ -424,18 +448,19 @@
 
   // TODO: sticky flags - /\s+/y
   var whiteSpaces = /^\s+/;
-  var punctuators = /^(?:[,&(){}|]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
+  var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
   var integerLiteral = /^\d+(?![\d.,eE])/; // for performance
   var integerLiteralWithoutComma = /^\d+(?![\d.eE])/; // for performance
-  var decimalFraction = /^\d+(?:[.,]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
-  var decimalFractionWithoutComma = /^\d+(?:[.]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
+  var decimalFraction = /^(?=[.,]?\d)\d*(?:[.,]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
+  var decimalFractionWithoutComma = /^(?=[.]?\d)\d*(?:[.]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
-  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
+  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|circ|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
   var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]+/; // superscript digits 2310456789
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
-  var other = /^\S/;
+  //var other = /^\S/u;
+  var other = /^(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|\S)/; // should not split surrogate pairts (for Tokenizer and other things)
 
-  var decimalFractionWithGroups = /^(\d+)(?:[.,](\d+)?(?:\((\d+)\))?)?(?:[eE]([\+\-]?\d+))?$/;
+  var decimalFractionWithGroups = /^(\d+)?(?:[.,](\d+)?(?:\((\d+)\))?)?(?:[eE]([\+\-]?\d+))?$/;
 
   // s.normalize("NFKD").replace(/[\u2044]/g, "/")
   var normalizeSuperscripts = function (s) {
@@ -548,7 +573,13 @@
             left = op.i(left).addPosition(operatorPosition, op.name.length, tokenizer.input);
           } else {
             if (op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT && op.precedence === UNARY_PRECEDENCE_PLUS_ONE && op.name.length > 1 &&
-                (op.name === "sin" || op.name === "cos" || op.name === "sen" || op.name === "tan" || op.name === "tg") &&
+                (op.name === "sin" ||
+                 op.name === "cos" ||
+                 op.name === "sen" ||
+                 op.name === "tan" ||
+                 op.name === "tg" ||
+                 op.name === "cot" ||
+                 op.name === "ctg") &&
                 (token.type === 'operator' && token.value === EXPONENTIATION.name || token.type === 'superscript')) {
               // https://en.wikipedia.org/wiki/Exponentiation#Exponential_notation_for_function_names
 
@@ -629,9 +660,13 @@
                                                    token.value === "\\begin{pmatrix}" ||
                                                    token.value === "\\begin{matrix}")) {
           var kind = token.value.slice('\\begin{'.length, -1);
-          tmp = parseLaTeXMatrix(tokenizer, token, context, kind);
+          token = nextToken(tokenizer);
+          tmp = parseLaTeXMatrix(tokenizer, token, context, '\\\\');
           operand = tmp.result;
           token = tmp.token;
+          if (token.type === 'punctuator' && token.value === "\\end{" + kind + "}") {
+            token = nextToken(tokenizer);
+          }
           if (kind === 'vmatrix') {
             operand = operand.determinant();//!
           }
@@ -650,6 +685,13 @@
           token = parsePunctuator(tokenizer, token, "|");
           
           operand = operand.determinant();//!
+        } else if (token.type === 'punctuator' && token.value === '■') {
+          token = parsePunctuator(tokenizer, token, '■');
+          token = parsePunctuator(tokenizer, token, '(');
+          tmp = parseLaTeXMatrix(tokenizer, token, context, '@');
+          operand = tmp.result;
+          token = tmp.token;
+          token = parsePunctuator(tokenizer, token, ')');
         } else {
           ok = false;
         }
@@ -722,68 +764,68 @@
   // TODO: remove or add tests
   var replaceSimpleDigit = function (code) {
     if (code >= 0x0660 && code <= 0x0669) {
-      return {code: code - 0x0660 + 0x0030, name: "arab"};
+      return {offset: 0x0660, name: "arab"};
     }
     if (code >= 0x06F0 && code <= 0x06F9) {
-      return {code: code - 0x06F0 + 0x0030, name: "arabext"};
+      return {offset: 0x06F0, name: "arabext"};
     }
     if (code >= 0x0966 && code <= 0x096F) {
-      return {code: code - 0x0966 + 0x0030, name: "deva"};
+      return {offset: 0x0966, name: "deva"};
     }
     if (code >= 0x09E6 && code <= 0x09EF) {
-      return {code: code - 0x09E6 + 0x0030, name: "beng"};
+      return {offset: 0x09E6, name: "beng"};
     }
     if (code >= 0x0A66 && code <= 0x0A6F) {
-      return {code: code - 0x0A66 + 0x0030, name: "guru"};
+      return {offset: 0x0A66, name: "guru"};
     }
     if (code >= 0x0AE6 && code <= 0x0AEF) {
-      return {code: code - 0x0AE6 + 0x0030, name: "gujr"};
+      return {offset: 0x0AE6, name: "gujr"};
     }
     if (code >= 0x0B66 && code <= 0x0B6F) {
-      return {code: code - 0x0B66 + 0x0030, name: "orya"};
+      return {offset: 0x0B66, name: "orya"};
     }
     if (code >= 0x0BE6 && code <= 0x0BEF) {
-      return {code: code - 0x0BE6 + 0x0030, name: "tamldec"};
+      return {offset: 0x0BE6, name: "tamldec"};
     }
     if (code >= 0x0C66 && code <= 0x0C6F) {
-      return {code: code - 0x0C66 + 0x0030, name: "telu"};
+      return {offset: 0x0C66, name: "telu"};
     }
     if (code >= 0x0CE6 && code <= 0x0CEF) {
-      return {code: code - 0x0CE6 + 0x0030, name: "knda"};
+      return {offset: 0x0CE6, name: "knda"};
     }
     if (code >= 0x0D66 && code <= 0x0D6F) {
-      return {code: code - 0x0D66 + 0x0030, name: "mlym"};
+      return {offset: 0x0D66, name: "mlym"};
     }
     if (code >= 0x0E50 && code <= 0x0E59) {
-      return {code: code - 0x0E50 + 0x0030, name: "thai"};
+      return {offset: 0x0E50, name: "thai"};
     }
     if (code >= 0x0ED0 && code <= 0x0ED9) {
-      return {code: code - 0x0ED0 + 0x0030, name: "laoo"};
+      return {offset: 0x0ED0, name: "laoo"};
     }
     if (code >= 0x0F20 && code <= 0x0F29) {
-      return {code: code - 0x0F20 + 0x0030, name: "tibt"};
+      return {offset: 0x0F20, name: "tibt"};
     }
     if (code >= 0x1040 && code <= 0x1049) {
-      return {code: code - 0x1040 + 0x0030, name: "mymr"};
+      return {offset: 0x1040, name: "mymr"};
     }
     if (code >= 0x17E0 && code <= 0x17E9) {
-      return {code: code - 0x17E0 + 0x0030, name: "khmr"};
+      return {offset: 0x17E0, name: "khmr"};
     }
     if (code >= 0x1810 && code <= 0x1819) {
-      return {code: code - 0x1810 + 0x0030, name: "mong"};
+      return {offset: 0x1810, name: "mong"};
     }
     if (code >= 0x1946 && code <= 0x194F) {
-      return {code: code - 0x1946 + 0x0030, name: "limb"};
+      return {offset: 0x1946, name: "limb"};
     }
     if (code >= 0x1B50 && code <= 0x1B59) {
-      return {code: code - 0x1B50 + 0x0030, name: "bali"};
+      return {offset: 0x1B50, name: "bali"};
     }
     if (code >= 0xFF10 && code <= 0xFF19) {
-      return {code: code - 0xFF10 + 0x0030, name: "fullwide"};
+      return {offset: 0xFF10, name: "fullwide"};
     }
-    var c = replaceHanidec(code);
-    if (c !== -1) {
-      return {code: '0'.charCodeAt(0) + c, name: "hanidec"};
+    var digit = replaceHanidec(code);
+    if (digit !== -1) {
+      return {offset: code - digit, name: "hanidec"};
     }
     return undefined;
   };
@@ -828,9 +870,9 @@
     if (y != undefined) {
       // TODO: remove
       if (typeof hit === "function") {
-        hit({digit: y.name});
+        hit({offset: y.name});
       }
-      return String.fromCharCode(y.code);
+      return String.fromCharCode(charCode - y.offset + '0'.charCodeAt(0));
     }
     if (charCode === 0x2147) {
       return "e";
@@ -853,6 +895,21 @@
     if (charCode === 0x2063) {
       return ",";
     }
+    if (charCode === "〖".charCodeAt(0)) {
+      return "(";
+    }
+    if (charCode === "〗".charCodeAt(0)) {
+      return ")";
+    }
+    if (charCode === "ˆ".charCodeAt(0)) {
+      return "^";
+    }
+    if (charCode === "[".charCodeAt(0)) {//TODO: ?
+      return "(";
+    }
+    if (charCode === "]".charCodeAt(0)) {//TODO: ?
+      return ")";
+    }
     return undefined;
   };
   //var replaceRegExp = /[...]/g;
@@ -865,7 +922,7 @@
     var result = '';
     for (var i = 0; i < input.length; i += 1) {
       var charCode = input.charCodeAt(i);
-      if (charCode > 0x007F || charCode === 0x003A) {
+      if (charCode > 0x007F || charCode === 0x003A || charCode === 0x005B || charCode === 0x005D) {
         var x = getCharCodeReplacement(charCode);
         if (x != undefined) {
           result += input.slice(lastIndex, i);
@@ -1018,6 +1075,9 @@
     }
     if (symbolName === "I" || symbolName === "U" || symbolName === "E") {
       return new Expression.IdentityMatrix(symbolName);
+    }
+    if (symbolName === "circ") { //TODO: ○ - ?
+      return Expression.CIRCLE;
     }
     return new Expression.Symbol(symbolName);
   };

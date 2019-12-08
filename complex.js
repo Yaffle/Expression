@@ -1,5 +1,6 @@
   import Expression from './Expression.js';
   import QuadraticInteger from './QuadraticInteger.js';
+  import BigInteger from './BigInteger.js';
 
   var Integer = Expression.Integer;
 
@@ -104,8 +105,10 @@
   };
 
   Complex.prototype.truncatingDivide = function (f) {
-    // f instancoef Integer
-    return new Complex(this.real.truncatingDivide(f), this.imaginary.truncatingDivide(f));
+    if (f instanceof Integer) {
+      return new Complex(this.real.truncatingDivide(f), this.imaginary.truncatingDivide(f));
+    }
+    return this.multiply(f.conjugate()).truncatingDivide(f.multiply(f.conjugate()));
   };
 
   Complex.prototype.toStringInternal = function (options, times, i, minus, plus, start, end, toString) {
@@ -219,7 +222,8 @@
       throw new RangeError("NotSupportedError");
     }
 
-    for (var fs = QuadraticInteger._factors(n), p = fs.next().value; p != null; p = fs.next().value) {
+    for (var fs = QuadraticInteger._factors(BigInteger.BigInt(n)), bp = fs.next().value; bp != null; bp = fs.next().value) {
+      var p = BigInteger.toNumber(bp);
       var b = 0;
       while (p - b * b > 0) {
         if (canBeSquare(p - b * b)) {
@@ -241,3 +245,31 @@
   };
 
   Expression.Complex = Complex;
+
+/*
+//!
+Expression.Complex.prototype.isValid = function () {
+  return true;
+};
+//!
+Expression.Complex.prototype.isPositive = function () {
+  return this.imaginary.compareTo(Expression.ZERO) > 0;// || (this.imaginary.compareTo(Expression.ZERO) === 0 && this.real.compareTo(Expression.ZERO) > 0);
+};
+Expression.Complex.prototype.isUnit = function () {
+  return this.multiply(this.conjugate()).equals(Expression.ONE);
+};
+Expression.Complex.prototype.truncatingDivideInteger = function (x) {
+  debugger;
+  return x.multiply(this.conjugate()).divide(this.multiply(this.conjugate()));
+};
+
+Expression.Complex.prototype.isDivisibleBy = function (y) {
+  return !(this.divide(y) instanceof Expression.Division);
+};
+Expression.Complex.prototype.isDivisibleByInteger = function (x) {
+  return !(x.multiply(this.conjugate()).divide(this.multiply(this.conjugate())) instanceof Expression.Division);
+};
+Expression.Complex.prototype.toExpression = function () {
+  return this;
+};
+*/

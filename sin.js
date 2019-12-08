@@ -178,6 +178,9 @@ var map = function (f, u) {
     //TODO: fix
     return u;//?
   }
+  if (u instanceof Expression.Degrees) {
+    return u;//?
+  }
   throw new TypeError();
 };
 
@@ -225,7 +228,7 @@ var expandTrigonometryRules = function (A, type) {
       return expandTrigonometryRulesInternal(a.a.divide(b), a.b.divide(b), type);
     }
   }
-  if (A instanceof Expression.Symbol) {
+  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees) {
     if (type === "cos") {
       return A.cos();
     }
@@ -286,9 +289,11 @@ var simplifyTrigonometry = function (u) {
   if (!hasTrigonometry(u)) {
     return u;
   }
-  var n = expandTrigonometry(u.getNumerator());
+  var n = u.getNumerator();
+  n = expandTrigonometry(n);
   n = contractTrigonometry(n);
-  var d = expandTrigonometry(u.getDenominator());
+  var d = u.getDenominator();
+  d = expandTrigonometry(d);
   d = contractTrigonometry(d);
   return n.divide(d);
 };
@@ -320,10 +325,11 @@ var simplifyConstantValueInternal = function (d) {
     return tmp == null ? null : tmp.negate();
   }
 
-  function f(d) {
+  function f(x) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#Calculated_trigonometric_values_for_sine_and_cosine
-    var x = simplifyConstantValueInternal(d * 2);
-    return x == null ? null : Expression.TWO.add(Expression.TWO.multiply(x)).squareRoot().divide(Expression.TWO);
+    // cos(x) = sqrt(2+2cos(2x))/2 - sign - ?
+    var y = simplifyConstantValueInternal(x * 2);
+    return y == null ? null : Expression.TWO.add(Expression.TWO.multiply(y)).squareRoot().divide(Expression.TWO);
   }
   function ff(x) {//TODO: a+b
     // cos(2x) = 2cos^2(x)-1
@@ -409,7 +415,7 @@ var simplifyConstantValueInternal = function (d) {
     return RPN('(sqrt(3)+sqrt(15)-sqrt(10-sqrt(20)))/8');
   }
   if (d === 69) {
-    return RPN('((2+sqrt(12))*sqrt(5-sqrt(5))-(sqrt(10)+sqrt(2))*(sqrt(3)-1))/16')
+    return RPN('((2+sqrt(12))*sqrt(5-sqrt(5))-(sqrt(10)+sqrt(2))*(sqrt(3)-1))/16');
   }
   if (d === 78) {
     return RPN('(sqrt(10+sqrt(20))+sqrt(3)-sqrt(15))/8');
@@ -442,7 +448,7 @@ var simplifyConstantValueInternal = function (d) {
     return Expression.ONE.divide(Expression.TWO);
   }
   if (d === 67.5) {
-    return f(d).negate();//?
+    return f(d);
   }
   if (d === 75) {
     return f(d);
@@ -516,29 +522,41 @@ var simplifyConstantValue = function (x, type) {
 };
 
 var isArgumentValid = function (x, type) {
-  if (simplifyConstantValue(x, type) != undefined) {
-    return true;
+  if (x instanceof Expression.Degrees) {
+    return simplifyConstantValue(x, type) != undefined;
   }
-  if (!(Expression.isScalar(x) && x instanceof Expression.Symbol) &&
-      !(x instanceof Multiplication && x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) &&
-      !(x instanceof Addition && isArgumentValid(x.a, type) && isArgumentValid(x.b, type)) &&
-      !(x instanceof Division && x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b), type) && isArgumentValid(x.a.b.divide(x.b), type))) {
-    return false;
+  if (x instanceof Expression.Symbol) {
+    return Expression.isScalar(x);
   }
-  return true;
+  if (x instanceof Addition) {
+    return isArgumentValid(x.a, type) && isArgumentValid(x.b, type);
+  }
+  if (x instanceof Multiplication) {
+    return x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol;
+  }
+  if (x instanceof Division) {
+    if (x.b instanceof Integer && x.a === Expression.PI) {
+      return true;
+    }
+    if (x.b instanceof Integer && x.a instanceof Multiplication && x.a.b === Expression.PI) {
+      return true;
+    }
+    return x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b), type) && isArgumentValid(x.a.b.divide(x.b), type);
+  }
+  return false;
 };
 
 Expression.prototype.sin = function () {
   var x = this;
-  if (!isArgumentValid(x, "sin")) {
-    throw new RangeError("NotSupportedError");
+  var t = simplifyConstantValue(x, "sin");
+  if (t != undefined) {
+    return t;
   }
   if (x.isNegative()) {
     return x.negate().sin().negate();
   }
-  var t = simplifyConstantValue(x, "sin");
-  if (t != undefined) {
-    return t;
+  if (!isArgumentValid(x, "sin")) {
+    throw new RangeError("NotSupportedError");
   }
   return new Sin(x);
 };
@@ -550,15 +568,15 @@ Cos.prototype = Object.create(Expression.Function.prototype);
 
 Expression.prototype.cos = function () {
   var x = this;
-  if (!isArgumentValid(x, "cos")) {
-    throw new RangeError("NotSupportedError");
+  var t = simplifyConstantValue(x, "cos");
+  if (t != undefined) {
+    return t;
   }
   if (x.isNegative()) {
     return x.negate().cos();
   }
-  var t = simplifyConstantValue(x, "cos");
-  if (t != undefined) {
-    return t;
+  if (!isArgumentValid(x, "cos")) {
+    throw new RangeError("NotSupportedError");
   }
   return new Cos(x);
 };
@@ -627,5 +645,27 @@ Expression.Degrees = function (value) {
 Expression.Degrees.prototype = Object.create(Expression.prototype);
 Expression.Degrees.prototype.toString = function (options) {
   return this.value.toString(options) + "\u00B0";
+};
+Expression.Degrees.prototype.equals = function (y) {
+  return y instanceof Expression.Degrees && this.value.equals(y.value);
+};
+Expression.Degrees.prototype.compare4AdditionSymbol = function (y) {
+  return -1;
+};
+
+
+//!new 2019-11-23
+// https://en.wikipedia.org/wiki/Trigonometric_functions_of_matrices#cite_note-3
+Expression.Matrix.prototype.sin = function () {
+  var X = this;
+  var i = Expression.I;
+  var TWO = Expression.TWO;
+  return i.multiply(X).exp().subtract(i.negate().multiply(X).exp()).divide(TWO.multiply(i));
+};
+Expression.Matrix.prototype.cos = function () {
+  var X = this;
+  var i = Expression.I;
+  var TWO = Expression.TWO;
+  return i.multiply(X).exp().add(i.negate().multiply(X).exp()).divide(TWO);
 };
 

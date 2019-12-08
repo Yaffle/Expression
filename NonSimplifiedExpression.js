@@ -40,7 +40,8 @@
     return new NonSimplifiedExpression(Expression.E).pow(this);
   };
   NonSimplifiedExpression.prototype.inverse = function () {
-    return new NonSimplifiedExpression(Expression.ONE).divide(this);
+    return new NonSimplifiedExpression(new Expression.Exponentiation(this, Expression.ONE.negate())); // to support the MathML serialization of the `inverse(B)`
+    //return new NonSimplifiedExpression(Expression.ONE).divide(this);
   };
 
 /*
@@ -224,6 +225,10 @@
   };
   NonSimplifiedExpression.prototype.getPrecedence = function () {
     return this.e.getPrecedence();
+  };
+
+  Expression.ElementWisePower.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).elementWisePower(prepare(this.b, holder));
   };
 
 //?

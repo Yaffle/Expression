@@ -73,7 +73,7 @@ var complexToMathML = function (real, imaginary) {
       return false;
     }
     if (e instanceof Expression.BinaryOperation) {
-      return (e.a === Expression.E || isConstant(e.a)) && isConstant(e.b);
+      return ((e.a === Expression.E || e.a === Expression.PI) || isConstant(e.a)) && isConstant(e.b);
     }
     if (e instanceof Expression.Negation) {
       return isConstant(e.b);
@@ -156,7 +156,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
   var containerId = options.idPrefix + "-" + Expression.id();
   if (useMatrixContainer) {
     result += "<munder>";
-    result += "<menclose notation=\"none\" href=\"#\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
+    result += "<menclose notation=\"none\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
   }
 
   result += braces == undefined ? '<mrow><mo>(</mo>' : '<mrow>' + (braces[0] === ' ' ? '' : '<mo>' + braces[0] + '</mo>');
@@ -344,6 +344,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       this.unwrap() instanceof Expression.Exponentiation &&
       this.unwrap().a.unwrap() instanceof Expression.Symbol &&
       this.unwrap().a.unwrap() !== Expression.E &&
+      this.unwrap().a.unwrap() !== Expression.PI &&
       (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
     options = Object.assign({}, options, {fractionDigits: -1});
   }
