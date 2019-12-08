@@ -36,5 +36,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "version": "0.0.14"
+  "version": "0.0.14",
+  "dependencies": {
+    "js-big-integer": "^3.0.0"
+  }
 }
