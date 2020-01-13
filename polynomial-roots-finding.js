@@ -35,9 +35,9 @@ function makeExpressionWithPolynomialRoot(e, root) {
     return Expression.ZERO;
   }
   var v = root;
+
   //TODO: use polynomial from the start - ?
-  var f = Polynomial.toPolynomial(en, v);
-  if (f.hasRoot(v)) {
+  if (Polynomial.toPolynomial(en, v).hasRoot(v)) {
     return Expression.ZERO;
   }
   var c = function (x) {
@@ -385,7 +385,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     }
   };
 
-  // Polynomial.toPolynomial("x^3-8x^2+21x-18").getZeros();
+  // Polynomial.toPolynomial(RPN("x^3-8x^2+21x-18"), RPN("x")).getZeros(3).result.toString()
   Polynomial.prototype.getZeros = function (precision) {
     //TODO: test
     var content = this.getContent();

@@ -135,22 +135,22 @@ var map = function (f, u) {
     return f(u);
   }
   if (u instanceof Addition) {
-    return f(u.a).add(f(u.b));
+    return f(map(f, u.a).add(map(f, u.b)));
   }
   if (u instanceof Multiplication) {
-    return f(u.a).multiply(f(u.b));
+    return f(map(f, u.a).multiply(map(f, u.b)));
   }
   if (u instanceof Division) {
-    return f(u.a).divide(f(u.b));
+    return f(map(f, u.a).divide(map(f, u.b)));
   }
   if (u instanceof Exponentiation) {
-    return f(u.a).pow(f(u.b));
+    return f(map(f, u.a).pow(map(f, u.b)));
   }
   if (u instanceof Sin) {
-    return f(u.a).sin();
+    return f(map(f, u.a).sin());
   }
   if (u instanceof Cos) {
-    return f(u.a).cos();
+    return f(map(f, u.a).cos());
   }
   if (u instanceof Expression.Matrix) {
     return new Expression.Matrix(u.matrix.map(function (e, i, j) {
@@ -181,8 +181,16 @@ var map = function (f, u) {
   if (u instanceof Expression.Degrees) {
     return u;//?
   }
+  if (u instanceof Expression.Radians) {
+    return u;//?
+  }
+  if (u instanceof Expression.Symbol) {
+    return u;//?
+  }
   throw new TypeError();
 };
+
+Expression._map = map;
 
 // page 303
 
@@ -228,7 +236,7 @@ var expandTrigonometryRules = function (A, type) {
       return expandTrigonometryRulesInternal(a.a.divide(b), a.b.divide(b), type);
     }
   }
-  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees) {
+  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees || A instanceof Expression.Radians) {
     if (type === "cos") {
       return A.cos();
     }
@@ -242,38 +250,29 @@ var expandTrigonometryRules = function (A, type) {
 // CA and SC, EA, p. 303
 
 var expandTrigonometry = function (u) {
-  if (u instanceof Integer || u instanceof Expression.Symbol) {
-    return u;
-  }
-  var v = map(expandTrigonometry, u);
-  if (v instanceof Sin) {
-    return expandTrigonometryRules(v.a, "sin");
-  }
-  if (v instanceof Cos) {
-    return expandTrigonometryRules(v.a, "cos");
-  }
-  return v;
+  return map(function (v) {
+    if (v instanceof Sin) {
+      return expandTrigonometryRules(v.a, "sin");
+    }
+    if (v instanceof Cos) {
+      return expandTrigonometryRules(v.a, "cos");
+    }
+    return v;
+  }, u);
 };
 
+Expression._expandTrigonometry = expandTrigonometry;//!
+
 var contractTrigonometry = function (u) {
-  if (u instanceof Integer || u instanceof Expression.Symbol) {
-    return u;
-  }
-  var v = map(contractTrigonometry, u);
-  if (v instanceof Division) {//
-    return contractTrigonometry(v.getNumerator()).divide(v.getDenominator());
-  }
-  if (v instanceof Multiplication || v instanceof Exponentiation || v instanceof Addition) {//! Addition - ?
-    return contractTrigonometryRules(v);
-  }
-  if (v instanceof Cos || v instanceof Sin) {
+  return map(function (v) {
+    if (v instanceof Multiplication || v instanceof Exponentiation || v instanceof Addition) {//! Addition - ?
+      return contractTrigonometryRules(v);
+    }
+    if (v instanceof Division) {
+      return contractTrigonometryRules(v.getNumerator()).divide(v.getDenominator());
+    }
     return v;
-  }
-  if (v instanceof Integer) {
-    return v;
-  }
-  return v;//?
-  //throw new TypeError();
+  }, u);
 };
 
 // page 323
@@ -289,6 +288,44 @@ var simplifyTrigonometry = function (u) {
   if (!hasTrigonometry(u)) {
     return u;
   }
+  //!new
+  var v = null;
+  var r = null;
+  Expression._map(function (e) {
+    // sin(x/2) -> sin(t), t = 2x
+    if (e instanceof Expression.Sin || e instanceof Expression.Cos) {
+      var a = e.a;
+      if (a instanceof Division) {
+        var n = a.getNumerator();
+        var d = a.getDenominator();
+        if (!d.equals(Expression.ONE)) {
+          for (var additions = n.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+            var g = x.gcd(d);
+            if (!g.equals(d)) {
+              for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+                if (y instanceof Expression.Symbol && y !== Expression.PI) {
+                  r = d.divide(g);
+                  v = y;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return e;
+  }, u);
+  if (v != null && r != null) {
+    // sin(x/2) -> sin(x)
+    u = Expression._substitute(u, v, v.multiply(r), v.divide(r));
+    u = simplifyTrigonometry(u);
+    // sin(x) -> sin(x/2)
+    u = Expression._substitute(u, v, v.divide(r), v.multiply(r));
+    return u;
+  }
+
+  //!
+  // TODO: https://en.wikipedia.org/wiki/Euler%27s_formula#Relationship_to_trigonometry - is it possible to do this with anoher method?
   var n = u.getNumerator();
   n = expandTrigonometry(n);
   n = contractTrigonometry(n);
@@ -297,6 +334,17 @@ var simplifyTrigonometry = function (u) {
   d = contractTrigonometry(d);
   return n.divide(d);
 };
+
+Expression.Division.prototype.compare4Multiplication = function (y) {
+  if (y instanceof Division) {
+    return this.a.compare4Multiplication(y.a) || this.b.compare4Multiplication(y.b);
+  }
+  return -1;//TODO:
+};
+Expression.Division.prototype.compare4MultiplicationSymbol = function () {
+  return +1;//TODO:
+};
+
 
 Expression.simplifyTrigonometry = simplifyTrigonometry;//?
 
@@ -331,112 +379,35 @@ var simplifyConstantValueInternal = function (d) {
     var y = simplifyConstantValueInternal(x * 2);
     return y == null ? null : Expression.TWO.add(Expression.TWO.multiply(y)).squareRoot().divide(Expression.TWO);
   }
-  function ff(x) {//TODO: a+b
-    // cos(2x) = 2cos^2(x)-1
-    var y = simplifyConstantValueInternal(x / 2);
-    return Expression.TWO.multiply(y.multiply(y)).subtract(Expression.ONE);
+  function cosapb(a, b) { // cos(d) = cos(a + b)
+    var cosa = simplifyConstantValueInternal(a);
+    var cosb = simplifyConstantValueInternal(b);
+    var sina = simplifyConstantValueInternal(90 - a);
+    var sinb = simplifyConstantValueInternal(90 - b);
+    return cosa.multiply(cosb).subtract(sina.multiply(sinb));
   }
 
-  if (d === 3) {
-    // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#3°:_regular_hexacontagon_(60-sided_polygon)
-    return RPN('(2*(5^0.5+1)^0.5*5^(1/4)+2*(3*5^0.5+3)^0.5*5^(1/4)+2^0.5-6^0.5-10^0.5+30^0.5)/16');
-  }
-  if (d === 6) {
-    return ff(d);
-  }
-  if (d === 12) {
-    return ff(d);
-  }
-  if (d === 24) {
+  //function cos2x(d) { // cos(d) = cos(a + b)
+    // cos(2x) = 2cos^2(x)-1
+    //var y = simplifyConstantValueInternal(d / 2);
+    //return Expression.TWO.multiply(y.multiply(y)).subtract(Expression.ONE);
+  //}
+
+
+  //if (d === 24) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#24°:_sum_12°_+_12°
     //return RPN('(sqrt(6*(5-sqrt(5)))+sqrt(5)+1)/8');
-    return ff(d);
-  }
-  if (d === 42) {
+    //return cosapb(60, -36);
+  //}
+  //if (d === 42) {
     // cos(42) = sin(48) = 2*sin(24)*cos(24)
-    return RPN('2*sin(24)*cos(24)');
-  }
-  if (d === 9) {
-    return RPN('cos(3)cos(6)-sin(3)sin(6)');
-  }
-  if (d === 21) {
-    return RPN('cos(3)cos(18)-sin(3)sin(18)');
-  }
-  if (d === 27) {
-    return RPN('cos(3)cos(24)-sin(3)sin(24)');
-  }
-  if (d === 33) {
-    return RPN('cos(3)cos(30)-sin(3)sin(30)');
-  }
-  if (d === 39) {
-    return RPN('cos(3)cos(36)-sin(3)sin(36)');
-  }
+    //return RPN('2*sin(24)*cos(24)');
+  //}
 
-  if (d === 7.5) {
-    // cos(7.5) = cos(67.5 - 60) = cos(3pi/8)*cos(-60) - sin(3pi/8)*sin(-60)
-    return RPN('cos(3pi/8)*cos(-60) - sin(3pi/8)*sin(-60)');
-  }
-  if (d === 90 - 7.5) {
-    // sin(7.5) = sin(67.5 - 60) = sin(3pi/8)*cos(-60) + cos(3pi/8)*sin(-60)
-    return RPN('sin(3pi/8)*cos(-60) + cos(3pi/8)*sin(-60)');
-  }
-  if (d === 90 - 52.5) {
-    // sin(52.5) = sin(67.5 - 15) = sin(3pi/8)*cos(-15) + cos(3pi/8)*sin(-15)
-    return RPN('sin(3pi/8)*cos(-15) + cos(3pi/8)*sin(-15)');
-  }
-  if (d === 52.5) {
-    // cos(52.5) = cos(67.5 - 15) = cos(3pi/8)*cos(-15) - sin(3pi/8)*sin(-15)
-    return RPN('cos(3pi/8)*cos(-15) - sin(3pi/8)*sin(-15)');
-  }
-
-  if (d > 0 && d < 45) {
-    return f(d);
-  }
+  // 0, 15, 30, 36, 45, 60, 72, 75, 90 - more simple
 
   if (d === 0) {
     return Expression.ONE;
-  }
-
-  // https://en.wikipedia.org/wiki/Sine
-  if (d === 90 - 42) {
-    return RPN('(sqrt(30+sqrt(180))-sqrt(5)+1)/8');
-  }
-  if (d === 90 - 39) {
-    return RPN('((2-sqrt(12))*sqrt(5-sqrt(5))+(sqrt(10)+sqrt(2))*(sqrt(3)+1))/16');
-  }
-  if (d === 90 - 33) {
-    // sin(33) = sin(15)cos(18)+sin(18)cos(15)
-    return simplifyConstantValueInternal(15).multiply(simplifyConstantValueInternal(90 - 18)).add(simplifyConstantValueInternal(18).multiply(simplifyConstantValueInternal(90 - 15)));
-  }
-  if (d === 63) {
-    return RPN('(sqrt(20+sqrt(80))-sqrt(10)+sqrt(2))/8');
-  }
-  if (d === 66) {
-    return RPN('(sqrt(3)+sqrt(15)-sqrt(10-sqrt(20)))/8');
-  }
-  if (d === 69) {
-    return RPN('((2+sqrt(12))*sqrt(5-sqrt(5))-(sqrt(10)+sqrt(2))*(sqrt(3)-1))/16');
-  }
-  if (d === 78) {
-    return RPN('(sqrt(10+sqrt(20))+sqrt(3)-sqrt(15))/8');
-  }
-  if (d === 81) {
-    return RPN('(sqrt(10)+sqrt(2)-sqrt(20-sqrt(80)))/8');
-  }
-  if (d === 84) {
-    return RPN('(sqrt(30-sqrt(180))-sqrt(5)-1)/8');
-  }
-  if (d === 87) {
-    return RPN('((2-sqrt(12))*sqrt(5+sqrt(5))+(sqrt(10)-sqrt(2))(sqrt(3)+1))/16');
-  }
-  //TODO: 
-  //TODO: sin(48)
-
-  if (d === 15) {
-    return f(d);
-  }
-  if (d === 22.5) {
-    return f(d);
   }
   if (d === 30) {
     return Expression.ONE.add(Expression.TWO).squareRoot().divide(Expression.TWO);
@@ -447,32 +418,122 @@ var simplifyConstantValueInternal = function (d) {
   if (d === 60) {
     return Expression.ONE.divide(Expression.TWO);
   }
-  if (d === 67.5) {
+  if (d === 90) {
+    return Expression.ZERO;
+  }
+
+  if (d === 15) {
     return f(d);
   }
   if (d === 75) {
     return f(d);
   }
-  if (d === 90) {
-    return Expression.ZERO;
-  }
-  if (d === 18) {
-    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
-    return Expression.TWO.add(phi).squareRoot().divide(Expression.TWO);
-  }
-  if (d === 36) {
-    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().add(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
+
+  function phi() {
+    return Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
   }
 
-  if (d === 54) {
-    // http://www.maths.surrey.ac.uk/hosted-sites/R.Knott/Fibonacci/simpleTrig.html#section4.2
-    var phi = Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
-    return Expression.TWO.subtract(Expression.TWO.subtract(phi).squareRoot()).squareRoot().divide(Expression.TWO);
+  if (d === 36) {
+    return phi().divide(Expression.TWO);
   }
   if (d === 72) {
-    return Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot().subtract(Expression.ONE).divide(Expression.TWO.add(Expression.TWO));
+    return phi().subtract(Expression.ONE).divide(Expression.TWO);
   }
 
+  if (d === 18) {
+    return Expression.TWO.add(phi()).squareRoot().divide(Expression.TWO);
+  }
+  // http://www.maths.surrey.ac.uk/hosted-sites/R.Knott/Fibonacci/simpleTrig.html#section4.2
+  if (d === 54) {
+    //return Expression.TWO.subtract(Expression.TWO.subtract(phi()).squareRoot()).squareRoot().divide(Expression.TWO);
+    // https://www.cut-the-knot.org/pythagoras/cos36.shtml
+    return Expression.TWO.add(Expression.ONE).subtract(phi()).squareRoot().divide(Expression.TWO);
+  }
+
+  if (d === 7.5) {
+    return cosapb(30, -22.5);
+  }
+  if (d === 22.5) {
+    return f(d);
+  }
+  if (d === 37.5) {
+    return cosapb(60, -22.5);
+  }
+  if (d === 52.5) {
+    return cosapb(30, +22.5);
+  }
+  if (d === 67.5) {
+    return f(d);
+  }
+  if (d === 82.5) {
+    return cosapb(60, +22.5);
+  }
+
+  // https://en.wikipedia.org/wiki/Sine
+
+  if (d === 3) {
+    // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#3°:_regular_hexacontagon_(60-sided_polygon)
+    return cosapb(75, -72);
+  }
+  if (d === 6) {
+    return cosapb(36, -30);
+  }
+  if (d === 9) {
+    return cosapb(45, -36);
+  }
+  if (d === 12) {
+    return cosapb(72, -60);
+  }
+  if (d === 21) {
+    return cosapb(36, -15);
+  }
+  if (d === 24) {
+    return cosapb(54, -30);
+  }
+  if (d === 27) {
+    return cosapb(72, -45);
+  }
+  if (d === 33) {
+    return cosapb(15, 18);
+  }
+  if (d === 39) {
+    return cosapb(54, -15);
+  }
+  if (d === 42) {
+    return cosapb(72, -30);
+  }
+  if (d === 48) {
+    return cosapb(18, 30);
+  }
+  if (d === 51) {
+    return cosapb(36, 15);
+  }
+  if (d === 57) {
+    return cosapb(72, -15);
+  }
+  if (d === 63) {
+    return cosapb(45, 18);
+  }
+  if (d === 66) {
+    return cosapb(36, 30);
+  }
+  if (d === 69) {
+    return cosapb(54, 15);
+  }
+  if (d === 78) {
+    return cosapb(60, 18);
+  }
+  if (d === 81) {
+    return cosapb(36, 45);
+  }
+  if (d === 84) {
+    return cosapb(54, 30);
+  }
+  if (d === 87) {
+    return cosapb(15, +72);
+  }
+
+  //TODO: sin(1.5)
   return undefined;
 };
 
@@ -496,12 +557,7 @@ var simplifyConstantValue = function (x, type) {
     b = x.b;
   } else if (x instanceof Expression.Degrees) {
     var t = x.value.simplify();
-    if (t instanceof Integer) {
-      a = t;
-      b = Integer.fromNumber(180);
-    } else {
-      throw new TypeError();
-    }
+    return simplifyConstantValue(t.multiply(Expression.PI).divide(Integer.fromNumber(180)), type);
   }
   if (a != undefined && b != undefined) {
     b = b.toNumber();
@@ -514,6 +570,8 @@ var simplifyConstantValue = function (x, type) {
         if (d >= 360 - 90) {
           d -= 360;
         }
+      } else if (type !== "cos") {
+        throw new TypeError();
       }
       return simplifyConstantValueInternal(d);
     }
@@ -522,6 +580,17 @@ var simplifyConstantValue = function (x, type) {
 };
 
 var isArgumentValid = function (x, type) {
+  if (x instanceof Expression.Radians) {
+    var isAlgebraicInteger = function (x) {
+      return x instanceof Expression.Integer ||
+             x instanceof Expression.NthRoot && typeof x.n === "number" && x.n % 1 === 0 && isAlgebraicInteger(x.a) ||
+             x instanceof Expression.Division && isAlgebraicInteger(x.getNumerator()) && isAlgebraicInteger(x.getDenominator()) ||
+             x instanceof Expression.Addition && isAlgebraicInteger(x.a) && isAlgebraicInteger(x.b) ||
+             x instanceof Expression.Multiplication && isAlgebraicInteger(x.a) && isAlgebraicInteger(x.b);
+    };
+    // https://ru.wikipedia.org/wiki/Трансцендентное_число#Примеры_трансцендентных_чисел
+    return isAlgebraicInteger(x.value);
+  }
   if (x instanceof Expression.Degrees) {
     return simplifyConstantValue(x, type) != undefined;
   }
@@ -535,6 +604,13 @@ var isArgumentValid = function (x, type) {
     return x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol;
   }
   if (x instanceof Division) {
+    if (x.b instanceof Integer && x.a instanceof Expression.Symbol) {
+      return true;
+    }
+    if (x.b instanceof Integer && x.a instanceof Multiplication && x.a.b instanceof Expression.Symbol && x.a.a instanceof Integer) {
+      return true;
+    }
+    //TODO: ?
     if (x.b instanceof Integer && x.a === Expression.PI) {
       return true;
     }
@@ -581,7 +657,7 @@ Expression.prototype.cos = function () {
   return new Cos(x);
 };
 
-Expression.simplifications.push(simplifyTrigonometry);
+Expression.simplifications.push(Expression.simplifyTrigonometry);
 
 Expression.Sin = Sin;
 Expression.Cos = Cos;
@@ -597,8 +673,25 @@ Expression.Addition.prototype.compare4Addition = function (y) {
   return Expression.Addition.compare4Addition(x, y);
 };
 
+/*
+Expression.Multiplication.prototype.compare4MultiplicationInteger = function (x) {
+  return -1;
+};
+Expression.MatrixSymbol.prototype.compare4MultiplicationExponentiation = function (x) {
+  return -1;//?
+};
+*/
+
 //!!!
 Expression.Addition.prototype.compare4Multiplication = function (y) {
+  if (y instanceof Integer) {
+    return -1;
+  }
+  if (y instanceof Expression.MatrixSymbol) {
+    return +1;
+  }
+  //TODO: fix
+
   var x = this;
   var i = x.summands();
   var j = y.summands();
@@ -617,6 +710,10 @@ Expression.Addition.prototype.compare4Multiplication = function (y) {
 
 Expression.Addition.prototype.compare4MultiplicationSymbol = function (x) {
   return 0 - this.compare4Multiplication(x);
+};
+
+Expression.Addition.prototype.compare4MultiplicationInteger = function (x) {
+  return +1;
 };
 
 Expression.Addition.compare4Addition = function (x, y) {
@@ -649,8 +746,42 @@ Expression.Degrees.prototype.toString = function (options) {
 Expression.Degrees.prototype.equals = function (y) {
   return y instanceof Expression.Degrees && this.value.equals(y.value);
 };
-Expression.Degrees.prototype.compare4AdditionSymbol = function (y) {
+Expression.Degrees.prototype.compare4AdditionSymbol = function (x) {
   return -1;
+};
+
+
+//!new 2019-12-27
+Expression.Radians = function (value) {
+  this.value = value;
+};
+Expression.Radians.prototype = Object.create(Expression.prototype);
+Expression.Radians.prototype.toString = function (options) {
+  var b = this.value;
+  var fb = b instanceof Expression.Integer ? false : true;
+  return (fb ? "(" : "") + b.toString(options) + (fb ? ")" : "") + " rad";
+};
+Expression.Radians.prototype.equals = function (y) {
+  return y instanceof Expression.Radians && this.value.equals(y.value);
+};
+Expression.Radians.prototype.compare4AdditionSymbol = function (x) {
+  return x.compare4Addition(this.value);
+};
+Expression.Radians.prototype.compare4Addition = function (y) {
+  return this.value.compare4Addition(y instanceof Expression.Radians ? y.value : y);
+};
+Expression.Radians.prototype.compare4Multiplication = function (y) {
+  return this.value.compare4Multiplication(y instanceof Expression.Radians ? y.value : y);
+};
+Expression.Radians.prototype.compare4MultiplicationSymbol = function (x) {
+  return x.compare4Multiplication(this.value);
+};
+Expression.Radians.prototype.compare4MultiplicationInteger = function (x) {
+  return x.compare4Multiplication(this.value);
+};
+
+Expression.Radians.prototype.negate = function () {
+  return new Expression.Radians(this.value.negate());
 };
 
 

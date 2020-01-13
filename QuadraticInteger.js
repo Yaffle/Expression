@@ -37,9 +37,9 @@ import primeFactor from './primeFactor.js';
 
 // a + b*sqrt(D)
 function QuadraticInteger(a, b, D) {
-  a = BigInteger.BigInt(a);
-  b = BigInteger.BigInt(b);
-  D = BigInteger.BigInt(D);  
+  a = typeof a === "number" ? BigInteger.BigInt(a) : a;
+  b = typeof b === "number" ? BigInteger.BigInt(b) : b;
+  D = typeof D === "number" ? BigInteger.BigInt(D) : D;  
   //TODO:
   if (typeof a === "number" && Math.abs(a) > 9007199254740991) {
     throw new TypeError();
@@ -177,15 +177,6 @@ function abs(a) {
 
 QuadraticInteger.prototype.primeFactor = function () {
 
-  function gcd(a, b) {
-    while (b != 0) {
-      var t = BigInteger.remainder(a, b);
-      a = b;
-      b = t;
-    }
-    return a;
-  }
-
   function sqrt(n) {
     return nthRoot(n, 2);
   }
@@ -193,11 +184,11 @@ QuadraticInteger.prototype.primeFactor = function () {
   var a = this.a;
   var b = this.b;
   var D = this.D;
-  var g = abs(gcd(a, D));
+  var g = abs(ngcd(a, D));
   if (g == D) {//TODO: g != 1 - ?
     return new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), D);
   }
-  var g = abs(gcd(a, b));
+  var g = abs(ngcd(a, b));
   //!
   //while (BigInteger.remainder(g, 2) == 0) {
   //  g = BigInteger.divide(g, 2);
@@ -206,7 +197,7 @@ QuadraticInteger.prototype.primeFactor = function () {
   if (g != 1) {
     //TODO:
     //return new QuadraticInteger(primeFactor(Math.abs(g)), 0, D);
-    return new QuadraticInteger(QuadraticInteger._factors(g).next().value, b - b, D);
+    //return new QuadraticInteger(QuadraticInteger._factors(g).next().value, b - b, D);
   }
   var norm = this.norm();
   function quadraticIntegers(norm, D, b) {
@@ -220,23 +211,23 @@ QuadraticInteger.prototype.primeFactor = function () {
       var guess = BigInteger.add(norm, bbD);
       if (guess >= 0) {
         var a = sqrt(guess);
-        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(gcd(a, b)) === 1
+        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(ngcd(a, b)) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
       var guess = BigInteger.add(BigInteger.unaryMinus(norm), bbD);
       if (guess >= 0) {
         var a = sqrt(guess);
-        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(gcd(a, b)) === 1
+        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(ngcd(a, b)) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
       b = BigInteger.add(b, BigInteger.BigInt(1));
     }
   }
-  if (a == 0 || b == 0) {
-    return this;
-  }
+  //if (a == 0 || b == 0) {
+    //return this;
+  //}
   if (norm == 1 || norm == -1) {
     // https://en.wikipedia.org/wiki/Quadratic_field#Orders_of_quadratic_number_fields_of_small_discriminant
     var unit = quadraticIntegers(BigInteger.BigInt(1), D, BigInteger.BigInt(1));
@@ -288,13 +279,13 @@ QuadraticInteger.prototype.isUnit = function () {
 };
 QuadraticInteger.prototype.equals = function (y) {
   var x = this;
-  if (y.equals(Expression.ZERO)) {
-    return x.a == 0 && x.b == 0;
-  }
-  if (y.equals(Expression.ONE)) {
-    return x.a == 1 && x.b == 0;
-  }
   if (!(y instanceof QuadraticInteger)) {
+    if (y.equals(Expression.ZERO)) {
+      return x.a == 0 && x.b == 0;
+    }
+    if (y.equals(Expression.ONE)) {
+      return x.a == 1 && x.b == 0;
+    }
     throw new TypeError();
   }
   return BigInteger.equal(x.a, y.a) && BigInteger.equal(x.b, y.b) && BigInteger.equal(x.D, y.D);
@@ -351,6 +342,7 @@ QuadraticInteger.prototype.remainder = function (y) {
   if (d == 1 || d == -1) { // y.isUnit()
     return x.subtract(x);
   }
+
   var q1 = BigInteger.divide(BigInteger.subtract(n.a, BigInteger.remainder(n.a, d)), d);
   var q2 = BigInteger.divide(BigInteger.subtract(n.b, BigInteger.remainder(n.b, d)), d);
   if (q1 == 0 && q2 == 0) {
@@ -369,7 +361,8 @@ QuadraticInteger.prototype.remainder = function (y) {
     //}
   }
   var q = new QuadraticInteger(q1, q2, x.D);
-  return x.subtract(y.multiply(q));
+  var r = x.subtract(y.multiply(q));
+  return r;
 };
 QuadraticInteger.prototype.remainderInteger = function (x) {
   return new QuadraticInteger(x.toBigInt(), Expression.ZERO.toBigInt(), this.D).remainder(this);
@@ -445,9 +438,12 @@ QuadraticInteger.gcd = function (x, y) {
   var a = x;
   var b = y;
   while (!b.equals(Expression.ZERO)) {
-    var t = a.remainder(b);
+    var r = a.remainder(b);
+    if (!(abs(r.norm()) <= abs(b.norm()))) {
+      throw new TypeError("norm");
+    }
     a = b;
-    b = t;
+    b = r;
   }
   return a;
 };
@@ -758,7 +754,9 @@ AlmostQuadraticInteger.prototype.remainder = function (y) {
       d = toQuadraticInteger(d);
     }
     if (d == null) debugger;
-    return toQuadraticInteger(n).remainder(d);
+    if (!this.equals(toQuadraticInteger(n))) {
+      return toQuadraticInteger(n).remainder(d);
+    }
   }
 
   var g = y.toExpression().gcd(this.k);
@@ -776,7 +774,7 @@ AlmostQuadraticInteger.prototype.remainder = function (y) {
   if (remainder.b == 0) {
     return nk.divide(g);
   }
-  return this.k.equals(g) ? remainder : new AlmostQuadraticInteger(nk.divide(g), remainder);
+  return nk.equals(g) ? remainder : new AlmostQuadraticInteger(nk.divide(g), remainder);
 };
 AlmostQuadraticInteger.prototype.toExpression = function (y) {
   return this.qi.toExpression().multiply(this.k);
@@ -796,3 +794,29 @@ AlmostQuadraticInteger.prototype.remainderInteger = function (x) {
 
 
 // new QuadraticInteger(7, 1, 17).remainder(new QuadraticInteger(3, 1, 17))
+
+
+
+// http://oeis.org/wiki/Quadratic_integer_rings#Quadratic_integer_ring_with_discriminant_13
+
+/*
+//TODO: 
+
+function checkFactorization(i) {
+  var results = [];
+  var x = i;
+  while (Math.abs(x.norm()) > 1) {
+    debugger;
+    var p = x.primeFactor();
+    results.push(p);
+    x = x.truncatingDivide(p);
+  }
+  console.log(i + '=' + results.map(x => '(' + x + ')').join(''));
+}
+
+
+for (var i = 3; i <= 20; i += 1) {
+  var q = new QuadraticInteger(i, 0, 13);
+  checkFactorization(q);
+}
+*/

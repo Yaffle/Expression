@@ -46,7 +46,7 @@
     return e.negate();
   });
 
-  var toDegrees = function (a) {
+  var prepareTrigonometricArgument = function (a) {
     if (a instanceof Expression.Integer) {
       return new Expression.Degrees(a);
     }
@@ -56,12 +56,15 @@
     if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Negation && a.e.b instanceof Expression.NonSimplifiedExpression && a.e.b.e instanceof Expression.Integer) {
       return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
     }
-    return null;
+    return a;
   };
 
-  var prepareTrigonometricArgument = function (a) {
-    var x = toDegrees(a);
-    return x == null ? a : x;
+  var toDegrees = function (a) {
+    return a instanceof Expression.NonSimplifiedExpression ? new Expression.NonSimplifiedExpression(new Expression.Degrees(a)) : new Expression.Degrees(a);
+  };
+
+  var toRadians = function (a) {
+    return a instanceof Expression.NonSimplifiedExpression ? new Expression.NonSimplifiedExpression(new Expression.Radians(a)) : new Expression.Radians(a);
   };
 
   var notSupported = function (a) {
@@ -182,6 +185,13 @@
     }),
     new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
       var x = toDegrees(a);
+      if (x == null) {
+        throw new RangeError("NotSupportedError");
+      }
+      return x;
+    }),
+    new Operator("rad", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
+      var x = toRadians(a);
       if (x == null) {
         throw new RangeError("NotSupportedError");
       }
@@ -909,6 +919,12 @@
     }
     if (charCode === "]".charCodeAt(0)) {//TODO: ?
       return ")";
+    }
+    if (charCode === "∙".charCodeAt(0)) {
+      return "*";
+    }
+    if (charCode === "ー".charCodeAt(0)) {
+      return "-";
     }
     return undefined;
   };

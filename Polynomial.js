@@ -356,6 +356,7 @@
     var np = this;
     var an = np.getLeadingCoefficient();
     var a0 = np.getCoefficient(0);
+    a0 = Expression._expandTrigonometry(a0);//!
 
     //TODO: http://en.wikipedia.org/wiki/Polynomial_remainder_theorem
 
@@ -372,6 +373,19 @@
         return Expression.ONE.negate();
       }
       filter.push({k: Expression.ONE.negate(), fk: np.calcAt(Expression.ONE.negate())});
+    }
+
+    //!new 2020-01-13
+    if (hasIntegerCoefficients) {
+      var zeros = np.getZeros(3).result;
+      for (var i = 0; i < zeros.length; i += 1) {
+        var zero = zeros[i];
+        var candidate = Expression.Integer.fromString(zero.multiply(an).toString({fractionDigits: 0})).divide(an);
+        if (np.calcAt(candidate).equals(Expression.ZERO)) {
+          return candidate;
+        }
+      }
+      return null;
     }
 
     /*
@@ -403,7 +417,10 @@
               !filteredOut) {//?
             var x = Polynomial.of(sp.negate(), q);
             var z = np.divideAndRemainder(x, "undefined");
-            if (z != undefined && z.remainder.equals(Polynomial.ZERO)) {
+            var r = z == undefined ? undefined : z.remainder.map(function (x) {
+              return x.simplifyExpression();
+            });
+            if (r != undefined && r.equals(Polynomial.ZERO)) {
               result = sp.divide(q);
               return false;
             }
@@ -1112,6 +1129,20 @@
       newData.add(n - 1, c.multiply(Expression.Integer.fromNumber(n)));
     }
     return new Polynomial(newData);
+  };
+
+  Polynomial.prototype.getSquareFreePolynomial = function () {
+    // https://en.wikipedia.org/wiki/Square-free_polynomial
+    var p = this;
+    var zero = 0;
+    while (p.getCoefficient(0).equals(Expression.ZERO)) {
+      p = p.divideAndRemainder(Polynomial.of(Expression.ONE).shift(1)).quotient;
+      zero += 1;
+    }
+    var f = p;
+    var d = f.derive();
+    var g = d.getDegree() === -1 ? Polynomial.of(Expression.ONE) : Polynomial.polynomialGCD(f, d);
+    return f.divideAndRemainder(g).quotient.multiply(Polynomial.of(Expression.ONE).shift(zero > 0 ? 1 : 0));
   };
 
   export default Polynomial;

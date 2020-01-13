@@ -193,6 +193,10 @@
     }));
   };
 
+  Expression.Radians.prototype.simplifyInternal = function (holder) {
+    return new Expression.Radians(prepare(this.value, holder));
+  };
+
   Expression.prototype.simplify = function () {
     return this;//? this.simplifyInternal(undefined);
   };

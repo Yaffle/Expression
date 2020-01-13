@@ -206,9 +206,6 @@
     if (typeof x === "string") {
       return fromString(x);
     }
-    if (x instanceof BigIntegerInternal) {
-      return x;
-    }
     throw new RangeError();
   };
 
@@ -659,30 +656,36 @@
     return a > b;
   };
 
-  BigIntWrapper.exponentiate = function (a, b) {
-    var n = BigIntWrapper.toNumber(b);
+  BigIntWrapper.exponentiate = function (a, b) { // a**b
+    if (typeof a !== "bigint") {
+      throw new TypeError();
+    }
+    if (typeof b !== "bigint") {
+      throw new TypeError();
+    }
+    var n = Number(b);
     if (n < 0) {
       throw new RangeError();
     }
     if (n > 9007199254740991) {
-      var y = BigIntWrapper.toNumber(a);
+      var y = Number(a);
       if (y === 0 || y === -1 || y === +1) {
-        return BigIntWrapper.BigInt(y === -1 && BigIntWrapper.toNumber(BigIntWrapper.remainder(b, BigIntWrapper.BigInt(2))) === 0 ? +1 : y);
+        return BigInt(y === -1 && Number(b % BigInt(2)) === 0 ? +1 : y);
       }
       throw new RangeError();
     }
-    var accumulator = BigIntWrapper.BigInt(1);
+    var accumulator = BigInt(1);
     if (n > 0) {
       var x = a;
       while (n >= 2) {
         var t = Math.floor(n / 2);
         if (t * 2 !== n) {
-          accumulator = BigIntWrapper.multiply(accumulator, x);
+          accumulator *= x;
         }
         n = t;
-        x = BigIntWrapper.multiply(x, x);
+        x *= x;
       }
-      accumulator = BigIntWrapper.multiply(accumulator, x);
+      accumulator *= x;
     }
     return accumulator;
   };
@@ -793,9 +796,6 @@
         return value;
       }
       return Internal.BigInt(x);
-    }
-    if (Internal.BigInt(x) === x) {
-      return x;
     }
     throw new RangeError();
   };

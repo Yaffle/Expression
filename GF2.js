@@ -62,6 +62,9 @@
       throw new RangeError("NotSupportedError");//?
     }
     return new Expression.Matrix(x.matrix.map(function (e, i, j) {
+      if (!(e.equals(Expression.ZERO) || e.equals(Expression.ONE))) {
+        throw new TypeError();
+      }
       return new Expression.GF2Value(e.equals(Expression.ZERO) ? 0 : 1);
     }));
   };

@@ -58,6 +58,9 @@ FixedPointContext.prototype.max = function (x, y) {
 
 // https://en.wikipedia.org/wiki/Interval_arithmetic
 function Interval(a, b) {
+  if (a instanceof Interval || b instanceof Interval) {
+    throw new TypeError();// to help with debugging
+  }
   this.a = a;
   this.b = b;
 }
@@ -165,7 +168,7 @@ Interval.Context.prototype.exp = function (x) {
 };
 Interval.Context.prototype.pi = function () {
   // https://en.wikipedia.org/wiki/Approximations_of_π#Arctangent
-  function f(n) {
+  function factorial(n) {
     var result = BigInteger.BigInt(1);
     for (var i = 1; i <= n; i += 1) {
       result = BigInteger.multiply(result, BigInteger.BigInt(i));
@@ -174,7 +177,7 @@ Interval.Context.prototype.pi = function () {
   }
   function calculatePI(precision) {
     var iterations = Math.floor(10 * (precision + 1) / 3) + 1;
-    var scale = f(2 * iterations + 1);
+    var scale = factorial(2 * iterations + 1);
     var pi = BigInteger.BigInt(0);
     var n = 0;
     var nf = BigInteger.BigInt(1);
@@ -192,6 +195,61 @@ Interval.Context.prototype.pi = function () {
   var a = calculatePI(this.precision);
   var b = BigInteger.add(a, BigInteger.BigInt(1));
   return new Interval(a, b);
+};
+Interval.Context.prototype._trigonometry = function (x, start) {
+  function factorial(n) {
+    var result = BigInteger.BigInt(1);
+    for (var i = 1; i <= n; i += 1) {
+      result = BigInteger.multiply(result, BigInteger.BigInt(i));
+    }
+    return result;
+  }
+  var precision = this.precision;
+  //if (precision > 10) throw new Error();
+  //throw new Error();
+  function trigonometry(xn, xd) {
+    var iterations = Math.floor(10 * (precision + 1) / 3) + 1;//TODO: ?
+    //iterations += bitLength(x);//?
+    //TODO: optimize
+    var x = BigInteger.divide(xn, xd) + 1;
+    iterations += Math.floor(Math.log(x) / Math.log(2) + 0.5) * (Math.floor(x) + 1);
+    if (iterations > 380) throw new Error();//
+    var scale = factorial(iterations);
+    scale = BigInteger.multiply(scale, BigInteger.exponentiate(xd, iterations));
+    var y = 0;
+    var k = start;
+    while (k < iterations) {
+      var s = BigInteger.multiply(BigInteger.BigInt(Math.pow(-1, (k - start) / 2)), BigInteger.divide(scale, factorial(k)));
+      s = BigInteger.divide(s, BigInteger.exponentiate(xd, k));
+      s = BigInteger.multiply(s, BigInteger.exponentiate(xn, k));
+      y = BigInteger.add(y, s);
+      k += 2;
+    }
+    y = BigInteger.divide(BigInteger.multiply(y, BigInteger.exponentiate(10, precision)), scale);
+    var a = BigInteger.subtract(y, BigInteger.BigInt(1));
+    var b = BigInteger.add(y, BigInteger.BigInt(1));
+    return new Interval(a, b);
+  }
+  if (this.c.compareTo(this.c.subtract(x.b, x.a), this.pi().a) >= 0) {
+    return new Interval(this.fromInteger(-1).a, this.fromInteger(1).a);
+  }
+  var a = trigonometry(x.a, this.c.scalingCoefficient, start).a;
+  var b = trigonometry(x.b, this.c.scalingCoefficient, start).b;//TODO: ?
+  var middle = this.c.divide(this.c.add(x.a, x.b).a, this.c.fromInteger(2).a).a;
+  var c = trigonometry(middle, this.c.scalingCoefficient, start);
+  if (this.c.compareTo(a, c.b) >= 0 && this.c.compareTo(c.a, b) >= 0) {
+    return new Interval(b, a);
+  }
+  if (this.c.compareTo(a, c.b) <= 0 && this.c.compareTo(c.a, b) <= 0) {
+    return new Interval(a, b);
+  }
+  return new Interval(this.c.fromInteger(-1).a, this.c.fromInteger(1).b);
+};
+Interval.Context.prototype.sin = function (x) {
+  return this._trigonometry(x, 1);
+};
+Interval.Context.prototype.cos = function (x) {
+  return this._trigonometry(x, 0);
 };
 Interval.Context.prototype.fromInteger = function (a) {
   return this.c.fromInteger(a);
@@ -284,6 +342,18 @@ var evaluateExpression = function (e, context) {
     return context.exp(context.fromInteger(BigInteger.BigInt(1)));
   } else if (e === Expression.PI) {
     return context.pi();
+  } else if (e instanceof Expression.Sin || e instanceof Expression.Cos) {
+    //TODO: ?
+    if (e.a instanceof Expression.Radians) {
+      var x = evaluateExpression(e.a.value, context);
+      if (e instanceof Expression.Sin) {
+        return context.sin(x);
+      }
+      if (e instanceof Expression.Cos) {
+        return context.cos(x);
+      }
+    }
+    
   }
 
   return undefined;
@@ -375,7 +445,8 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
       !Expression.has(expression, Expression.NthRoot) &&
       !Expression.has(expression, Expression.PolynomialRoot) &&
       !(expression instanceof Expression.Integer) &&
-      !(expression instanceof Expression.Division)) {
+      !(expression instanceof Expression.Division) &&
+      !Expression.has(expression, Expression.Radians)) {
     throw new TypeError("toDecimalString:" + fractionDigits + ":" + expression.toString({}));
   }
   if (fractionDigits < 0 || fractionDigits > 9007199254740991) {

@@ -1,6 +1,7 @@
 
 It is a homemade library for JavaScript.
-It can parse expressions, solve and simplify systems of linear equations, find eigenvalues and eigenvectors.
+It can parse expressions, solve and simplify systems of linear equations, find eigenvalues and eigenvectors,
+or calculate real roots of polynomials with integer coefficients for a specified accuracy.
 
 Installation
 ============

@@ -109,6 +109,7 @@
 
   Matrix.prototype.augment = function (b) { // ( this | m )  m.rows() ==== this.rows()
     if (this.rows() !== b.rows()) {
+      //TODO: fix exception
       throw new RangeError("NonSquareMatrixException");
     }
     var a = this;
@@ -266,6 +267,17 @@
     return m;
   };
 
+  var isConditionValid = function (condition, matrix) {
+    for (var i = 0; i < matrix.rows(); i++) {
+      for (var j = 0; j < matrix.cols(); j++) {
+        if (condition.andNotZero(matrix.e(i, j)).isFalse() && condition.andZero(matrix.e(i, j)).isFalse()) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   Matrix.Gauss = "Gauss";
   Matrix.GaussJordan = "Gauss-Jordan";
   Matrix.GaussMontante = "Gauss-Montante";
@@ -304,6 +316,10 @@
     //2018-09-29
     if (condition != undefined && !condition.isTrue()) {
       matrix = matrix.map(function (e, i, j) {
+        // x == 0 && x**2 != 0 is false
+        // x == 0 && x**2 == 0 is false
+        // x == 0 && y/x != 0 is false
+        // x == 0 && y/x == 0 is false
         return condition.andNotZero(e).isFalse() ? Expression.ZERO : e;
       });
     }
@@ -378,6 +394,14 @@
                 var candidate = matrix.e(pivotOriginRow, pivotColumn);
                 var c1 = condition.andNotZero(candidate);
                 var c2 = condition.andZero(candidate);
+
+                //!new 2020-01-03
+                if (!isConditionValid(c2, matrix)) {
+                  c2 = Condition.FALSE;//!!!
+                  condition = c1;//!
+                }
+                //!
+
                 if (c2.isFalse()) {
                   state = NOT_ZERO;
                 } else if (c1.isFalse()) {

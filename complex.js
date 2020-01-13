@@ -1,6 +1,7 @@
   import Expression from './Expression.js';
   import QuadraticInteger from './QuadraticInteger.js';
   import BigInteger from './BigInteger.js';
+  import nthRoot from './nthRoot.js';
 
   var Integer = Expression.Integer;
 
@@ -48,19 +49,33 @@
   };
   Complex.prototype.compare4Addition = function (y) {
     if (y instanceof Complex) {
-      return 0;
+      if (this.equals(y)) {
+        return 0;
+      }
+      return this.real.compareTo(y.real) || this.imaginary.compareTo(y.imaginary);
     }
     if (y instanceof Integer) {
-      return 0;
+      return +1;
+    }
+    if (y instanceof Expression.Division) {
+      return Expression.prototype.compare4Addition.call(this, y);
+    }
+    if (y instanceof Expression.Exponentiation) {
+      return Expression.prototype.compare4Addition.call(this, y);
+    }
+    if (y instanceof Expression.Matrix) {
+      return Expression.prototype.compare4Addition.call(this, y);
     }
     return -1;
   };
+  // ? zero in case of same "base"
   Complex.prototype.compare4Multiplication = function (y) {
     if (y instanceof Complex) {
       if (y.equals(this)) {
         return 0;
       }
-      return 0;
+      return this.real.abs().compareTo(y.real.abs()) || this.imaginary.abs().compareTo(y.imaginary.abs());
+      //return 0;
       //TODO: fix
       //throw new RangeError("NotSupportedError");//TODO:
     }
@@ -196,45 +211,50 @@
   Complex.prototype.primeFactor = function () {
 
     function canBeSquare(n) {
+      if (typeof n === "object") {
+        return true;//TODO:
+      }
       // https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/#comment-15700
       //var bitset = 0;
       //for (var i = 0; i < 32; i += 1) {
       //  bitset |= 1 << ((i * i) % 32);
       //}
       var bitset = 33751571;
-      var result = (bitset >> (n & 31)) & 1;
+      var result = (bitset >> (n & n.constructor(31))) & 1;
       return result === 1;
     }
     function norm(a, b) {
-      return a * a + b * b;
+      return BigInteger.add(BigInteger.multiply(a, a), BigInteger.multiply(b, b));
     }
     function hasDivisor(r, i, a, b) {
-      var d = a * a + b * b;
-      var x = r * a + i * b;
-      var y = i * a - r * b;
-      return x % d === 0 && y % d === 0;
+      var d = BigInteger.add(BigInteger.multiply(a, a), BigInteger.multiply(b, b));
+      var x = BigInteger.add(BigInteger.multiply(r, a), BigInteger.multiply(i, b));
+      var y = BigInteger.subtract(BigInteger.multiply(i, a), BigInteger.multiply(r, b));
+      return BigInteger.remainder(x, d) == 0 && BigInteger.remainder(y, d) == 0;
     }
 
     var r = this.real.toNumber();
     var i = this.imaginary.toNumber();
     var n = norm(r, i);
-    if (n > (9007199254740991 + 1) / 2) {
-      throw new RangeError("NotSupportedError");
-    }
+    //if (n > (9007199254740991 + 1) / 2) {
+      //TODO: should not throw (see a call from Polynomial#getroots)
+      //throw new RangeError("NotSupportedError");
+    //}
 
-    for (var fs = QuadraticInteger._factors(BigInteger.BigInt(n)), bp = fs.next().value; bp != null; bp = fs.next().value) {
-      var p = BigInteger.toNumber(bp);
-      var b = 0;
-      while (p - b * b > 0) {
-        if (canBeSquare(p - b * b)) {
-          var a = Math.floor(Math.sqrt(p - b * b + 0.5));
-          if (a * a === p - b * b) {
+    for (var fs = QuadraticInteger._factors(n), p = fs.next().value; p != null; p = fs.next().value) {
+      var b = BigInteger.BigInt(0);
+      var c = p;
+      while (c > 0) {
+        if (canBeSquare(c)) {
+          var a = nthRoot(c, 2);
+          if (BigInteger.equal(BigInteger.multiply(a, a), c)) {
             if (norm(a, b) > 1 && hasDivisor(r, i, a, b)) {
-              return b === 0 ? new Expression.Complex(Expression.ZERO, Expression.Integer.fromNumber(a)) : new Complex(Expression.Integer.fromNumber(a), Expression.Integer.fromNumber(b));
+              return b == 0 ? new Expression.Complex(Expression.ZERO, new Expression.Integer(a)) : new Complex(new Expression.Integer(a), new Expression.Integer(b));
             }
           }
         }
-        b += 1;
+        b = BigInteger.add(b, BigInteger.BigInt(1));
+        c = BigInteger.subtract(p, BigInteger.multiply(b, b));
       }
     }
 

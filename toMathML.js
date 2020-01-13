@@ -61,7 +61,8 @@ var complexToMathML = function (real, imaginary) {
 
   function isConstant(e) {
     if (e instanceof Expression.Symbol) {
-      return false;
+      //return false;
+      return e === Expression.E || e === Expression.PI;
     }
     if (e instanceof Expression.NonSimplifiedExpression) {
       return false;
@@ -73,13 +74,17 @@ var complexToMathML = function (real, imaginary) {
       return false;
     }
     if (e instanceof Expression.BinaryOperation) {
-      return ((e.a === Expression.E || e.a === Expression.PI) || isConstant(e.a)) && isConstant(e.b);
+      //return ((e.a === Expression.E || e.a === Expression.PI) || isConstant(e.a)) && isConstant(e.b);
+      return isConstant(e.a) && isConstant(e.b);
     }
     if (e instanceof Expression.Negation) {
       return isConstant(e.b);
     }
     if (e instanceof Expression.Function) {
       return isConstant(e.a);
+    }
+    if (e instanceof Expression.Radians) {
+      return isConstant(e.value);
     }
     return true;
   }
@@ -155,7 +160,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
   //TODO: remove `Expression.id()`
   var containerId = options.idPrefix + "-" + Expression.id();
   if (useMatrixContainer) {
-    result += "<munder>";
+    result += "<munder accentunder=\"true\">";
     result += "<menclose notation=\"none\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
   }
 
@@ -199,10 +204,11 @@ Expression.Matrix.prototype.toMathML = function (options) {
           result += "<mstyle mathvariant=\"bold\">";
           result += "<menclose notation=\"circle\">";
         }
-        if (verticalStrike === j || horizontalStrike === i) {
-          var notation = ((verticalStrike === j ? " " + "verticalstrike" : "") +
-                          (horizontalStrike === i ? " " + "horizontalstrike" : "")).slice(1);
-          result += "<menclose notation=\"" + notation + "\">";
+        if (horizontalStrike === i) {
+          result += "<menclose notation=\"horizontalstrike\">";
+        }
+        if (verticalStrike === j) {
+          result += "<menclose notation=\"verticalstrike\">";
         }
         if (useColumnspacing) {
           result += "<mpadded width=\"+0.8em\" lspace=\"+0.4em\">";
@@ -210,7 +216,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
         var highlight = j < i && isLUDecomposition2 ||
                         highlightRow === i && (columnlines === 0 || j <= cols - 1 + columnlines) || highlightCol === j;
         if (highlight) {
-          result += "<mrow mathbackground=\"#80FF80\">";
+          result += "<mrow mathbackground=\"#80FF80\" mathcolor=\"#3C78C2\">";
         }
         result += x.e(i, j).toMathML(options);
         if (highlight) {
@@ -219,7 +225,10 @@ Expression.Matrix.prototype.toMathML = function (options) {
         if (useColumnspacing) {
           result += "</mpadded>";
         }
-        if (verticalStrike === j || horizontalStrike === i) {
+        if (verticalStrike === j) {
+          result += "</menclose>";
+        }
+        if (horizontalStrike === i) {
           result += "</menclose>";
         }
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
@@ -297,6 +306,10 @@ Expression.NthRoot.prototype.toMathML = function (options) {
          "</mroot>";
 };
 Expression.Function.prototype.toMathML = function (options) {
+  var d = Expression.toDecimalString(this, options);
+  if (d != undefined) {
+    return d;
+  }
   var x = this;
   var fa = !(x.a instanceof Expression.Matrix) && !(x.a instanceof NonSimplifiedExpression && x.a.e instanceof Expression.Matrix);//?
   //TODO: fix
@@ -448,7 +461,7 @@ Expression.Symbol.prototype.toMathML = function (options) {
            indexesMathML +
            "</msub>";
   }
-  return "<mi>" + s + "</mi>";
+  return "<mi>" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="Identity Matrix" aria-label="Identity Matrix">' + s + '</span>' : s) + "</mi>";
 };
 Expression.Negation.prototype.toMathML = function (options) {
   var b = this.b;
@@ -490,6 +503,9 @@ Expression.GF2Value.prototype.toMathML = function (options) {
 };
 Expression.Degrees.prototype.toMathML = function (options) {
   return "<mrow>" + this.value.toMathML(options) + "<mo>&it;</mo><mi>&deg;</mi></mrow>";
+};
+Expression.Radians.prototype.toMathML = function (options) {
+  return "<mrow>" + this.value.toMathML(options) + "<mo>&it;</mo><mi>rad</mi></mrow>";
 };
 
 NonSimplifiedExpression.prototype.toMathML = function (options) {
