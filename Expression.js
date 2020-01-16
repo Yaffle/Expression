@@ -295,16 +295,22 @@
     }
 
     var yn = y.getNumerator();
+    var yd = y.getDenominator();
     if (x === Expression.E && yn instanceof Multiplication && yn.a instanceof Expression.Complex && yn.a.real.equals(Expression.ZERO) && yn.b instanceof Expression.Symbol) {
       var t = y.multiply(Expression.I.negate());
       return t.cos().add(Expression.I.multiply(t.sin()));
     }
-    if (x === Expression.E && yn instanceof Expression.Complex) {
-      if (yn.real.equals(Expression.ZERO)) {
-        var t = new Expression.Radians(y.multiply(Expression.I.negate()));
+    if (x === Expression.E && getConstant(yn) instanceof Expression.Complex && yd instanceof Expression.Integer) {
+      var c = getConstant(yn);
+      if (c.real.equals(Expression.ZERO)) {
+        var t = y.multiply(Expression.I.negate());
+        t = Expression.has(y, Expression.Symbol) ? t : new Expression.Radians(t);
         return t.cos().add(Expression.I.multiply(t.sin()));
       }
-      return x.pow(yn.real).multiply(x.pow(yn.imaginary.multiply(Expression.I)));
+      return x.pow(c.real.divide(yd)).multiply(x.pow(c.imaginary.multiply(Expression.I).multiply(yn.divide(c)).divide(yd)));
+    }
+    if (x === Expression.E && yn instanceof Expression.Addition && yd instanceof Expression.Integer) {
+      return x.pow(yn.a.divide(yd)).multiply(x.pow(yn.b.divide(yd)));
     }
 
     //TODO: 
@@ -714,6 +720,8 @@
     }
     return x;
   };
+
+  Expression.getConstant = getConstant;
 
   var multiplyByInteger = function (x, y) {
     if (x.compareTo(Expression.ZERO) === 0) {
@@ -1830,6 +1838,9 @@ if (simplifyIdentityMatrixPower) {
     if (lc.compareTo(Expression.ZERO) < 0) {
       return x.negate().divide(y.negate());
     }
+    if (has(y, MatrixSymbol)) {//?
+      return new Expression.Multiplication(x, new Expression.Exponentiation(y, Expression.ONE.negate()));//?
+    }//?
     return new Division(x, y);
   };
 
@@ -3501,7 +3512,12 @@ if (simplifyIdentityMatrixPower) {
       return e;
       */
     }
-    var v = getVariable(e);
+    //var v = getVariable(e);
+    // To avoid square roots / nth roots:
+    var v = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(e))).next().value.v;
+    //if (v instanceof NthRoot || v instanceof Integer || v instanceof Expression.Complex) {
+    //  v = undefined;
+    //}
     if (v != undefined) {
       var r = getReplacement(e, v);
       if (!r.equals(v)) {
@@ -3535,6 +3551,21 @@ if (simplifyIdentityMatrixPower) {
           var t = v.multiply(root.getDenominator()).subtract(root.getNumerator());
           return t;
         }
+      }
+
+      /*
+      if (np.getDegree() >= 2) {
+        var roots = np.getroots();
+        if (roots.length > 0) {
+          var root = roots[0];
+          return v.subtract(root);
+        }
+      }
+      */
+
+      var sf = np.getSquareFreePolynomial();
+      if (!sf.equals(np)) {
+        return sf.calcAt(v);
       }
 
       e = np.calcAt(v);

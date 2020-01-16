@@ -213,10 +213,10 @@
     }),
 
     new Operator("cosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return a.exp().add(a.negate().exp()).divide(Expression.TWO);
+      return a.cosh();
     }),
     new Operator("sinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return a.exp().subtract(a.negate().exp()).divide(Expression.TWO);
+      return a.sinh();
     }),
     new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.exp().subtract(a.negate().exp()).divide(a.exp().add(a.negate().exp()));

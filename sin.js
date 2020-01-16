@@ -210,10 +210,26 @@ var expandTrigonometryRules = function (A, type) {
   if (A instanceof Addition) {
     return expandTrigonometryRulesInternal(A.a, A.b, type);
   } else if (A instanceof Multiplication) {
-    var a = A.a;
-    var b = A.b;
+    var i = Expression.ONE;
+    for (var multiplications = A.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      if (y instanceof Expression.Integer) {
+        i = i.multiply(y);
+      }
+    }
+    var a = i;
+    var b = A.divide(i);
+    //var a = A.a;
+    //var b = A.b;
     if (!(a instanceof Integer)) {
       throw new TypeError();
+    }
+    if (a.equals(Expression.ONE)) {
+      if (type === "cos") {
+        return A.cos();
+      }
+      if (type === "sin") {
+        return A.sin();
+      }
     }
     if (a.compareTo(Expression.ONE.negate()) === 0) {
       if (type === "cos") {
@@ -576,7 +592,29 @@ var simplifyConstantValue = function (x, type) {
       return simplifyConstantValueInternal(d);
     }
   }
+  if (x instanceof Expression.Radians && x.value.equals(Expression.ZERO)) {
+    return simplifyConstantValue(x.value, type);
+  }
+  var c = Expression.getConstant(x);
+  if (c instanceof Expression.Complex && c.real.equals(Expression.ZERO)) {
+    if (type === "sin") {
+      return Expression.I.multiply(x.divide(Expression.I).sinh());
+    }
+    if (type === "cos") {
+      return x.divide(Expression.I).cosh();
+    }
+  }
   return undefined;
+};
+
+Expression.prototype.sinh = function () {
+  var a = this;
+  return a.exp().subtract(a.negate().exp()).divide(Expression.TWO);
+};
+
+Expression.prototype.cosh = function () {
+  var a = this;
+  return a.exp().add(a.negate().exp()).divide(Expression.TWO);
 };
 
 var isArgumentValid = function (x, type) {
@@ -601,23 +639,22 @@ var isArgumentValid = function (x, type) {
     return isArgumentValid(x.a, type) && isArgumentValid(x.b, type);
   }
   if (x instanceof Multiplication) {
-    return x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol;
+    if (x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) {
+      return true;
+    }
+    if (Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) {
+      if (x.a instanceof Expression.NthRoot && x.a.a instanceof Integer) {
+        return true;
+      }
+      if (x.a instanceof Multiplication && x.a.a instanceof Integer && x.a.b instanceof Expression.NthRoot && x.a.b.a instanceof Integer) {
+        return true;
+      }
+    }
   }
   if (x instanceof Division) {
-    if (x.b instanceof Integer && x.a instanceof Expression.Symbol) {
-      return true;
+    if (x.b instanceof Integer) {
+      return isArgumentValid(x.a);
     }
-    if (x.b instanceof Integer && x.a instanceof Multiplication && x.a.b instanceof Expression.Symbol && x.a.a instanceof Integer) {
-      return true;
-    }
-    //TODO: ?
-    if (x.b instanceof Integer && x.a === Expression.PI) {
-      return true;
-    }
-    if (x.b instanceof Integer && x.a instanceof Multiplication && x.a.b === Expression.PI) {
-      return true;
-    }
-    return x.b instanceof Integer && x.a instanceof Addition && isArgumentValid(x.a.a.divide(x.b), type) && isArgumentValid(x.a.b.divide(x.b), type);
   }
   return false;
 };
@@ -782,6 +819,17 @@ Expression.Radians.prototype.compare4MultiplicationInteger = function (x) {
 
 Expression.Radians.prototype.negate = function () {
   return new Expression.Radians(this.value.negate());
+};
+
+Expression.Radians.prototype.add = function (y) {
+  if (y instanceof Expression.Radians) {
+    var x = this.value.add(y.value);
+    if (x.equals(Expression.ZERO)) {
+      return x;
+    }
+    return new Expression.Radians(x);//!?
+  }
+  return Expression.prototype.add.call(this, y);
 };
 
 

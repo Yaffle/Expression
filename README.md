@@ -25,6 +25,7 @@ example.js:
   var p = Polynomial.toPolynomial(ExpressionParser.parse("x^5−2x^4−11x^3+26x^2−2x−13"), ExpressionParser.parse("x"));
   console.log(p.getZeros(5).result.map(x => x.toString({fractionDigits: 20})).toString()); // -3.41190231035920486644,-0.60930943815581736137,1.07534597839596488553,1.92498144931467217779,3.02088432080438516449
 
+  // parse a matrix from a string:
   var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
   console.log('matrix: ' + matrix.toString()); // matrix: {{1,2,3},{4,5,6},{7,8,9}}
 
@@ -44,6 +45,9 @@ example.js:
 
   // Compute the first 100 digits of the square root of 2:
   console.log(RPN('sqrt(2)').toMathML({fractionDigits: 100})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
+
+  // simplify an expression:
+  console.log(simplify('x * y * -x / (x ^ 2)').toString()) // '-y'
 
 ```
 <!-- {% endraw %} -->
@@ -85,9 +89,11 @@ Types
   nthRoot(a, n)
   primeFactor(a)
   Matrix
+    .I(size)
+    .Zero(rows, cols)
     rows()
     cols()
-    e(row, column)
+    e(row, column) - get element
     isSquare()
     map(mapFunction)
     transpose()
@@ -106,8 +112,16 @@ Types
     pow(n)
     eql()
   Polynomial
-    getDegree()
-    getCoefficient()
+    .ZERO
+    .of(a0, a1, ...)
+    .from(arrayLike)
+    .toPolynomial(expression, variable)
+    #getDegree()
+    #getCoefficient(index)
+    #shift(n)
+    #getroots()
+    #getZeros()
+    #calcAt(point)
   ExpressionParser
     parse(string, context)
   Expression
