@@ -471,6 +471,12 @@ Expression.Negation.prototype.toMathML = function (options) {
   return "<mrow><mo>&minus;</mo>" + (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + "</mrow>";
 };
 
+Expression.Factorial.prototype.toMathML = function (options) {
+  var n = this.n.unwrap();
+  var fn = !(n instanceof Expression.Integer && n.compareTo(Expression.ZERO) > 0);
+  return "<mrow>" + (fn ? "<mrow><mo>(</mo>" : "") + n.toMathML(Expression.setTopLevel(fn, options)) + (fn ? "<mo>)</mo></mrow>" : "") + "<mo>!</mo></mrow>";
+};
+
 Condition.prototype.toMathML = function (options) {
   if (this === Condition.TRUE || this === Condition.FALSE) {
     // 1) no need; 2) no way to distinguish TRUE and FALSE

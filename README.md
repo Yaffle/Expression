@@ -49,6 +49,17 @@ example.js:
   // simplify an expression:
   console.log(simplify('x * y * -x / (x ^ 2)').toString()) // '-y'
 
+  // parsing with substitutions:
+  var result = ExpressionParser.parse('A*B', new ExpressionParser.Context(function (id) {
+    if (id === 'A') {
+      return ExpressionParser.parse('{{1,2},{3,4}}');
+    }
+    if (id === 'B') {
+      return ExpressionParser.parse('{{-4,2},{3,-1}}');
+    }
+  })).simplify();
+  console.log(result.toString());
+
 ```
 <!-- {% endraw %} -->
 
@@ -115,13 +126,18 @@ Types
     .ZERO
     .of(a0, a1, ...)
     .from(arrayLike)
+    .pseudoRemainder(p1, p2)
     .toPolynomial(expression, variable)
     #getDegree()
     #getCoefficient(index)
+    #getLeadingCoefficient() - same as p.getCoefficient(p.getDegree())
     #shift(n)
     #getroots()
     #getZeros()
     #calcAt(point)
+    #scale(coefficient)
+    #divideAndRemainder(other)
+    #getContent()
   ExpressionParser
     parse(string, context)
   Expression
@@ -129,6 +145,9 @@ Types
     .ONE
     .TWO
     .TEN
+    .PI
+    .E
+    .I
     #add
     #subtract
     #multiply

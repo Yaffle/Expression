@@ -412,7 +412,7 @@ Condition.prototype._and = function (operator, e) {
           //!new 2019-24-12
           if (px != null && py != null && px.v.equals(py.v) && px.p.getDegree() !== 1 && py.p.getDegree() !== 1 && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
             //TODO: test, fix
-            var tmp1 = Polynomial.pseudoRemainder(py.p, px.p);
+            var tmp1 = py.p.getDegree() >= px.p.getDegree() ? Polynomial.pseudoRemainder(py.p, px.p) : py.p;
             var tmp2 = tmp1.calcAt(px.v);
             var tmp = {expression: tmp2, operator: y.operator};
             newArray = add(newArray, tmp);

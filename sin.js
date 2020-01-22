@@ -446,7 +446,7 @@ var simplifyConstantValueInternal = function (d) {
   }
 
   function phi() {
-    return Expression.ONE.add(Expression.Integer.fromNumber(5).squareRoot()).divide(Expression.TWO);
+    return Expression.ONE.add(Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot()).divide(Expression.TWO);
   }
 
   if (d === 36) {
@@ -487,66 +487,28 @@ var simplifyConstantValueInternal = function (d) {
 
   // https://en.wikipedia.org/wiki/Sine
 
-  if (d === 3) {
+/*
+  for (var d = 3; d <= 90; d += 3) {
+    if (d % 15 !== 0 && d % 18 !== 0) {
+      for (var a = 75; a > 0; a -= 15) {
+        var b = -(a - d);
+        if (b % 18 === 0) {
+          console.log(`cos(${d})=cos(${a}+${b})`);
+        }
+      }
+    }
+  }
+*/
+
+  //if (d === 3) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#3°:_regular_hexacontagon_(60-sided_polygon)
-    return cosapb(75, -72);
-  }
-  if (d === 6) {
-    return cosapb(36, -30);
-  }
-  if (d === 9) {
-    return cosapb(45, -36);
-  }
-  if (d === 12) {
-    return cosapb(72, -60);
-  }
-  if (d === 21) {
-    return cosapb(36, -15);
-  }
-  if (d === 24) {
-    return cosapb(54, -30);
-  }
-  if (d === 27) {
-    return cosapb(72, -45);
-  }
-  if (d === 33) {
-    return cosapb(15, 18);
-  }
-  if (d === 39) {
-    return cosapb(54, -15);
-  }
-  if (d === 42) {
-    return cosapb(72, -30);
-  }
-  if (d === 48) {
-    return cosapb(18, 30);
-  }
-  if (d === 51) {
-    return cosapb(36, 15);
-  }
-  if (d === 57) {
-    return cosapb(72, -15);
-  }
-  if (d === 63) {
-    return cosapb(45, 18);
-  }
-  if (d === 66) {
-    return cosapb(36, 30);
-  }
-  if (d === 69) {
-    return cosapb(54, 15);
-  }
-  if (d === 78) {
-    return cosapb(60, 18);
-  }
-  if (d === 81) {
-    return cosapb(36, 45);
-  }
-  if (d === 84) {
-    return cosapb(54, 30);
-  }
-  if (d === 87) {
-    return cosapb(15, +72);
+    //return cosapb(18, -15);
+  //}
+
+  if (d % 3 === 0) {
+    var a = 90 - (Math.floor(d / 3) % 6) * 15;
+    var b = -(a - d);
+    return cosapb(a, b);
   }
 
   //TODO: sin(1.5)

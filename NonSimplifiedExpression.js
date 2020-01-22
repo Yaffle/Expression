@@ -44,6 +44,10 @@
     //return new NonSimplifiedExpression(Expression.ONE).divide(this);
   };
 
+  NonSimplifiedExpression.prototype.factorial = function () {
+    return new NonSimplifiedExpression(new Expression.Factorial(this));
+  };
+
 /*
   NonSimplifiedExpression.prototype.powExpression = function (x) {
     return new NonSimplifiedExpression(new Expression.Exponentiation(x, this));
@@ -233,6 +237,9 @@
 
   Expression.ElementWisePower.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).elementWisePower(prepare(this.b, holder));
+  };
+  Expression.Factorial.prototype.simplifyInternal = function (holder) {
+    return prepare(this.n, holder).factorial();
   };
 
 //?

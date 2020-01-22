@@ -195,6 +195,24 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
         }).calcAt(x.getNumerator());
       }
       //!
+      //!?2020-01-17
+      if (!(v instanceof Expression.Integer)) {
+        if (v instanceof Expression.Addition && v.a instanceof Expression.Multiplication && v.b instanceof Expression.Integer) {
+          if (v.a.isNegative() !== v.b.isNegative()) {
+            var c = Expression.getConjugate(v);
+            if (c.isNegative()) {
+              c = c.negate();
+            }
+            v = v.multiply(c);//?
+          } else {
+            if (!(v.multiply(Expression.getConjugate(v)) instanceof Expression.Integer)) {
+              throw new TypeError();
+            }
+            v = v.a.isNegative() ? Expression.ONE.negate() : Expression.ONE;//TODO: FIX
+          }
+        }
+      }
+      //!?
       var c = v.getNumerator().compareTo(Expression.ZERO);
       if (c !== 0) {
         if (sign === 0) {

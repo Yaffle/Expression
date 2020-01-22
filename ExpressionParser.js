@@ -234,19 +234,7 @@
     }),
 
     new Operator("!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
-      a = a.unwrap();
-      if (!(a instanceof Expression.Integer)) {
-        throw new TypeError();
-      }
-      //return a.factorial();
-      if (a.compareTo(Expression.ZERO) < 0) {
-        throw new TypeError();
-      }
-      var f = Expression.ONE;
-      for (var i = a; i.compareTo(Expression.ONE) >= 0; i = i.subtract(Expression.ONE)) {
-        f = f.multiply(i);
-      }
-      return f;
+      return a.factorial();
     }),
     new Operator("!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported), // to not parse 3!! as (3!)!, see https://en.wikipedia.org/wiki/Double_factorial
     new Operator("!!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported)
@@ -941,6 +929,9 @@
       if (charCode > 0x007F || charCode === 0x003A || charCode === 0x005B || charCode === 0x005D) {
         var x = getCharCodeReplacement(charCode);
         if (x != undefined) {
+          if (x.length !== 1) {
+            throw new RangeError(); // assertion
+          }
           result += input.slice(lastIndex, i);
           result += x;
           lastIndex = i + 1;
@@ -971,6 +962,7 @@
   Token.EOF = new Token('EOF', '', null);
 
   function Tokenizer(input, position, states) {
+    this._preparedInput = replaceSomeChars(input); //TODO: fix ???
     this.input = input;
     this.position = position;
     this.states = states;
@@ -1002,7 +994,7 @@
           re = operationSearchCache.getRegExp();//?TODO: 
         }
       }
-      var tmp = re.exec(this.input.slice(this.position));
+      var tmp = re.exec(this._preparedInput.slice(this.position));
       if (tmp != null) {
         var value = tmp[0];
         if (type === 'punctuator') {
@@ -1044,9 +1036,6 @@
       throw new RangeError();
     }
 
-    //TODO: fix ???
-    input = replaceSomeChars(input);
-
     if (typeof hit === "function" && context.getter != undefined) {
       var re = /[a-z][a-z][a-z\-]+/gi;
       var m = null;
@@ -1066,7 +1055,7 @@
     if (token.type !== 'EOF') {
       ExpressionParser.startPosition = tokenizer.position - token.value.length;
       ExpressionParser.endPosition = tokenizer.position;
-      ExpressionParser.input = input;
+      ExpressionParser.input = tokenizer.input;
       throw new RangeError("UserError: unexpected '" + token.value + "'");
     }
 

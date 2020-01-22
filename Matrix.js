@@ -615,10 +615,7 @@
   };
 
   Matrix.prototype.pow = function (n) {
-    if (n < 0) {
-      throw new RangeError();
-    }
-    if (n > 9007199254740991) {
+    if (!(n >= 0 && n <= 9007199254740991)) {
       throw new RangeError();
     }
     var pow = function (x, count, accumulator) {
@@ -804,7 +801,7 @@
       return i !== j ? Expression.ZERO : e;
     }));
   };
-  Matrix.prototype.isNilpotent = function () {
+  Matrix.prototype.isNilpotent = function () {//TODO: ? this method only tests if it nilpotent based on a property and so may return false for the positive result
     return this.eql(this.map(function (e, i, j) {
       return j <= i ? Expression.ZERO : e;
     }));
@@ -813,7 +810,7 @@
   Matrix.prototype.isJordanMatrix = function () {//TODO: fix
     var that = this;
     return this.eql(this.map(function (e, i, j) {
-      return i === j ? e : (j === i + 1 && that.e(i, i).equals(that.e(i + 1, i + 1)) ? Expression.ONE : Expression.ZERO);
+      return i === j ? e : (j === i + 1 && that.e(i, i).equals(that.e(i + 1, i + 1)) && !that.e(i, j).equals(Expression.ZERO) ? Expression.ONE : Expression.ZERO);
     }));
   };
 
