@@ -93,7 +93,7 @@
     return imaginary.compareTo(Expression.ZERO) === 0 ? real : new Complex(real, imaginary);
   };
   Expression.prototype.multiplyComplex = function (x) {
-    return this.multiplyExpression(x);    
+    return this.multiplyExpression(x);
   };
   Integer.prototype.multiplyComplex = function (x) {
     if (this.compareTo(Expression.ZERO) === 0) {
@@ -152,9 +152,9 @@
       return undefined;
     }
     var c = Expression.ZERO;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var f = undefined;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         if (y instanceof Complex) {
           f = y;
         }
@@ -173,7 +173,7 @@
     //!?
     return c;
   };
-  
+
   Complex.prototype.compare4MultiplicationInteger = function (y) {
     return +1;
   };

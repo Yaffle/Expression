@@ -39,7 +39,7 @@ import primeFactor from './primeFactor.js';
 function QuadraticInteger(a, b, D) {
   a = typeof a === "number" ? BigInteger.BigInt(a) : a;
   b = typeof b === "number" ? BigInteger.BigInt(b) : b;
-  D = typeof D === "number" ? BigInteger.BigInt(D) : D;  
+  D = typeof D === "number" ? BigInteger.BigInt(D) : D;
   //TODO:
   if (typeof a === "number" && Math.abs(a) > 9007199254740991) {
     throw new TypeError();
@@ -203,7 +203,7 @@ QuadraticInteger.prototype.primeFactor = function () {
   function quadraticIntegers(norm, D, b) {
     while (true) {
       var bbD = BigInteger.multiply(BigInteger.multiply(b, b), D);
-      //if (typeof norm === "number") {//TODO: 
+      //if (typeof norm === "number") {//TODO:
       if (BigInteger.add(BigInteger.unaryMinus(norm), bbD) > 9007199254740991 || BigInteger.add(norm, bbD) > 9007199254740991) {
         throw new RangeError(norm);
       }
@@ -240,7 +240,7 @@ QuadraticInteger.prototype.primeFactor = function () {
   }
 
   var v = this;
-  for (var fs = factors(abs(norm)), p = fs.next().value; p != null; p = fs.next().value) {
+  for (var fs = QuadraticInteger._factors(abs(norm)), p = fs.next().value; p != null; p = fs.next().value) {
   //if (!BigInteger.greaterThan(BigInteger.multiply(p, p), norm) || BigInteger.equal(abs(norm), p)) {
     // ? https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/
     /*if (D === 17) {
@@ -265,7 +265,7 @@ QuadraticInteger.prototype.primeFactor = function () {
     }// 1+9sqrt(2)
   //}
   }
-  
+
   //console.log('!');
   return this;
   //throw new TypeError();
@@ -473,7 +473,7 @@ QuadraticInteger.prototype.compareTo = function (e) {
       }
       var q = isQuadraticInteger(x);
       //TODO: (q.D === 2 || q.D === 3 || q.D === 5 || q.D === 17)
-      
+
       if (q != null && q.D === 2 && Math.abs(q.a * q.a - q.b * q.b * q.D) === Math.pow(gcd(q.a, q.b), 2)) {
         var ff = Expression.ONE;
         if (q.a % q.D === 0) {
@@ -670,7 +670,7 @@ globalThis.QuadraticInteger = QuadraticInteger;
 // ExpressionParser.parse('((17^0.5+7)**3)**(1/3)') + ''
 
 
-//TODO: 
+//TODO:
 /*
 
 */
@@ -768,6 +768,9 @@ AlmostQuadraticInteger.prototype.remainder = function (y) {
   if (remainder instanceof AlmostQuadraticInteger) {
     return new AlmostQuadraticInteger(this.k.multiply(remainder.k), remainder.qi);
   }
+  if (remainder instanceof Expression.Integer) {
+    return this.k.multiply(remainder);//TODO: fix
+  }
   var t = Expression.Integer.fromBigInt(abs(ngcd(remainder.a, remainder.b)));
   var nk = this.k.multiply(t);
   remainder = remainder.truncatingDivide(t);
@@ -800,7 +803,7 @@ AlmostQuadraticInteger.prototype.remainderInteger = function (x) {
 // http://oeis.org/wiki/Quadratic_integer_rings#Quadratic_integer_ring_with_discriminant_13
 
 /*
-//TODO: 
+//TODO:
 
 function checkFactorization(i) {
   var results = [];

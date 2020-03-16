@@ -15,8 +15,8 @@
   }
 
   NonSimplifiedExpression.prototype = Object.create(Expression.prototype);
-  
-  // same set of public properties (and same order) as for Expressions ... 
+
+  // same set of public properties (and same order) as for Expressions ...
   NonSimplifiedExpression.prototype.negate = function () {
     return new NonSimplifiedExpression(new Expression.Negation(this));
   };
@@ -35,7 +35,7 @@
   NonSimplifiedExpression.prototype.pow = function (y) {
     return new NonSimplifiedExpression(new Expression.Exponentiation(this, y));
   };
-  
+
   NonSimplifiedExpression.prototype.exp = function () {
     return new NonSimplifiedExpression(Expression.E).pow(this);
   };
@@ -126,6 +126,9 @@
   NonSimplifiedExpression.prototype.transformEquality = function (b) {
     return new NonSimplifiedExpression(new Expression.Equality(this, b));
   };
+  NonSimplifiedExpression.prototype.transformComma = function (b) {
+    return new NonSimplifiedExpression(new Expression.Comma(this, b));
+  };
 
   NonSimplifiedExpression.prototype.addPosition = function (position, length, input) {
     return new NonSimplifiedExpression(this.e, position, length, input);
@@ -199,6 +202,10 @@
 
   Expression.Radians.prototype.simplifyInternal = function (holder) {
     return new Expression.Radians(prepare(this.value, holder));
+  };
+
+  Expression.Comma.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).transformComma(prepare(this.b, holder));
   };
 
   Expression.prototype.simplify = function () {

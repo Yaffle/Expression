@@ -4,7 +4,7 @@
 // see also https://github.com/dharmatech/Symbolism/blob/master/Symbolism/Symbolism.cs
 // see also "Computer Algebra and Symbolic Computation: Elementary Algorithms" by Joel S. Cohen
 
-// public API: 
+// public API:
 // Expression.prototype.add
 // Expression.prototype.subtract
 // Expression.prototype.multiply
@@ -18,7 +18,7 @@
   import Matrix from './Matrix.js';
   import primeFactor from './primeFactor.js';
   import QuadraticInteger from './QuadraticInteger.js';
-  
+
   import nthRoot from './nthRoot.js';
 
   var pow = function (x, count, accumulator) {
@@ -36,6 +36,7 @@
     return k === 0 ? Expression.ONE : n.multiply(binomialCoefficient(n.subtract(Expression.ONE), k - 1)).divide(Integer.fromNumber(k));
   };
 
+/*
   var powerOfJordanForm = function (J, N) {
     return J.map(function (e, i, j) {
       if (i > j) {
@@ -56,9 +57,11 @@
       return J.e(i, i).equals(Expression.ZERO) ? Expression.ZERO : binomialCoefficient(N, m).multiply(J.e(i, i).pow(N.subtract(Expression.Integer.fromNumber(m))));
     });
   };
+*/
 
   var matrixInN = function (matrix, n) {
     var condition = -1;
+    /*
     if (matrix.isDiagonal()) {
       for (var i = 0; i < matrix.cols(); i += 1) {
         if (matrix.e(i, i).equals(Expression.ZERO)) {
@@ -71,6 +74,8 @@
       var an = new Expression.Matrix(result);
       return condition !== -1 ? new ExpressionWithCondition(an, n, '>', condition) : an;
     }
+    */
+    /*
     if (matrix.isJordanMatrix()) {
       for (var i = 0; i < matrix.cols(); i += 1) {
         if (matrix.e(i, i).equals(Expression.ZERO)) {
@@ -94,6 +99,47 @@
       }
       return condition !== -1 ? new ExpressionWithCondition(an, n, '>', condition) : an;
     }
+    */
+    //!
+    var D = matrix.map(function (e, i, j) {
+      return i === j ? e : Expression.ZERO;
+    });
+    var N = matrix.subtract(D);
+    if (N.isNilpotent()) {//TODO: fix Matrix#isNilpotent
+      if (D.multiply(N).eql(N.multiply(D))) {// D and N commute
+        //Note: covers diagonal matrices and Jordan matrices
+        for (var k = 0; k < D.cols(); k += 1) {
+          if (D.e(k, k).equals(Expression.ZERO)) {
+            var index = 1;
+            while (!N.pow(index).map(function (e, i, j) { return i !== k ? Expression.ZERO : e; }).isZero()) {
+              if (index >= N.cols()) {
+                throw new TypeError("assertion");
+              }
+              index += 1;
+            }
+            condition = Math.max(condition, index - 1);//?
+          }
+        }
+        var result = Matrix.Zero(N.cols(), N.cols());
+        for (var k = 0; k < N.cols(); k += 1) {
+          var Dnmk = D.map(function (e, i, j) {
+            return i === j ? (e.equals(Expression.ZERO) ? Expression.ZERO : e.pow(n.subtract(Expression.Integer.fromNumber(k)))) : Expression.ZERO;
+          });
+          result = result.add(Dnmk.multiply(N.pow(k)).scale(binomialCoefficient(n, k)));
+        }
+        var an = new Expression.Matrix(result);
+        if (condition > 0) {//TODO: remove(merge)
+          var cases = [];
+          cases.push(new ExpressionWithCondition(an, n, '>', condition));
+          for (var i = 1; i <= condition; i += 1) {
+            cases.push(new ExpressionWithCondition(new Expression.Matrix(matrix.pow(i)), n, '=', i));
+          }
+          return new Expression.Cases(cases);
+        }
+        return condition !== -1 ? new ExpressionWithCondition(an, n, '>', condition) : an;
+      }
+    }
+    //!
     var canExponentiate = function (k) {
       if (enableAN && k instanceof Expression.Symbol) {
         return true;
@@ -127,39 +173,46 @@
         if (!isSymbol) {
           return anm1.e(i, j);//?
         }
-
         // an: {{1,0,0},{0,1,1+aa_23},{0,0,1}}
         // a_n = n + a_(n-1)
-        // a_n = k * a_(n-1) + k**(n-(m+1)) * choose(n-1, m)
+        // a_n = k * a_(n-1) + c * k**(n-(m+1)) * choose(n-1, m)
         // =>
-        // a_n = k**(n-(m+1)) * choose(n, m+1)
+        // a_n = c * k**(n-(m+1)) * choose(n, m+1)
+        // Note: choose(n-1, m) + choose(n-2, m) + choose(n-3, m) + ... = choose(n, m+1)
         // choose(n-1, m+1) + choose(n-1, m) = choose(n, m+1)
         if (!(e instanceof Integer)) {
           var m = Polynomial.toPolynomial(e.getNumerator(), n).getDegree();
           var previous = anm1.e(i, j);
           var p = Polynomial.toPolynomial(e.getNumerator(), previous);
           var k = p.getLeadingCoefficient().divide(e.getDenominator());
-          //TODO: remove `k instanceof Integer`
-          if (p.getDegree() === 1 &&
+          if (m !== 0 &&
+              p.getDegree() === 1 &&
               a.e(i, j).equals(Expression.ZERO) && //TODO: remove
-              (k instanceof Integer || k instanceof Expression.Complex || canExponentiate(k)) && //TODO: fix
-              e.equals(k.multiply(previous).add(k.pow(n).divide(k.pow(Integer.fromNumber(m + 1))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m))))) {
-            console.log("!", e.toString());
-            // a.e(i, j).add()
-            return k.pow(n).divide(k.pow(Integer.fromNumber(m + 2))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m + 1));
+              (k instanceof Integer || k instanceof Expression.Complex || canExponentiate(k))) { //TODO: fix
+            var f = k.pow(n).divide(k.pow(Integer.fromNumber(m + 1))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m));
+            var c = e.subtract(k.multiply(previous)).divide(f);
+            //TODO: remove `k instanceof Integer`
+            if (c instanceof Integer) {//?TODO: ?
+              console.log("!", e.toString());
+              // a.e(i, j).add()
+              return c.multiply(k.pow(n).divide(k.pow(Integer.fromNumber(m + 2))).multiply(binomialCoefficient(n.subtract(Expression.ONE), m + 1)));
+            }
           }
         }
         // a_n = a_(n-1)
         if (e.equals(anm1.e(i, j))) {
           return a.e(i, j);
         }
-        // a_n = k * a_(n-1) => a_n = k**(n - 1) * a_1
+        // a_n = k * a_(n-1) + b => a_n = k**(n - 1) * a_1 + b * (1-k**(n-2))/(1-k)
         if (anm1.e(i, j) instanceof Expression.Symbol && anm1.e(i, j).symbol === symbolName + "_(" + i + "," + j + ")" && !e.equals(Expression.ZERO)) {
           var previous = anm1.e(i, j);
           var p = Polynomial.toPolynomial(e.getNumerator(), previous);
           var k = p.getLeadingCoefficient().divide(e.getDenominator());
-          if (e.equals(k.multiply(previous))) {
-            return k.pow(n.subtract(Expression.TWO)).multiply(a.e(i, j));
+          var b = p.getCoefficient(0).divide(e.getDenominator());
+          if (!Expression.has(b, Expression.Symbol) && //TODO: !!!
+              e.equals(k.multiply(previous).add(b))) {
+            var s = k.equals(Expression.ONE) ? b.multiply(n.subtract(Expression.TWO)) : b.multiply(Expression.ONE.subtract(k.pow(n.subtract(Expression.TWO))).divide(Expression.ONE.subtract(k)));
+            return k.pow(n.subtract(Expression.TWO)).multiply(a.e(i, j)).add(s);
           }
         }
         if (anm1.e(i, j) instanceof Expression.Symbol && anm1.e(i, j).symbol === symbolName + "_(" + i + "," + j + ")" && e.equals(Expression.ZERO)) {
@@ -194,7 +247,7 @@
             return d.pow(n.subtract(Expression.TWO)).multiply(n.subtract(Expression.TWO).add(a.e(i, j)));
           }
         }
-        
+
         return anm1.e(i, j);
       });
     }
@@ -269,6 +322,11 @@
         return x.transpose();
       }
     }
+    if (y instanceof Expression.Multiplication && y.a instanceof Expression.Integer && y.b instanceof Expression.Symbol && (y.b.symbol === "t" || y.b.symbol === "T")) {
+      if (Expression.has(x, MatrixSymbol) || Expression.has(x, Expression.Matrix)) {//TODO: fix
+        return x.pow(y.a).transpose();
+      }
+    }
 
     //!
     if (y instanceof Division && y.a instanceof Integer && y.b instanceof Integer && x !== Expression.E && !(x instanceof Expression.Symbol) && !Expression.has(x, Expression.Symbol)) {
@@ -301,11 +359,11 @@
           if (y instanceof Addition) {
             return isValid(y.a) && isValid(y.b);
           }
-          if ((y instanceof Integer || y instanceof NthRoot) && x === Expression.E) {
+          if ((y instanceof Integer || y instanceof NthRoot) && (x === Expression.E || (x instanceof Integer && y instanceof NthRoot))) {//TODO: fix
             return true;
           }
           if (y instanceof Multiplication) {
-            for (var multiplications = y.factors(), f = multiplications.next().value; f != null; f = multiplications.next().value) {
+            for (var f of y.factors()) {
               var b = getBase(f);
               if (!(b instanceof Integer || b instanceof NthRoot || b instanceof Expression.Symbol)) {
                 return false;
@@ -392,7 +450,7 @@
       return x.pow(yn.a.divide(yd)).multiply(x.pow(yn.b.divide(yd)));
     }
 
-    //TODO: 
+    //TODO:
     if (x instanceof Expression.Matrix && y instanceof Expression.Symbol && (y.symbol === "n" || y.symbol === "k")) {
       if (!x.matrix.isSquare()) {
         throw new RangeError("NonSquareMatrixException");
@@ -400,13 +458,21 @@
       var an = matrixInN(x.matrix, y);
       if (an != undefined) {
         //?
+        var D = x.matrix.map(function (e, i, j) {
+          return i === j ? e : Expression.ZERO;
+        });
+        var N = x.matrix.subtract(D);
         if (x.matrix.isDiagonal()) {
         //  if (Expression.callback != undefined) {
         //    Expression.callback(new Expression.Event("diagonal-matrix-pow", x));
         //  }
-        } else if (x.matrix.isJordanMatrix()) {
+        //} else if (x.matrix.isJordanMatrix()) {
+        //  if (Expression.callback != undefined) {
+        //    Expression.callback(new Expression.Event("Jordan-matrix-pow", x));
+        //  }
+        } else if (N.isNilpotent() && D.multiply(N).eql(N.multiply(D))) {
           if (Expression.callback != undefined) {
-            Expression.callback(new Expression.Event("Jordan-matrix-pow", x));
+            Expression.callback(new Expression.Event("DpN-matrix-pow", x));
           }
         }
 
@@ -454,7 +520,7 @@
       }
       //!
     }
-    
+
     if (Expression.ExponentiationOfMinusOne != null) {
       if (x instanceof Integer && x.compareTo(Expression.ZERO) < 0 || x.equals(Expression.E.negate())) {
         if (y instanceof Expression.Symbol && (y.symbol === "n" || y.symbol === "k")) {
@@ -481,8 +547,9 @@
           return new Expression.ExponentiationOfImaginaryUnit(x, y);
         }
         if (y instanceof Addition && y.a instanceof Expression.Symbol && (y.a.symbol === "n" || y.a.symbol === "k") && y.b instanceof Integer) {
-          var t = x.pow(y.b);
-          return new Expression.ExponentiationOfImaginaryUnit(x, t instanceof Expression.Complex ? y.a.add(Expression.ONE) : y.a).multiply(t instanceof Expression.Complex ? t.divide(x) : t);
+          //var t = x.pow(y.b);
+          //return new Expression.ExponentiationOfImaginaryUnit(x, t instanceof Expression.Complex ? y.a.add(Expression.ONE) : y.a).multiply(t instanceof Expression.Complex ? t.divide(x) : t);
+          return x.pow(y.a).multiply(x.pow(y.b));
         }
         if (y instanceof Multiplication) {
           return x.pow(y.a).pow(y.b);
@@ -506,7 +573,7 @@
         var pf = x.primeFactor();
         return x.divide(pf).pow(y).multiply(pf.pow(y));//TODO: test ?
       }
-      
+
       //TODO:
       if (x instanceof Expression.Integer && y instanceof Division && y.getDenominator() instanceof Integer && y.getNumerator() instanceof Expression.Symbol &&
           (y.getNumerator().symbol === "n" || y.getNumerator().symbol === "k")) {
@@ -646,6 +713,10 @@
       }
     }
 
+    if (Expression.has(x, Expression.Sin) || Expression.has(x, Expression.Cos)) {
+      return Expression._replaceBySinCos(Expression._replaceSinCos(x).pow(y));
+    }
+
     throw new RangeError("NotSupportedError");
   };
 
@@ -689,7 +760,7 @@
       */
       return 0;
     }
-    
+
     //!new 2016-12-17
     //NOTE: the `x instanceof Addition || y instanceof Addition` should be used before `x instanceof Multiplication || y instanceof Multiplication`
     if (x instanceof Addition || y instanceof Addition) {
@@ -700,7 +771,7 @@
     if (x instanceof Multiplication || y instanceof Multiplication) {
       return Multiplication.compare4Addition(x, y);
     }
-    
+
 
     //!new 2018-10-11
     if (x instanceof Integer && y instanceof Expression.Function) {
@@ -750,7 +821,7 @@
     //!
     throw new RangeError();
   };
-  
+
   var compare = function (x, y) {
     return x.compare4Addition(y);
   };
@@ -783,7 +854,7 @@
     } else if (e instanceof Multiplication) {
       var c = undefined;
       var x = e;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var t = getConstant(y);
         c = c == undefined ? t : t.multiply(c);
       }
@@ -792,7 +863,7 @@
       }
     } else if (e instanceof Addition) { // -5*x+15
       var c = undefined;
-      for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+      for (var x of e.summands()) {
         var t = getConstant(x);
         //c = c == undefined ? t : integerGCD(t, c);
         c = c == undefined ? t : complexGCD(t, c);
@@ -811,7 +882,7 @@
       return undefined;
     } else if (x instanceof Multiplication) {
       var terms = [];
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var t = getTerm(y);
         if (t != undefined) {
           terms.push(t);
@@ -837,7 +908,7 @@
     }
     return new Multiplication(x, y);
   };
-  
+
   Expression.prototype.multiplyExpression = function (x) {
     var y = this;
 
@@ -939,7 +1010,7 @@
     if (x instanceof Expression.Matrix && has(y, MatrixSymbol)) { // {{1,2},{3,4}}*X^2
       return new Multiplication(x, y);
     }
-    
+
     //!
     //throw new RangeError();
     if (x instanceof Integer && y instanceof Expression) {
@@ -959,26 +1030,42 @@
       }
     }
 
+/*
+    // TODO: remove
     if (x instanceof Expression.Complex && y instanceof Expression.ExponentiationOfImaginaryUnit) {
       //!hack
       //TODO: remove
-      if (x.real.equals(Expression.ZERO) && !x.equals(Expression.I)) {
+      if (x.real.equals(Expression.ZERO)) {
+        if (!x.equals(Expression.I)) {
         //if (x.primeFactor().equals(y.a)) {//TODO: fix
         if (y.a.equals(Expression.I)) {//TODO: fix
         return x.imaginary.multiply(y.multiply(Expression.I));
         }
         //}
+        }
+      } else {
+        if (getBase(y).equals(Expression.I)) {//TODO: remove
+          return x.imaginary.multiply(Expression.I).multiply(y).add(x.real.multiply(y));
+        }
       }
     }
     if (x instanceof Expression.ExponentiationOfImaginaryUnit && y instanceof Expression.Complex) {
       //!hack
       //TODO: remove
-      if (y.real.equals(Expression.ZERO) && !y.equals(Expression.I)) {
+      if (y.real.equals(Expression.ZERO)) {
+        if (!y.equals(Expression.I)) {
         return y.imaginary.multiply(x.multiply(Expression.I));
+        }
+      } else {
+        if (getBase(x).equals(Expression.I)) {//TODO: remove
+        return y.imaginary.multiply(Expression.I).multiply(x).add(y.real.multiply(x));
+        }
       }
     }
+*/
 
-    var cmp = compare4Multiplication(getBase(x), getBase(y));
+    //var cmp = x instanceof Expression.Complex && y instanceof Expression.ExponentiationOfImaginaryUnit && !x.equals(getBase(y)) ? -1 : (x instanceof Expression.ExponentiationOfImaginaryUnit && y instanceof Expression.Complex && !y.equals(getBase(x)) ? +1 : compare4Multiplication(getBase(x), getBase(y)));
+    var cmp = x instanceof Expression.Complex && y instanceof Expression.ExponentiationOfImaginaryUnit ? -1 : (x instanceof Expression.ExponentiationOfImaginaryUnit && y instanceof Expression.Complex ? +1 : compare4Multiplication(getBase(x), getBase(y)));
     if (cmp === 0) {
       return getBase(x).pow(getExponent(x).add(getExponent(y)));
     }
@@ -993,8 +1080,8 @@
 
   function Iterator() {
   }
-  if (typeof Symbol === "function") {
-    Iterator.prototype[Symbol.iterator] = function () {
+  if (typeof globalThis.Symbol === "function") {
+    Iterator.prototype[globalThis.Symbol.iterator] = function () {
       return this;
     };
     Object.defineProperty(Iterator.prototype, "done", {
@@ -1039,9 +1126,14 @@
       a = i.next().value;
       b = j.next().value;
     }
+    //!new 2020-02-13
+    if (a instanceof Expression.Matrix || b instanceof Expression.Matrix) {
+      return 0;
+    }
+    //!
     return a != null ? +1 : (b != null ? -1 : 0);
   };
-  
+
   var addSimilar = function (x, y) {
     var c1 = getConstant(x);//TODO: remove (?)
     var c2 = getConstant(y);
@@ -1053,7 +1145,7 @@
     while (a != null || b != null) {
       var f = null;
       if (a instanceof Expression.Matrix || b instanceof Expression.Matrix) {
-        f = a.multiply(c1).add(b.multiply(c2));
+        f = (a == null ? c1 : a.multiply(c1)).add(b == null ? c2 : b.multiply(c2));
         c1 = Expression.ONE;
         c2 = Expression.ONE;
       } else {
@@ -1105,7 +1197,7 @@
 
     //!new 2019-09-30
     /*
-    if (x instanceof Expression.Addition && y instanceof Expression.Matrix) {//TODO: 
+    if (x instanceof Expression.Addition && y instanceof Expression.Matrix) {//TODO:
       return x.a.add(x.b.add(y));
     }
     if (x instanceof Expression.Matrix && y instanceof Expression.Addition) {
@@ -1176,11 +1268,11 @@
       throw new RangeError("ArithmeticException");
     }
     var result = Expression.ZERO;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var rest = Expression.ONE;
       var t = undefined;
       // TODO: check, fix?
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var z = y;
         if (z instanceof Integer || z instanceof Expression.Complex) {
           if (t != undefined) {
@@ -1210,12 +1302,12 @@
 
   Expression.getCoefficients = function (e, v) {
     var result = [];
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var d = Expression.ZERO;
       var c = Expression.ONE;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var t = y;
-        for (var variables = getVariableInternal(t), ve = variables.next().value; ve != null; ve = variables.next().value) {
+        for (var ve of getVariableInternal(t)) {
           if (ve.v.equals(v)) {
             d = d.add(ve.e);
           } else {
@@ -1366,8 +1458,8 @@
 
   var getVariable = function (e) {
     //? square roots at first
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var x of e.summands()) {
+      for (var y of x.factors()) {
         if (y instanceof NthRoot) {
         //TODO: assert(y instanceof Integer)
           return y;
@@ -1430,7 +1522,7 @@
     if (v == undefined) {
       return complexGCD(getConstant(a), getConstant(b));
     }
-    
+
     var r = getReplacement(a, getReplacement(b, v));
     if (!r.equals(v)) {
       return substitute(substitute(a, v, r, inverseReplacement(r, v)).gcd(substitute(b, v, r, inverseReplacement(r, v))), v, inverseReplacement(r, v), r);
@@ -1444,8 +1536,8 @@
   var getConjugateFactor = function (e) {
     var r = 1 / 0;
     var p = undefined;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var x of e.summands()) {
+      for (var y of x.factors()) {
         if (y instanceof NthRoot) {
           var degree = y.getDegree();
           var i = y.a instanceof Integer ? y.a : null;
@@ -1492,7 +1584,7 @@
     }
     return undefined;
   };
-  
+
   Expression.getConjugate = getConjugate;
 
   // https://en.wikipedia.org/wiki/Conjugate_(square_roots)
@@ -1516,7 +1608,7 @@
       return e.a._pow(2).subtract(e.a.multiply(e.b)).add(e.b._pow(2));
     }
     //!
-    
+
   //TODO: fix
   //if (true) return undefined;
     var tmp = getConjugateFactor(e);
@@ -1526,10 +1618,10 @@
       return undefined;
     }
     var polynomial = Polynomial.of();
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var degree = 0;
       var coefficient = Expression.ONE;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         if (y instanceof NthRoot && r === y.getDegree()) {
           var i = y.a instanceof Integer ? y.a : null;
           if (i == null) {
@@ -1608,11 +1700,11 @@
       throw new RangeError();
     }
     var list = [];
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var v = undefined;
       var c = Expression.ONE;
       var NO_VARIABLE = "";
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         if (y instanceof Expression.Symbol && v == undefined) {
           v = y;
         } else {
@@ -1646,7 +1738,7 @@
     if (e instanceof Negation) {
       return has(e.b, Class);
     }
-    
+
     if (e instanceof Expression.Function) {
       return has(e.a, Class);
     }
@@ -1694,8 +1786,8 @@
   };
 
   var h = function (e, n, q) {
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var x of e.summands()) {
+      for (var y of x.factors()) {
         if (getBase(q).equals(getBase(y))) {
           n = n.lcm(getExponent(y).getDenominator());
         }
@@ -1705,8 +1797,8 @@
   };
 
   var getReplacement = function (e, v) {
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var x of e.summands()) {
+      for (var y of x.factors()) {
         if (y instanceof Expression.Exponentiation && (y.a instanceof Expression.Symbol || y.a instanceof Integer && y.a.compareTo(Expression.ONE) > 0) && y.b instanceof Expression.Division) {
           if (getBase(v).equals(y.a)) {
             //v = new Expression.Exponentiation(y.a, y.b.b.lcm(getExponent(v).getNumerator()));
@@ -1748,7 +1840,7 @@
       }
       if (getBase(e).equals(getBase(inv))) {//!new 2019-09-23
         return a.pow(getExponent(e).divide(getExponent(inv)));
-        //TODO: add an assertion below 
+        //TODO: add an assertion below
       }
     }
 
@@ -1771,7 +1863,7 @@
       return x.pow(y);
     }
     //return e;
-    
+
     //! for sin.js:
     if (e instanceof Division) {
       return substitute(e.a, a, b, inv).divide(substitute(e.b, a, b, inv));
@@ -1784,12 +1876,12 @@
     }
     return e;
   };
-  
+
   Expression._substitute = substitute;
 
   Expression.prototype.divideExpression = function (x) {
     var y = this;
-    
+
     //if (Expression.getIdentityMatrixCoefficient(x) != undefined) {
     //  if (y instanceof Expression.Matrix) {
     //    return Expression.getIdentityMatrixCoefficient(x).divide(y);
@@ -1894,7 +1986,7 @@ if (simplifyIdentityMatrixPower) {
         return y.equals(Expression.ONE) ? x : new Division(x, y);
       }
     }//!
-    
+
     // check if y is instance of Integer to avoid issues with nth-roots (?) - see a test
     //TODO: investigate
     var v = y instanceof Integer ? undefined : getVariable(x);//???
@@ -1926,7 +2018,7 @@ if (simplifyIdentityMatrixPower) {
         x = divideByInteger(x, g);
         y = divideByInteger(y, g);
         return x.divide(y);
-      } 
+      }
     } else {
       var px = Polynomial.toPolynomial(x, v);
       var py = Polynomial.toPolynomial(y, v);
@@ -2025,9 +2117,9 @@ if (simplifyIdentityMatrixPower) {
   //TODO: use in Expression#getCoefficients -?
   var variables = function (e) {
     var result = [];
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
-        for (var variables = getVariableInternal(y), ve = variables.next().value; ve != null; ve = variables.next().value) {
+    for (var x of e.summands()) {
+      for (var y of x.factors()) {
+        for (var ve of getVariableInternal(y)) {
           if (!(ve.v instanceof Integer)) {
             result.push(ve.v);
           }
@@ -2143,7 +2235,7 @@ if (simplifyIdentityMatrixPower) {
     return this.divideExpression(x);
   };
 
-  var simplifyIdentityMatrixPower = true; //! TODO: 
+  var simplifyIdentityMatrixPower = true; //! TODO:
 
   function Integer(value) {
     //Expression.call(this);
@@ -2151,7 +2243,7 @@ if (simplifyIdentityMatrixPower) {
   }
 
   Integer.prototype = Object.create(Expression.prototype);
-  
+
   Integer.prototype.powExpression = function (x) {
     var y = this;
     if (x instanceof IdentityMatrix) {
@@ -2173,19 +2265,29 @@ if (simplifyIdentityMatrixPower) {
       return getBase(x).pow(getExponent(x).multiply(y));
     }
     //!
+    //!new 2020-03-02
+    if (x instanceof Exponentiation && getTerm(getExponent(x)) instanceof Expression.Symbol) {//? (X**2)**(-1)
+      return getBase(x).pow(getExponent(x).multiply(y));
+    }
+    //!
     if (y.compareTo(Expression.ZERO) < 0) {
       return Expression.ONE.divide(x.pow(y.negate()));
     }
     if (x instanceof Expression.Matrix) {
       if (y.compareTo(Expression.ONE) > 0) {
-        if (Expression.callback != undefined) {
-          Expression.callback(new Expression.Event("pow", x, new Expression.Matrix(Matrix.I(1).map(function () { return y; }))));
+        if (!x.matrix.isDiagonal()) {
+          if (Expression.callback != undefined) {
+            Expression.callback(new Expression.Event("pow", x, new Expression.Matrix(Matrix.I(1).map(function () { return y; }))));
+          }
         }
       }
-      if (y.toNumber() > 9007199254740991) {
-        return x.pow(y.truncatingDivide(Expression.TWO)).pow(Expression.TWO).multiply(x.pow(y.remainder(Expression.TWO)));
-      }
-      return new Expression.Matrix(x.matrix.pow(y.toNumber()));
+      var powMatrix = function (matrix, n) {
+        if (n.toNumber() > 9007199254740991) {
+          return powMatrix(matrix, n.truncatingDivide(Expression.TWO)).pow(2).multiply(matrix.pow(n.remainder(Expression.TWO).toNumber()));
+        }
+        return matrix.pow(n.toNumber());
+      };
+      return new Expression.Matrix(powMatrix(x.matrix, y));
     }
     if (y.equals(Expression.ZERO)) {
       return Expression.ONE;
@@ -2329,7 +2431,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.TEN = Integer.fromNumber(10);
 
 
-  
+
   Expression.Matrix = function (matrix) {
     //Expression.call(this);
     this.matrix = matrix;
@@ -2429,7 +2531,7 @@ if (simplifyIdentityMatrixPower) {
     }
     return false;//?
   };
-  
+
   Expression.isScalar = isScalar;
 
   var getIdentityMatrixCoefficient = function (x) {
@@ -2542,7 +2644,7 @@ if (simplifyIdentityMatrixPower) {
     }
     return (fa ? "(" : "") + a.toString(setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? ")" : "") + s + (fb ? "(" : "") + b.toString(setTopLevel(fb, options)) + (fb ? ")" : "");
   };
-  
+
   //?
   Expression.prototype.unwrap = function () {
     return this;
@@ -2612,6 +2714,12 @@ if (simplifyIdentityMatrixPower) {
       return -1;//?
     }
     if (x instanceof Exponentiation && y instanceof Integer) {
+      return +1;//?
+    }
+    if (x instanceof Expression.Complex && y instanceof Exponentiation) {
+      return -1;//?
+    }
+    if (x instanceof Exponentiation && y instanceof Expression.Complex) {
       return +1;//?
     }
 
@@ -2961,7 +3069,7 @@ if (simplifyIdentityMatrixPower) {
   NthRoot.prototype.getDegree = function () {
     return this.n;
   };
-  
+
   function ngcd(a, b) {
     while (b != 0) {
       var t = a % b;
@@ -2993,7 +3101,7 @@ if (simplifyIdentityMatrixPower) {
     }
     return result;
   }
-  
+
   function isPerfectCube(n) {
     return BigInteger.equal(BigInteger.exponentiate(nthRoot(n, 3), BigInteger.BigInt(3)), n);
   }
@@ -3028,7 +3136,7 @@ if (simplifyIdentityMatrixPower) {
           }
         }
         //TODO: https://brownmath.com/alge/nestrad.htm  - √(√392 + √360)
-        if ((x.a instanceof SquareRoot || x.a instanceof Multiplication && x.a.a instanceof Integer && x.a.b instanceof SquareRoot) && 
+        if ((x.a instanceof SquareRoot || x.a instanceof Multiplication && x.a.a instanceof Integer && x.a.b instanceof SquareRoot) &&
             (x.b instanceof SquareRoot || x.b instanceof Multiplication && x.b.a instanceof Integer && x.b.b instanceof SquareRoot)) {
           var a = x.a;
           var b = x.b;
@@ -3115,7 +3223,7 @@ if (simplifyIdentityMatrixPower) {
       //var D = Expression.Integer.fromNumber(qq.D)._nthRoot(2);
       //return D._nthRoot(n).multiply(x.divide(D)._nthRoot(n));
     //}
-    
+
     //!
     if (qq == null && x instanceof Expression.Addition) {
       if (x.a instanceof Multiplication && x.b instanceof Multiplication) {
@@ -3185,7 +3293,7 @@ if (simplifyIdentityMatrixPower) {
         }
         var e = 0;
         if (i.isUnit()) {
-          //TODO: 
+          //TODO:
           // d should be a https://en.wikipedia.org/wiki/Fundamental_unit_(number_theory)
           while (!i.equals(Expression.ONE)) {
             i = i.truncatingDivide(d);
@@ -3366,7 +3474,7 @@ if (simplifyIdentityMatrixPower) {
         }
       //}
     }
-    
+
     //!2019-16-06
     if (x instanceof Exponentiation && x.a === Expression.E) {
       return x.a.pow(x.b.divide(Expression.Integer.fromNumber(n)));
@@ -3424,11 +3532,11 @@ if (simplifyIdentityMatrixPower) {
         }
       }
     }
-    
+
     if (n % 2 !== 0 && x instanceof Expression.ExponentiationOfMinusOne) {//?
       return getBase(x).pow(getExponent(x).divide(Expression.Integer.fromNumber(n)));
     }
-    
+
     throw new RangeError("NotSupportedError");
   };
 
@@ -3465,7 +3573,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.rank = function () {
     var x = this;
     if (!(x instanceof Expression.Matrix)) {
-      throw new RangeError("NotSupportedError");//?
+      throw new RangeError("NotSupportedError:matrixArgExpected");//?
     }
     //!
     if (Expression.callback != undefined) {
@@ -3480,7 +3588,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.determinant = function () {
     var x = this;
     if (!(x instanceof Expression.Matrix)) {
-      throw new RangeError("NotSupportedError");//?
+      throw new RangeError("NotSupportedError:matrixArgExpected");//?
     }
     //!
     if (Expression.callback != undefined) {
@@ -3495,7 +3603,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.rowReduce = function () {
     var x = this;
     if (!(x instanceof Expression.Matrix)) {
-      throw new RangeError("NotSupportedError");//?
+      throw new RangeError("NotSupportedError:matrixArgExpected");//?
     }
     //!
     if (Expression.callback != undefined) {
@@ -3520,6 +3628,23 @@ if (simplifyIdentityMatrixPower) {
     if (isScalar(x)) {
       return x;
     }
+    if (!(getBase(x) instanceof MatrixSymbol) && x instanceof Expression.Exponentiation && x.b.equals(Expression.ONE.negate())) {
+      //TODO: (X^-2)^T
+      return x.a.transpose().pow(x.b);
+    }
+    if (x instanceof Expression.Exponentiation && x.b.equals(new Expression.Symbol("T"))) {
+      //TODO: (X**2)^T
+      return x.a;
+    }
+    if (getBase(x) instanceof MatrixSymbol) {
+      var e = getExponent(x).multiply(new Expression.Symbol("T"));
+      //TODO: ?
+      var p = Polynomial.toPolynomial(e, new Expression.Symbol("T"));
+      if (p.getDegree() >= 2) {
+        e = e.subtract(p.getCoefficient(2).multiply(new Expression.Symbol("T")._pow(2))).add(p.getCoefficient(2));
+      }
+      return new Expression.Exponentiation(getBase(x), e);
+    }
     if (!(x instanceof Expression.Matrix)) {
       throw new RangeError("NotSupportedError");//?
     }
@@ -3532,7 +3657,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.adjugate = function () {
     var x = this;
     if (!(x instanceof Expression.Matrix)) {
-      throw new RangeError("NotSupportedError");//?
+      throw new RangeError("NotSupportedError:matrixArgExpected");//?
     }
     if (Expression.callback != undefined) {
       Expression.callback(new Expression.Event("adjugate", x));
@@ -3575,7 +3700,10 @@ if (simplifyIdentityMatrixPower) {
   Expression.NoAnswerExpression.prototype.multiply = function () {
     throw new RangeError("NotSupportedError");
   };
-  
+  Expression.NoAnswerExpression.prototype.add = function () {
+    throw new RangeError("NotSupportedError");
+  };
+
   //TODO: remove (only for second)
   Expression.NoAnswerExpression.prototype.toString = function (options) {
     if (this.second == undefined) {
@@ -3782,12 +3910,12 @@ if (simplifyIdentityMatrixPower) {
     return pow(this, count, Expression.ONE);
   };
 
-  // --- 
+  // ---
 
 
 
 
-  
+
   Expression.Equality = function (a, b) {
     BinaryOperation.call(this, a, b);
   };
@@ -3831,14 +3959,16 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.factors = function () {
     return new MultiplicationIterator(this);
   };
-  
+
   var splitX = function (e) {
     var scalar = undefined;
     var l = undefined;
     var r = undefined;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    var xx = undefined;
+    for (var x of e.summands()) {
+      //TODO: why iteration by additions - (?)
       var state = 0;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var factor = y;
         var factorBase = getBase(y);
         var factorExponent = getExponent(y);
@@ -3847,8 +3977,9 @@ if (simplifyIdentityMatrixPower) {
           throw new RangeError("NotSupportedError");
         }
         var s = factorBase instanceof Expression.Symbol ? factorBase.toString() : "";
-        if (s === "X") {
+        if (s === "X" && state === 0) {
           state = 1;
+          xx = factor;
         } else {
           if (isScalar(factor)) {
             scalar = scalar == undefined ? factor: factor.multiply(scalar);
@@ -3864,7 +3995,7 @@ if (simplifyIdentityMatrixPower) {
       }
     }
     scalar = scalar == undefined ? Expression.ONE : scalar;
-    return {s: scalar, l: l, r: r};
+    return {s: scalar, l: l, r: r, x: xx};
   };
   Expression.splitX = splitX;
   var groupX = function (a, b) {
@@ -3876,15 +4007,15 @@ if (simplifyIdentityMatrixPower) {
     var s2 = tmp2.s;
     var l2 = tmp2.l;
     var r2 = tmp2.r;
-    if (r1 == undefined && r2 == undefined) {
+    if (r1 == undefined && r2 == undefined && tmp1.x.equals(tmp2.x)) {
       l1 = l1 == undefined ? new IdentityMatrix("I") : l1;
       l2 = l2 == undefined ? new IdentityMatrix("I") : l2;
-      return new Multiplication(s1.multiply(l1).add(s2.multiply(l2)), new Expression.Symbol("X"));
+      return new Multiplication(s1.multiply(l1).add(s2.multiply(l2)), tmp1.x);
     }
-    if (l1 == undefined && l2 == undefined) {
+    if (l1 == undefined && l2 == undefined && tmp1.x.equals(tmp2.x)) {
       r1 = r1 == undefined ? new IdentityMatrix("I") : r1;
       r2 = r2 == undefined ? new IdentityMatrix("I") : r2;
-      return new Multiplication(new Expression.Symbol("X"), s1.multiply(r1).add(s2.multiply(r2)));
+      return new Multiplication(tmp1.x, s1.multiply(r1).add(s2.multiply(r2)));
     }
     return undefined;
   };
@@ -3902,17 +4033,17 @@ if (simplifyIdentityMatrixPower) {
 
     var withX = undefined;
     var withoutX = undefined;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       var summand = x;
       var hasX = false;
-      for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+      for (var y of x.factors()) {
         var factor = y;
         var factorBase = getBase(factor);
         //!new2019-12-03
         if (factorBase instanceof Addition && getExponent(factor).isNegative()) { // (<matrix addition>)**-1 (?)
           //TODO: fix
           var q = null; // e.subtract(x)
-          for (var a = e.summands(), x1 = a.next().value; x1 != null; x1 = a.next().value) {
+          for (var x1 of e.summands()) {
             if (x1 !== x) {
               q = q == null ? x1 : q.add(x1);
             }
@@ -3920,9 +4051,11 @@ if (simplifyIdentityMatrixPower) {
           var exponent = getExponent(factor).negate();
           var e1 = q.multiply(factorBase.pow(exponent)).add(x.multiply(new Expression.Exponentiation(factorBase, exponent)));
           var z2 = e1.transformEquality(Expression.ZERO);
-          //TODO: 
-          var d = Polynomial.toPolynomial(factorBase, e1.transformEquality(Expression.ZERO).a).calcAt(e1.transformEquality(Expression.ZERO).b).determinant();
-          if (!(d instanceof Integer)) {
+          //TODO:
+          //var tmp = Polynomial.toPolynomial(factorBase, z2.a).calcAt(z2.b);
+          var tmp = Polynomial.toPolynomial(factorBase, getBase(z2.a)).divideAndRemainder(Polynomial.toPolynomial(z2.a.subtract(z2.b), getBase(z2.a))).remainder.calcAt(getBase(z2.a));
+          var d = tmp instanceof Expression.Matrix ? tmp.determinant() : null;
+          if (!Expression.isConstant(d)) {//TODO: ?
             return {withX: undefined, withoutX: undefined};
           }
           if (d.equals(Expression.ZERO)) {
@@ -3944,7 +4077,8 @@ if (simplifyIdentityMatrixPower) {
           var s = factorBase.toString();
           if (s === "X") {
             if (hasX) {
-              throw new RangeError("NotSupportedError");
+              //throw new RangeError("NotSupportedError");
+              return {withX: null, withoutX: null};
             }
             hasX = true;
           }
@@ -3989,7 +4123,7 @@ if (simplifyIdentityMatrixPower) {
     }
     return false;
   };
-  
+
   Expression.isConstant = isConstant;
 
   Expression.getMultivariatePolynomial = function (e) {
@@ -4011,7 +4145,7 @@ if (simplifyIdentityMatrixPower) {
       v = getVariableInternal(getLastMultiplicationOperand(getFirstAdditionOperand(v))).next().value.v;
     }
     //?
-    
+
     //TODO:
     var r = getReplacement(e, v);
     if (!r.equals(v)) {
@@ -4032,7 +4166,7 @@ if (simplifyIdentityMatrixPower) {
         }
       }
     }
-    return {p: p, v: inverseReplacement(r, v)};
+    return {p: p.map(function (c) { return substitute(c, v, inverseReplacement(r, v), r); }), v: inverseReplacement(r, v)};
   };
   Expression.isSingleVariablePolynomial = function (e) {
     var tmp = Expression.getMultivariatePolynomial(e);
@@ -4068,18 +4202,18 @@ if (simplifyIdentityMatrixPower) {
           var m = Matrix.Zero(1, p.getDegree() + 1).map(function (e, i, j) {
             return p.getCoefficient(p.getDegree() - j);
           });
-          return new Expression.NoAnswerExpression(new Expression.Matrix(m), "polynomial-roots", {variable: v});
+          return new Expression.NoAnswerExpression(new Expression.Matrix(m), "polynomial-roots", {polynomial: p, variable: v});
         }
       }
-      if (e instanceof Expression.Matrix && Expression.SystemOfEquations != null) {
+      if (e instanceof Expression.Matrix) {
         if (this instanceof Expression.Matrix && (b instanceof Expression.Matrix || b instanceof Expression.IdentityMatrix)) {
-          return Expression.SystemOfEquations.from(this, b);
+          return Expression.SystemOfEquations.from([{left: this, right: b}]);
         }
         //TODO: other things - ?
       }
-      if (Expression.SystemOfEquations != null) {//!new 2019-11-27
+      if (true) {//!new 2019-11-27
         //TODO: fix
-        return Expression.SystemOfEquations.from(this, b);
+        return Expression.SystemOfEquations.from([{left: this, right: b}]);
       }
       throw new RangeError("NotSupportedError");
     }
@@ -4094,7 +4228,7 @@ if (simplifyIdentityMatrixPower) {
 
     var isToTheLeft = false;
     var x = withX;
-    for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var y of x.factors()) {
       var factor = y;
       var factorBase = getBase(factor);
       //if (!(factorBase instanceof Integer) && !(factorBase instanceof Expression.Symbol)) {
@@ -4126,7 +4260,14 @@ if (simplifyIdentityMatrixPower) {
     }
 
     //console.log(left.toString() + "=" + right.toString());
-
+    if (left instanceof Expression.Exponentiation && getExponent(left).equals(Expression.ONE.negate())) {//TODO: FIX!!!
+      if (right instanceof Expression.Matrix && !right.determinant().equals(Expression.ZERO)) {//TODO: condition - ?
+        left = left.inverse();
+        right = right.inverse();
+        //TODO: add a step (?)
+        //console.log(left.toString() + "=" + right.toString());
+      }
+    }
     return new Expression.Equality(left, right);
   };
 
@@ -4153,7 +4294,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.PI = new Expression.Symbol("\u03C0"); // PI
   Expression.E = new Expression.Symbol("\u2147"); // EulerNumber
   Expression.I = new Expression.Symbol("\u2148"); // ImaginaryUnit
-  
+
   Expression.CIRCLE = new Expression.Symbol("○");
 
   Expression.prototype.addPosition = function () {
@@ -4161,11 +4302,12 @@ if (simplifyIdentityMatrixPower) {
   };
 
   //! 2018-09-30
-  Expression.SystemOfEquations = function (array) {
-    this.array = array;
+  Expression.SystemOfEquations = function (equations) {
+    throw new TypeError();
+    this.equations = equations;
   };
-  Expression.SystemOfEquations.from = function (s, b) {
-    return new Expression.NoAnswerExpression({matrix: null}, "system-of-equations", {s: s, b: b});
+  Expression.SystemOfEquations.from = function (equations) {
+    return new Expression.NoAnswerExpression({matrix: null}, "system-of-equations", {equations: equations});
   };
 
   Expression.ExponentiationOfMinusOne = function (x, y) {
@@ -4195,11 +4337,11 @@ if (simplifyIdentityMatrixPower) {
   };
 */
 
-  //!  
+  //!
   Expression.Division.prototype.negate = function () {
     return new Expression.Division(this.a.negate(), this.b);
   };
-  
+
   Expression.Polynomial = function (polynomial) {
     this.polynomial = polynomial;
   };
@@ -4245,7 +4387,7 @@ if (simplifyIdentityMatrixPower) {
       a = b;
       b = t;
     }
-    //TODO: 
+    //TODO:
     var gcd = a;
     if (y.polynomial.equals(gcd)) {
       return new Expression.Polynomial(x.polynomial.divideAndRemainder(gcd).quotient);
@@ -4506,3 +4648,35 @@ Expression.prototype.factorial = function () {
   }
   return f;
 };
+
+Expression.prototype._abs = function () {
+  return this.isNegative() ? this.negate() : this;
+};
+
+
+  //?
+  Expression.Comma = function (a, b) {
+    BinaryOperation.call(this, a, b);
+  };
+  Expression.Comma.prototype = Object.create(BinaryOperation.prototype);
+  Expression.Comma.prototype.getS = function () {
+    // \u200B
+    return ",";
+  };
+  Expression.prototype.transformComma = function (b) {
+    var a = this;
+    //if (a instanceof Expression.Equality && b instanceof Expression.Equality) {
+    //}
+    if (a instanceof Expression.NoAnswerExpression && a.name === 'polynomial-roots' && b instanceof Expression.NoAnswerExpression && b.name === 'polynomial-roots') {
+      var ae = a.second.polynomial.calcAt(a.second.variable);
+      var be = b.second.polynomial.calcAt(b.second.variable);
+      //TODO: use original input expression
+      return Expression.SystemOfEquations.from([{left: ae, right: Expression.ZERO}, {left: be, right: Expression.ZERO}]);
+    }
+    if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.NoAnswerExpression && b.name === 'polynomial-roots') {
+      var be = b.second.polynomial.calcAt(b.second.variable);
+      //TODO: do not use NonSimplifiedExpression - ? and systemo-of-equations (?) or change (!)
+      return Expression.SystemOfEquations.from(a.second.equations.concat([{left: be, right: Expression.ZERO}]));
+    }
+    throw new TypeError("NotSupportedError");
+  };

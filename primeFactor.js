@@ -144,14 +144,14 @@ function primeFactor(n) {
   }
 
   //! optimize n = f**2
-  var f = nthRoot(n, 2);
-  if (BigInteger.equal(BigInteger.exponentiate(f, BigInteger.BigInt(2)), n)) {
-    return primeFactor(f);
+  var squareRoot = nthRoot(n, 2);
+  if (BigInteger.equal(BigInteger.exponentiate(squareRoot, BigInteger.BigInt(2)), n)) {
+    return primeFactor(squareRoot);
   }
   //! optimize n = f**3
-  var f = nthRoot(n, 3);
-  if (BigInteger.equal(BigInteger.exponentiate(f, BigInteger.BigInt(3)), n)) {
-    return primeFactor(f);
+  var cubicRoot = nthRoot(n, 3);
+  if (BigInteger.equal(BigInteger.exponentiate(cubicRoot, BigInteger.BigInt(3)), n)) {
+    return primeFactor(cubicRoot);
   }
 
   if (x <= 9007199254740991) {

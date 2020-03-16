@@ -253,11 +253,11 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     };
     return getIntervals(interval);
   };
-  
+
   var abs = function (i) {
     return i.compareTo(Expression.ZERO) < 0 ? i.negate() : i;
   };
-  
+
   Polynomial.prototype.getRootsInterval = function () {
     //TODO: only integer coefficients (?)
     // https://en.wikipedia.org/wiki/Sturm%27s_theorem#Number_of_real_roots
@@ -357,7 +357,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
   //var gcd = function (a, b) {
   //  return b.getDegree() === -1 ? a : gcd(b, a.divideAndRemainder(b).remainder);
   //};
-  
+
   var gcd = function (a, b) {
     return b.getDegree() === -1 ? a : Polynomial.polynomialGCD(a, b);
   };
@@ -418,7 +418,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     var d = f.derive();
     var a0 = gcd(f, d);
     var p = f.divideAndRemainder(a0).quotient;
-    
+
     //!
     p = p.scale(p.getContent().inverse());
     //!
@@ -426,7 +426,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     // https://en.wikipedia.org/wiki/Sturm%27s_theorem
     var sturmSequence = new SturmSequence(p);
     var intervals = sturmSequence.getRootIntervals();
-    
+
     // https://math.stackexchange.com/questions/309178/polynomial-root-finding
     // "it is guaranteed that there is a sign change inside every interval (because there are no repeated zeroes)"
     var result = new Array(intervals.length);

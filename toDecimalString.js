@@ -213,7 +213,9 @@ Interval.Context.prototype._trigonometry = function (x, start) {
     //TODO: optimize
     var x = BigInteger.divide(xn, xd) + 1;
     iterations += Math.floor(Math.log(x) / Math.log(2) + 0.5) * (Math.floor(x) + 1);
-    if (iterations > 380) throw new Error();//
+    if (iterations > 380) {
+      throw new TypeError("NotSupportedError");//!TODO: fix
+    }
     var scale = factorial(iterations);
     scale = BigInteger.multiply(scale, BigInteger.exponentiate(xd, iterations));
     var y = 0;
@@ -304,7 +306,7 @@ var evaluateExpression = function (e, context) {
       }
       return context.exp(b);
     }
-    
+
     var a = evaluateExpression(e.a, context);
     var b = evaluateExpression(e.b, context);
     if (a === "CANNOT_DIVIDE") {
@@ -353,7 +355,7 @@ var evaluateExpression = function (e, context) {
         return context.cos(x);
       }
     }
-    
+
   }
 
   return undefined;
@@ -386,7 +388,7 @@ var digitsToDecimalNumber = function (sign, value, fractionDigits, decimalToStri
 var toDecimalStringInternal = function (expression, fractionDigits, decimalToStringCallback, complexToStringCallback) {
   decimalToStringCallback = decimalToStringCallback || decimalToString;
   complexToStringCallback = complexToStringCallback || complexToString;
-  
+
   if (expression instanceof Expression.Division || expression instanceof Expression.Addition) {
     var numerator = expression.getNumerator();//.unwrap();
     var denominator = expression.getDenominator();//.unwrap();
@@ -396,10 +398,10 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
         var imaginaryValue = Expression.ZERO;
         var ok = true;
         var e = numerator;
-        for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+        for (var x of e.summands()) {
           var c = null;
           var r = Expression.ONE;
-          for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+          for (var y of x.factors()) {
             if (c == null && y instanceof Expression.Complex) {
               c = y;
             } else if (y instanceof Expression.NthRoot || y instanceof Expression.Integer) {//TODO: ?

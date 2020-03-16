@@ -12,10 +12,11 @@
   var LEFT_TO_RIGHT = 0;
   var RIGHT_TO_LEFT = 1;
 
-  var EQUALITY_PRECEDENCE = 1;
-  var ADDITIVE_PRECEDENCE = 2;
-  var MULTIPLICATIVE_PRECEDENCE = 3;
-  var UNARY_PRECEDENCE = 5;
+  var COMMA_PRECEDENCE = 1;
+  var EQUALITY_PRECEDENCE = 2;
+  var ADDITIVE_PRECEDENCE = 3;
+  var MULTIPLICATIVE_PRECEDENCE = 4;
+  var UNARY_PRECEDENCE = 6;
 
   var UNARY_PRECEDENCE_PLUS_ONE = UNARY_PRECEDENCE + 1; // TODO: remove
 
@@ -56,6 +57,11 @@
     if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Negation && a.e.b instanceof Expression.NonSimplifiedExpression && a.e.b.e instanceof Expression.Integer) {
       return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
     }
+    if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Multiplication &&
+        a.e.a instanceof Expression.NonSimplifiedExpression && a.e.a.e instanceof Expression.Integer &&
+        a.e.b instanceof Expression.Integer) {
+      return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
+    }
     return a;
   };
 
@@ -75,9 +81,19 @@
     new Operator("=", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
       return a.transformEquality(b);
     }),
-    new Operator(";", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      throw new RangeError("NotSupportedError");
+    new Operator("≠", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformNotEqual(b);//TODO:
+    }),
+    new Operator("!=", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformNotEqual(b);//TODO:
+    }),
+    new Operator(";", 2, LEFT_TO_RIGHT, COMMA_PRECEDENCE, function (a, b) {
+      //throw new RangeError("NotSupportedError");
       //return a.transformStatement(b);
+      return a.transformComma(b);
+    }),
+    new Operator(",", 2, LEFT_TO_RIGHT, COMMA_PRECEDENCE, function (a, b) {
+      return a.transformComma(b);
     }),
 
     ADDITION,
@@ -323,7 +339,7 @@
       var row = [];
       var hasNextCell = true;
       while (hasNextCell) {
-        var tmp = parseExpression(tokenizer, token, context, 0, undefined);
+        var tmp = parseExpression(tokenizer, token, context, COMMA_PRECEDENCE, undefined);
         token = tmp.token;
         row.push(tmp.result);
         if (token.type === 'punctuator' && token.value === ",") {
@@ -449,7 +465,7 @@
   var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
   var integerLiteral = /^\d+(?![\d.,eE])/; // for performance
   var integerLiteralWithoutComma = /^\d+(?![\d.eE])/; // for performance
-  var decimalFraction = /^(?=[.,]?\d)\d*(?:[.,]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
+  var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|,(?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
   var decimalFractionWithoutComma = /^(?=[.]?\d)\d*(?:[.]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
   var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|circ|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
@@ -520,7 +536,7 @@
       var op = undefined;
       var operand = undefined;
 
-        var bestMatch = token.type === 'operator' ? operationSearchCache.getByName(token.value) : null;
+        var bestMatch = token.type === 'operator' || (token.type === 'punctuator' && token.value === ',') ? operationSearchCache.getByName(token.value) : null;
         if (bestMatch != null) {
           op = left == null && bestMatch.name === '+' ? UNARY_PLUS : (left == null && bestMatch.name === '-' ? UNARY_MINUS : bestMatch);
         }
@@ -681,7 +697,7 @@
           operand = tmp.result;
           token = tmp.token;
           token = parsePunctuator(tokenizer, token, "|");
-          
+
           operand = operand.determinant();//!
         } else if (token.type === 'punctuator' && token.value === '■') {
           token = parsePunctuator(tokenizer, token, '■');
@@ -914,6 +930,12 @@
     if (charCode === "ー".charCodeAt(0)) {
       return "-";
     }
+    if (charCode === 'ϕ'.charCodeAt(0)) {
+      return 'φ'; // 'ϕ'.normalize('NFKD')
+    }
+    if (charCode === 0x202C) {
+      return ' ';
+    }
     return undefined;
   };
   //var replaceRegExp = /[...]/g;
@@ -991,7 +1013,7 @@
             re = decimalFraction;
           }
         } else if (type === 'operator') {
-          re = operationSearchCache.getRegExp();//?TODO: 
+          re = operationSearchCache.getRegExp();//?TODO:
         }
       }
       var tmp = re.exec(this._preparedInput.slice(this.position));
@@ -1061,7 +1083,7 @@
 
     return tmp.result;
   };
-  
+
   globalThis.Tokenizer = Tokenizer;
 
   ExpressionParser.startPosition = -1;

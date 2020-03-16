@@ -1,7 +1,7 @@
 import Expression from './Expression.js';
 import Matrix from './Matrix.js';
 import Polynomial from './Polynomial.js';
-  
+
 Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, callback) {
   var roots = polynomial.getroots(callback);
 
@@ -152,7 +152,7 @@ Expression.diagonalize = function (matrix, eigenvalues, multiplicities, eigenvec
   // A is diagonalizable if and only if, for every eigenvalue λ of A, its geometric and algebraic multiplicities coincide.
 
   // TODO: text
-  //!!!  
+  //!!!
   var getEigenvalue = function (i) {
     var eigenvalueIndex = -1;
     var s = i;

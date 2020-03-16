@@ -14,9 +14,9 @@ var separateSinCos = function (e) {
   var sinCos = undefined;
   var other = undefined;
   var x = e;
-  for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+  for (var y of x.factors()) {
     var v = y;
-    if (v instanceof Sin || v instanceof Cos || 
+    if (v instanceof Sin || v instanceof Cos ||
         (v instanceof Exponentiation && (v.a instanceof Sin || v.a instanceof Cos))) {
       sinCos = sinCos == undefined ? v : sinCos.multiply(v);
     } else {
@@ -118,7 +118,7 @@ var contractTrigonometryRules = function (u) {
   if (v instanceof Addition) {
     var s = Expression.ZERO;
     var e = v;
-    for (var additions = e.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of e.summands()) {
       if (x instanceof Multiplication || x instanceof Exponentiation) {
         s = s.add(contractTrigonometryRules(x));
       } else {
@@ -211,7 +211,7 @@ var expandTrigonometryRules = function (A, type) {
     return expandTrigonometryRulesInternal(A.a, A.b, type);
   } else if (A instanceof Multiplication) {
     var i = Expression.ONE;
-    for (var multiplications = A.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+    for (var y of A.factors()) {
       if (y instanceof Expression.Integer) {
         i = i.multiply(y);
       }
@@ -252,7 +252,7 @@ var expandTrigonometryRules = function (A, type) {
       return expandTrigonometryRulesInternal(a.a.divide(b), a.b.divide(b), type);
     }
   }
-  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees || A instanceof Expression.Radians) {
+  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees || A instanceof Expression.Radians || A instanceof Expression.Complex) {
     if (type === "cos") {
       return A.cos();
     }
@@ -315,10 +315,10 @@ var simplifyTrigonometry = function (u) {
         var n = a.getNumerator();
         var d = a.getDenominator();
         if (!d.equals(Expression.ONE)) {
-          for (var additions = n.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+          for (var x of n.summands()) {
             var g = x.gcd(d);
             if (!g.equals(d)) {
-              for (var multiplications = x.factors(), y = multiplications.next().value; y != null; y = multiplications.next().value) {
+              for (var y of x.factors()) {
                 if (y instanceof Expression.Symbol && y !== Expression.PI) {
                   r = d.divide(g);
                   v = y;
@@ -557,8 +557,7 @@ var simplifyConstantValue = function (x, type) {
   if (x instanceof Expression.Radians && x.value.equals(Expression.ZERO)) {
     return simplifyConstantValue(x.value, type);
   }
-  var c = Expression.getConstant(x);
-  if (c instanceof Expression.Complex && c.real.equals(Expression.ZERO)) {
+  if (Expression.has(x, Expression.Complex)) {
     if (type === "sin") {
       return Expression.I.multiply(x.divide(Expression.I).sinh());
     }
@@ -612,11 +611,27 @@ var isArgumentValid = function (x, type) {
         return true;
       }
     }
+    var c = Expression.getConstant(x);
+    var t = x.divide(c);
+    if (Expression.isScalar(x) &&
+        (c instanceof Integer || c instanceof Expression.Complex) &&
+        (t instanceof Multiplication || t instanceof Expression.Symbol)) {
+      for (var y of t.factors()) {
+        if (!(y instanceof Expression.NthRoot) && !(y instanceof Expression.Symbol)) {
+          return false;
+        }
+      }
+      //TODO: is it correct ?
+      return true;//!?
+    }
   }
   if (x instanceof Division) {
     if (x.b instanceof Integer) {
       return isArgumentValid(x.a);
     }
+  }
+  if (x instanceof Expression.Complex) {
+    return true;//?
   }
   return false;
 };
@@ -672,10 +687,11 @@ Expression.Addition.prototype.compare4Addition = function (y) {
   return Expression.Addition.compare4Addition(x, y);
 };
 
-/*
 Expression.Multiplication.prototype.compare4MultiplicationInteger = function (x) {
   return -1;
 };
+
+/*
 Expression.MatrixSymbol.prototype.compare4MultiplicationExponentiation = function (x) {
   return -1;//?
 };
@@ -776,8 +792,12 @@ Expression.Radians.prototype.compare4MultiplicationSymbol = function (x) {
   return x.compare4Multiplication(this.value);
 };
 Expression.Radians.prototype.compare4MultiplicationInteger = function (x) {
-  return x.compare4Multiplication(this.value);
+  return +1;
 };
+Expression.Radians.prototype.multiplyInteger = function (x) {
+  return new Expression.Radians(x.multiply(this.value));
+};
+
 
 Expression.Radians.prototype.negate = function () {
   return new Expression.Radians(this.value.negate());
@@ -810,3 +830,45 @@ Expression.Matrix.prototype.cos = function () {
   return i.multiply(X).exp().add(i.negate().multiply(X).exp()).divide(TWO);
 };
 
+
+
+//!
+(function () {
+  var i = new Expression.Symbol('_i');
+  function replaceSinCos(e) {
+    return Expression._map(function (x) {
+      if (x instanceof Expression.Sin) {
+        var a = x.a;
+        // Euler's formula
+        return i.multiply(a).exp().subtract(i.multiply(a).negate().exp()).divide(Expression.TWO.multiply(Expression.I));
+      }
+      if (x instanceof Expression.Cos) {
+        var a = x.a;
+        // Euler's formula
+        return i.multiply(a).exp().add(i.multiply(a).negate().exp()).divide(Expression.TWO);
+      }
+      return x;
+    }, e);
+  }
+  function replaceBySinCos(e) {
+    return Expression._map(function (x) {
+      if (x instanceof Expression.Exponentiation && x.a === Expression.E) {
+        var b = x.b;
+        var p = Polynomial.toPolynomial(b, i);
+        if (p.getDegree() === 1) {
+          var q = p.getCoefficient(0);
+          var w = p.getCoefficient(1);
+          // Euler's formula
+          return w.cos().add(Expression.I.multiply(w.sin())).multiply(q.exp());
+        }
+        if (p.getDegree() > 1) {
+          throw new TypeError("!?");
+        }
+      }
+      return x;
+    }, e);
+  }
+
+  Expression._replaceSinCos = replaceSinCos;
+  Expression._replaceBySinCos = replaceBySinCos;
+}());

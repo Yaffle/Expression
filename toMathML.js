@@ -161,7 +161,8 @@ Expression.Matrix.prototype.toMathML = function (options) {
   var containerId = options.idPrefix + "-" + Expression.id();
   if (useMatrixContainer) {
     result += "<munder accentunder=\"true\">";
-    result += "<menclose notation=\"none\" id=\"" + containerId + "\" data-matrix=\"" + Expression.escapeHTML(x.toString()) + "\" draggable=\"true\" tabindex=\"0\" contextmenu=\"matrix-menu\">";
+    // <menclose href="#"> will not be supported by MathML Core, so using <mrow>
+    result += '<mrow id="' + containerId + '" data-matrix="' + Expression.escapeHTML(x.toString()) + '" draggable="true" tabindex="0" contextmenu="matrix-menu">';
   }
 
   result += braces == undefined ? '<mrow><mo>(</mo>' : '<mrow>' + (braces[0] === ' ' ? '' : '<mo>' + braces[0] + '</mo>');
@@ -244,7 +245,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
   result += braces == undefined ? '<mo>)</mo></mrow>' : (braces[1] === ' ' ? '' : '<mo>' + braces[1] + '</mo>') + '</mrow>';
 
   if (useMatrixContainer) {
-    result += "</menclose>";
+    result += '</mrow>';
 
     result += "<mtext>";
     result += "<button type=\"button\" class=\"matrix-menu-show\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\"></button>";
@@ -337,7 +338,7 @@ Expression.Division.prototype.toMathML = function (options) {
   //  return "<mrow><mo>&minus;</mo>" + x.negateCarefully().toMathML(options) + "</mrow>";
   //}
   return "<mfrac>" +
-         numerator.toMathML(Expression.setTopLevel(true, options)) + 
+         numerator.toMathML(Expression.setTopLevel(true, options)) +
          denominator.toMathML(Expression.setTopLevel(true, options)) +
          "</mfrac>";
 };
@@ -370,7 +371,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   if (this instanceof Expression.Addition) {
     var s = [];
     var b = null;
-    for (var additions = this.summands(), x = additions.next().value; x != null; x = additions.next().value) {
+    for (var x of this.summands()) {
       if (b != null) {
         var n = false;
         if (b.isNegative()) {
@@ -423,20 +424,20 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       boptions = Object.assign({}, options || {}, {nofractions: true});
     }
 
-      return "<msup>" + 
+      return "<msup>" +
              (fa ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "<mo>)</mo></mrow>" : "") +
-             (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, boptions)) + (fb ? "<mo>)</mo></mrow>" : "") + 
+             (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, boptions)) + (fb ? "<mo>)</mo></mrow>" : "") +
              "</msup>";
   }
   if (this.isNegation()) {
     // assert(fa === false);
       return "<mrow><mo>&minus;</mo>" + (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + "</mrow>";
-  }  
+  }
   //TODO: fix spaces (matrix parsing)
-  return "<mrow>" + 
+  return "<mrow>" +
          (fa ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "<mo>)</mo></mrow>" : "") +
          (s === '*' ? '<mo>&times;</mo>' : (s === '-' ? '<mo>&minus;</mo>' : (s === '/' ? '<mo>&#x2215;</mo>' : '<mo>' + s + '</mo>'))) +
-         (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + 
+         (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") +
          "</mrow>";
 };
 
@@ -456,7 +457,7 @@ Expression.Symbol.prototype.toMathML = function (options) {
     if (indexes.length > 1) {
       indexesMathML = "<mrow>" + indexesMathML + "</mrow>";
     }
-    return "<msub>" + 
+    return "<msub>" +
            "<mi>" + s.slice(0, i) + "</mi>" +
            indexesMathML +
            "</msub>";
@@ -522,7 +523,7 @@ NonSimplifiedExpression.prototype.toMathML = function (options) {
   }
   return this.e.toMathML(options);
 };
-  
+
 Expression.prototype.toMathML = function (options) {
   throw new TypeError();
 };

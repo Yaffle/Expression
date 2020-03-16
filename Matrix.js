@@ -585,7 +585,7 @@
     });
   };
 
-  //TODO: 
+  //TODO:
   Matrix.prototype.isExact = function () {
     var rows = this.rows();
     var cols = this.cols();
@@ -801,10 +801,16 @@
       return i !== j ? Expression.ZERO : e;
     }));
   };
-  Matrix.prototype.isNilpotent = function () {//TODO: ? this method only tests if it nilpotent based on a property and so may return false for the positive result
-    return this.eql(this.map(function (e, i, j) {
+  Matrix.prototype.isNilpotent = function () {
+    var x = this.map(function (e, i, j) {
       return j <= i ? Expression.ZERO : e;
-    }));
+    });
+    if (this.eql(x)) {
+      //! This method only tests if it nilpotent based on a property and so may return false for the positive result
+      return true;
+    }
+    //TODO: test case for non-triangular - ?
+    return this.pow(this.cols()).eql(Matrix.Zero(this.cols(), this.cols()));
   };
   //TODO: use in solution steps (?)
   Matrix.prototype.isJordanMatrix = function () {//TODO: fix
@@ -813,6 +819,8 @@
       return i === j ? e : (j === i + 1 && that.e(i, i).equals(that.e(i + 1, i + 1)) && !that.e(i, j).equals(Expression.ZERO) ? Expression.ONE : Expression.ZERO);
     }));
   };
-
+  Matrix.prototype.isZero = function () {
+    return this.eql(Matrix.Zero(this.rows(), this.cols()));
+  };
 
   export default Matrix;

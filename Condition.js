@@ -65,7 +65,7 @@ Condition.prototype._and = function (operator, e) {
                   //?TODO: tests
                   return x.a.pow(yy);
                 } else {
-                  yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) ? new Expression.Radians(yy) : yy;
+                  yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) ? new Expression.Radians(yy) : yy;
                   if (x instanceof Expression.Sin) {
                     return yy.sin();
                   } else if (x instanceof Expression.Cos) {
@@ -84,41 +84,6 @@ Condition.prototype._and = function (operator, e) {
     }, e);
   }
   //!
-
-  var i = new Expression.Symbol('_i');
-  function replaceSinCos(e) {
-    return Expression._map(function (x) {
-      if (x instanceof Expression.Sin) {
-        var a = x.a;
-        // Euler's formula
-        return i.multiply(a).exp().subtract(i.multiply(a).negate().exp()).divide(Expression.TWO.multiply(Expression.I));
-      }
-      if (x instanceof Expression.Cos) {
-        var a = x.a;
-        // Euler's formula
-        return i.multiply(a).exp().add(i.multiply(a).negate().exp()).divide(Expression.TWO);
-      }
-      return x;
-    }, e);
-  }
-  function replaceBySinCos(e) {
-    return Expression._map(function (x) {
-      if (x instanceof Expression.Exponentiation && x.a === Expression.E) {
-        var b = x.b;
-        var p = Polynomial.toPolynomial(b, i);
-        if (p.getDegree() === 1) {
-          var q = p.getCoefficient(0);
-          var w = p.getCoefficient(1);
-          // Euler's formula
-          return w.cos().add(Expression.I.multiply(w.sin())).multiply(q.exp());
-        }
-        if (p.getDegree() > 1) {
-          throw new TypeError("!?");
-        }
-      }
-      return x;
-    }, e);
-  }
 
   var add = function (oldArray, y) {
     //TODO: y is const
@@ -276,13 +241,18 @@ Condition.prototype._and = function (operator, e) {
     //!
 
     var addRest = function (newArray, oldArray, i, other) {
+      if (newArray == null) {
+        return null;
+      }
       for (var j = i + 1; j < oldArray.length; j += 1) {
         newArray = add(newArray, oldArray[j]);
         if (newArray == null) {
           return null;
         }
       }
-      newArray = add(newArray, other);
+      if (other != null) {
+        newArray = add(newArray, other);
+      }
       return newArray;
     };
 
@@ -290,8 +260,8 @@ Condition.prototype._and = function (operator, e) {
     var newArray = [];
     for (var i = 0; i < oldArray.length; i += 1) {
       var x = oldArray[i]; // TODO: const
-      
-      
+
+
       // (e**(tx)-e**(-tx))/(2i)
       // (e**(tx)+e**(-tx))/2
 
@@ -301,28 +271,43 @@ Condition.prototype._and = function (operator, e) {
         if (Expression.has(y.expression, Expression.Sin) || Expression.has(y.expression, Expression.Cos)) {
           var xx = {
             operator: x.operator,
-            expression: replaceSinCos(x.expression)
+            expression: Expression._replaceSinCos(x.expression)
           };
           var yy = {
             operator: y.operator,
-            expression: replaceSinCos(y.expression)
+            expression: Expression._replaceSinCos(y.expression)
           };
-          var tmp = add(add([], xx), yy);
+          var tmp1 = add([], xx);
+          if (tmp1 == null) {
+            return null;
+          }
+          var tmp = add(tmp1, yy);
           if (tmp == null) {
             return null;
           }
           if (tmp.length === 1) {
-            return addRest(newArray, oldArray, i, {operator: tmp[0].operator, expression: replaceBySinCos(tmp[0])});
+            return addRest(newArray, oldArray, i, {operator: tmp[0].operator, expression: Expression._replaceBySinCos(tmp[0].expression)});
           }
           //TODO: ?
           //for (var i = 0; i < tmp.length; i++) {
-          //  newArray = add(newArray, {operator: tmp[1].operator, expression: replaceBySinCos(tmp[i])});
+          //  newArray = add(newArray, {operator: tmp[i].operator, expression: Expression._replaceBySinCos(tmp[i].expression)});
           //}
           //return addRest(newArray, oldArray, i, {operator: Condition.EQZ, expression: Expression.ZERO});
+
+          // cos(y)=0, r*sin(y)=0
+          for (var i = 0; i < tmp.length; i++) {
+            if (!Expression.has(tmp[i], Expression.Exponentiation)) {//TODO: ?
+              if (tmp[i].expression.gcd(y.expression).equals(tmp[i].expression)) {
+                newArray = add(newArray, x);
+                return addRest(newArray, oldArray, i, {operator: tmp[i].operator, expression: Expression._replaceBySinCos(tmp[i].expression)});
+              }
+            }
+          }
+
         }
       }
       //!
-      
+
       if ((x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
            x.operator === Condition.EQZ && y.operator === Condition.NEZ) &&
            (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression)) || true)) {
@@ -367,6 +352,7 @@ Condition.prototype._and = function (operator, e) {
         //  }
         //}
       }
+      var newMethodEnabled = true;
       if (x.operator === Condition.NEZ && y.operator === Condition.EQZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
         y = y;
       } else if (x.operator === Condition.EQZ && y.operator === Condition.NEZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
@@ -393,6 +379,126 @@ Condition.prototype._and = function (operator, e) {
       } else { // !isSingleVariablePolynomial
         // TODO: use Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) here, and remove in the branches above
 
+
+        //!new 2020-16-02
+        var getConstant = function (e) {
+          var c = Expression.getConstant(e);
+          for (var f of e.divide(c).factors()) {
+            if (f instanceof Expression.NthRoot && Expression.isConstant(f.a)) {
+              c = c.multiply(f);
+            }
+          }
+          return c;
+        };
+        var collapse = function (e, candidate) { // sqrt(2)*x*y+2*x*y
+          var term0 = candidate.divide(getConstant(candidate));
+          var result = Expression.ZERO;
+          for (var a of e.summands()) {
+            var term = a.divide(getConstant(a));
+            if (term.equals(term0)) {
+              result = result.add(a);
+            }
+          }
+          return result;
+        };
+        var getPivotMonomial = function (e) {
+          // https://en.wikipedia.org/wiki/Monomial_order#Lexicographic_order
+          //TODO: change compare4Addition (?)
+          var getExponent = function (x) {
+            return x instanceof Expression.Exponentiation ? x.b : Expression.ONE;
+          };
+          var getBase = function (x) {
+            return x instanceof Expression.Exponentiation ? x.a : x;
+          };
+          var totalDegree = function (e) {
+            var result = Expression.ZERO;
+            for (var f of e.factors()) {
+              if (!Expression.isConstant(f)) {
+                var e = getExponent(f);
+                //if (e instanceof Expression.Integer) {//?
+                  result = result.add(e);
+                //}
+              }
+            }
+            return result;
+          };
+          var compare = function (x, y) {
+            //TODO: better order (see Wikipedia)
+            var s = totalDegree(x).subtract(totalDegree(y));
+            var c = s.isNegative() ? -1 : (s.negate().isNegative() ? +1 : 0);
+            if (c !== 0) {
+              return c;
+            }
+            //return x.compare4Addition(y);
+            //TODO: change Expression#compare4Addition - ?
+            var i = Array.from(x.divide(Expression.getConstant(x)).factors()).reverse().values();
+            var j = Array.from(y.divide(Expression.getConstant(y)).factors()).reverse().values();
+            var a = i.next().value;
+            var b = j.next().value;
+            while (a != null && b != null) {
+              var c = (0 - getBase(a).compare4Multiplication(getBase(b))) || getExponent(a).compare4Multiplication(getExponent(b));
+              if (c !== 0) {
+                return c;
+              }
+              a = i.next().value;
+              b = j.next().value;
+            }
+            return a != null ? +1 : (b != null ? -1 : 0);
+          };
+          var candidate = null;
+          for (var a of e.summands()) {
+            if (candidate == null || compare(a, candidate) > 0) {
+              candidate = a;
+            }
+          }
+          return candidate;
+        };
+        if (newMethodEnabled && x.operator === Condition.EQZ) {
+          var pivot = getPivotMonomial(x.expression);
+          var p = pivot.divide(getConstant(pivot))._abs();
+          pivot = collapse(x.expression, pivot);
+          for (var a of y.expression.summands()) {
+            if (a.gcd(p)._abs().equals(p)) {
+              return addRest(add(newArray, x), oldArray, i, {expression: y.expression.subtract(a.divide(pivot).multiply(x.expression)), operator: y.operator});
+            }
+          }
+        }
+        if (newMethodEnabled && y.operator === Condition.EQZ) {
+          var pivot = getPivotMonomial(y.expression);
+          var p = pivot.divide(getConstant(pivot))._abs();
+          pivot = collapse(y.expression, pivot);
+          for (var a of x.expression.summands()) {
+            if (a.gcd(p)._abs().equals(p)) {
+              return addRest(add(newArray, {expression: x.expression.subtract(a.divide(pivot).multiply(y.expression)), operator: x.operator}), oldArray, i, y);
+            }
+          }
+        }
+        if (newMethodEnabled && false) {
+          // Condition.TRUE.andNotZero(RPN('b*c-a*d')).andZero(RPN('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
+          if (x.operator === Condition.NEZ && y.operator === Condition.EQZ) {
+            // consider y = x * q + r, where q is not zero
+            // then y != r
+
+            var pivot = getPivotMonomial(x.expression);
+            var p = pivot.divide(Expression.getConstant(pivot));
+            for (var a of y.expression.summands()) {
+              if (a.gcd(p).equals(p) || a.gcd(p).equals(p.negate())) {
+                var q = a.divide(pivot);
+                if (q instanceof Expression.Integer && !q.equals(Expression.ZERO)) {//TODO: when q is a multiplicaiton of other != 0 conditions
+                  //?TODO: prevent infinite loop: how?
+                  var r = y.expression.subtract(q.multiply(x.expression));
+                  if (oldArray.length < add(oldArray.slice(0), {expression: r, operator: Condition.NEZ}).length) {//?TODO: better way
+                    return addRest(add(add(newArray, x), {expression: r, operator: Condition.NEZ}), oldArray, i - 1, y);
+                  }
+                }
+              }
+            }
+
+          }
+        }
+        //!
+        if (!newMethodEnabled) {
+
         var p = null;
         var pOperator = null;
         var pp = null;
@@ -407,10 +513,10 @@ Condition.prototype._and = function (operator, e) {
             //x.operator === Condition.EQZ &&
             //y.operator === Condition.EQZ &&
             px != null && py != null) {
-              
-          
+
+
           //!new 2019-24-12
-          if (px != null && py != null && px.v.equals(py.v) && px.p.getDegree() !== 1 && py.p.getDegree() !== 1 && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
+          if (!newMethodEnabled && px != null && py != null && px.v.equals(py.v) && px.p.getDegree() !== 1 && py.p.getDegree() !== 1 && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
             //TODO: test, fix
             var tmp1 = py.p.getDegree() >= px.p.getDegree() ? Polynomial.pseudoRemainder(py.p, px.p) : py.p;
             var tmp2 = tmp1.calcAt(px.v);
@@ -461,13 +567,13 @@ Condition.prototype._and = function (operator, e) {
             }
 
             if (px != null && py != null) {
-            
+
             //if (px.v.symbol < py.v.symbol) {//!
             if (px.v.compare4Addition(py.v) < 0) {
               px = null;
             }
             //}
-            
+
             }
           }
 
@@ -488,7 +594,8 @@ Condition.prototype._and = function (operator, e) {
           var polynomial = Polynomial.toPolynomial(p, pp.v);
           var a = polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
           if (!a.equals(p) &&
-              (pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined)) {
+              (pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined) &&
+              !(p instanceof Expression.Symbol)) {//TODO: replace only if the result is more simple (?): a*v != 0 or b != 0
             var tmp = {
               operator: pOperator,
               expression: a
@@ -508,9 +615,87 @@ Condition.prototype._and = function (operator, e) {
         } else {
           newArray.push(x);
         }
+        } else {
+          newArray.push(x);
+        }
       }
     }
     newArray.push(y);
+
+    /*
+    var allNEZ = function* (array) {
+      for (var i = 0; i < array.length; i += 1) {
+        var y = array[i];
+        if (y.operator === Condition.EQZ) {
+          for (var j = 0; j < array.length; j += 1) {
+            var x = array[j];
+            if (x.operator === Condition.NEZ) {
+              // Condition.TRUE.andNotZero(RPN('b*c-a*d')).andZero(RPN('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
+              // consider y = x * q + r, where q is not zero
+              // then y != r
+
+              var pivot = getPivotMonomial(x.expression);
+              var p = pivot.divide(Expression.getConstant(pivot));
+              for (var a of y.expression.summands()) {
+                if (a.gcd(p).equals(p) || a.gcd(p).equals(p.negate())) {
+                  var q = a.divide(pivot);
+                  if (q instanceof Expression.Integer && !q.equals(Expression.ZERO)) {//TODO: when q is a multiplicaiton of other != 0 conditions
+                    //?TODO: prevent infinite loop: how?
+                    var r = y.expression.subtract(q.multiply(x.expression));
+                    //if (oldArray.length < add(oldArray.slice(0), {expression: r, operator: Condition.NEZ}).length) {//?TODO: better way
+                    //  return addRest(add(add(newArray, x), {expression: r, operator: Condition.NEZ}), oldArray, i - 1, y);
+                    //}
+                    yield r;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+    };
+
+    for (var i = 0; i < newArray.length; i += 1) {
+      var y = newArray[i];
+      if (y.operator === Condition.EQZ) {
+        for (var nez of allNEZ(newArray)) {
+          var g = y.expression.gcd(nez);
+          if (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
+            return add(newArray, {expression: y.expression.divide(g), operator: Condition.EQZ});
+          }
+        }
+      }
+    }
+    */
+
+    //?
+    //TODO: only when multiple variables and has `f != 0`
+    //TODO: test with replacements
+    //TODO: !!!
+    if (newMethodEnabled && false) {
+    var base = new Condition(newArray);
+    for (var i = 0; i < newArray.length; i += 1) {
+      var y = newArray[i];
+      if (y.operator === Condition.EQZ) {
+        var f = y.expression;
+        //if (!Expression.isSingleVariablePolynomial(f)) {// performace (?)
+          if (!Expression.isConstant(f.divide(Expression.simpleDivisor(f)))) {
+            while (!Expression.isConstant(f)) {
+              var d = Expression.simpleDivisor(f);
+              var q = f.divide(d);
+              if (new Condition(newArray.slice(0, i).concat(newArray.slice(i + 1))).andZero(d).isFalse()) { // TODO: fix
+                return add(newArray, {expression: d, operator: Condition.NEZ});
+              }
+              f = q;
+            }
+          }
+        //}
+      }
+    }
+    }
+    //?
+
     return newArray;
   };
   var newArray = add(this.array, {
@@ -523,7 +708,7 @@ Condition.prototype._and = function (operator, e) {
   if (newArray.length === 0) {
     return Condition.TRUE;
   }
-  
+
   return new Condition(newArray);
 };
 

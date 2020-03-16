@@ -1,3 +1,5 @@
+/*global hit*/
+
   import Expression from './Expression.js';
   import Matrix from './Matrix.js';
 
@@ -217,7 +219,7 @@
       }
       var pq = Polynomial.of(q);
       quotient = quotient.add(pq.shift(n));
-      remainder = remainder.subtract(p.multiply(pq).shift(n));
+      remainder = remainder.subtract(pq.multiply(p).shift(n));
       if (remainder.getDegree() - p.getDegree() === n) {
         // to avoid the infite loop
         throw new TypeError("there is a some problem with the expression evaluation");//!
@@ -389,14 +391,14 @@
     }
 
     /*
-    TODO: 
+    TODO:
     k = k
     f(k) = fk
     t = x + k
     x = t - k
     f(t) = f(x + k) = an * x**n + ... + f(k)
     */
-    
+
 
     var result = null;
     // p/q
@@ -432,7 +434,7 @@
 
     return result;
   };
-  
+
   Polynomial.prototype._hasIntegerCoefficients = function () {
     for (var i = 0; i <= this.getDegree(); i += 1) {
       if (!(this.getCoefficient(i) instanceof Expression.Integer)) {
@@ -573,8 +575,8 @@
       np = np.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
       //np = np.divideAndRemainder(Polynomial.of(content), "throw").quotient;
     }
-    
-    
+
+
 
     // x = 0
     while (np.getCoefficient(0).equals(Expression.ZERO)) {
@@ -621,7 +623,7 @@
         if (x.a instanceof Expression.Integer || x.a === Expression.E) {//?
           return x.a.pow(x.b.divide(N));
         }
-        if (x.b instanceof Expression.Division && x.b.a instanceof Expression.Integer && x.b.a.remainder(N).equals(Expression.ZERO)) {//TODO: 
+        if (x.b instanceof Expression.Division && x.b.a instanceof Expression.Integer && x.b.a.remainder(N).equals(Expression.ZERO)) {//TODO:
           return x.a.pow(x.b.divide(N));
         }
       }
@@ -704,6 +706,13 @@
       if ((x instanceof Expression.Integer || x instanceof Expression.Complex) && x.isNegative() && n % 2 === 0) {//?
         var c = x instanceof Expression.Integer ? x._nthRoot(2) : nthRootInternal(2, x);
         return c == null ? null : nthRootInternal(n / 2, c);
+      }
+      if (Expression.has(x, Expression.Sin) || Expression.has(x, Expression.Cos)) {
+        //?
+        var tmp = nthRootInternal(2, Expression._replaceSinCos(x));
+        if (tmp != null) {
+          return Expression._replaceBySinCos(tmp).simplifyExpression();//?
+        }
       }
       var y = undefined;
       try {
@@ -1012,12 +1021,12 @@
 
           if (true) {
             var C1 = C.multiply(Expression.ONE.negate().add(THREE.squareRoot().multiply(Expression.I)).divide(TWO)); // C*(-1+sqrt(3)*i)/2
-            var root = b.add(C1).add(delta0.divide(C1)).negate().divide(THREE.multiply(a));
-            roots.push(root);
+            var root1 = b.add(C1).add(delta0.divide(C1)).negate().divide(THREE.multiply(a));
+            roots.push(root1);
 
             var C2 = C.multiply(Expression.ONE.negate().subtract(THREE.squareRoot().multiply(Expression.I)).divide(TWO)); // C*(-1-sqrt(3)*i)/2
-            var root = b.add(C2).add(delta0.divide(C2)).negate().divide(THREE.multiply(a));
-            roots.push(root);
+            var root2 = b.add(C2).add(delta0.divide(C2)).negate().divide(THREE.multiply(a));
+            roots.push(root2);
 
             np = Polynomial.of(np.getCoefficient(3));//TODO: check + test coverage
             if (callback != undefined) {

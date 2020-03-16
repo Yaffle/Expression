@@ -4,7 +4,7 @@
     this.a = a;
   }
   GF2.prototype = Object.create(Expression.prototype);
-  
+
   Expression.GF2 = GF2;
   Expression.GF2.prototype.toString = function (options) {
     return "GF2(" + this.a.toString(Expression.setTopLevel(true, options)) + ")";
@@ -37,7 +37,7 @@
     var v = this.value - 2 + x.value;
     return new GF2Value(v >= 0 ? v : v + 2);
   };
-  
+
   GF2Value.prototype.multiply = function (x) {
     if (x === Expression.ZERO) {
       return new GF2Value(0);
@@ -48,7 +48,7 @@
     var v = this.value * x.value;
     return new GF2Value(v - 2 * Math.floor(v / 2));
   };
-  
+
   GF2Value.prototype.divide = function (x) {
     //if (!(x instanceof GF2Value)) {
     //  throw new RangeError();
