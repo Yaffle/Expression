@@ -253,6 +253,36 @@ Interval.Context.prototype.sin = function (x) {
 Interval.Context.prototype.cos = function (x) {
   return this._trigonometry(x, 0);
 };
+Interval.Context.prototype.logarithm = function (x) {
+  function factorial(n) {
+    var result = BigInt(1);
+    for (var i = 1; i <= n; i += 1) {
+      result = result * BigInt(i);
+    }
+    return result;
+  }
+  var logarithm = function (n, scalingCoefficient, precision) { // ln(z) = ln(n / scalingCoefficient)
+    if (scalingCoefficient !== BigInt(BigInteger.exponentiate(BigInt(10), BigInt(precision)))) {
+      throw new RangeError();
+    }
+    if (n < BigInt(1)) {
+      throw new TypeError("NotSupportedError");
+    }
+    // https://en.wikipedia.org/wiki/Logarithm#:~:text=More%20efficient%20series
+    var s = BigInt(0);
+    var ps = BigInt(1);
+    var scale = factorial(precision);
+    for (var i = BigInt(1); ps > BigInt(0); i += BigInt(2)) {
+      ps = (scale / i) * BigInt(BigInteger.exponentiate(n - scalingCoefficient, i)) / BigInt(BigInteger.exponentiate(n + scalingCoefficient, i));
+      s += ps;
+    }
+    return BigInt(2) * s * scalingCoefficient / scale;
+  };
+  //TODO: verify
+  var a = logarithm(BigInt(x.a), BigInt(this.scalingCoefficient), this.precision);
+  var b = logarithm(BigInt(x.b), BigInt(this.scalingCoefficient), this.precision);
+  return new Interval(a, b + BigInt(1));
+};
 Interval.Context.prototype.fromInteger = function (a) {
   return this.c.fromInteger(a);
 };
@@ -356,6 +386,9 @@ var evaluateExpression = function (e, context) {
       }
     }
 
+  } else if (e instanceof Expression.Logarithm) {
+    var x = evaluateExpression(e.a, context);
+    return context.logarithm(x);
   }
 
   return undefined;
@@ -448,7 +481,8 @@ var toDecimalStringInternal = function (expression, fractionDigits, decimalToStr
       !Expression.has(expression, Expression.PolynomialRoot) &&
       !(expression instanceof Expression.Integer) &&
       !(expression instanceof Expression.Division) &&
-      !Expression.has(expression, Expression.Radians)) {
+      !Expression.has(expression, Expression.Radians) &&
+      !Expression.has(expression, Expression.Logarithm)) {
     throw new TypeError("toDecimalString:" + fractionDigits + ":" + expression.toString({}));
   }
   if (fractionDigits < 0 || fractionDigits > 9007199254740991) {

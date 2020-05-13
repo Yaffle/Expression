@@ -46,24 +46,56 @@ Condition.prototype._and = function (operator, e) {
     return this._and(operator, e.value === 0 ? Expression.ZERO : Expression.ONE);//?
   }
 
+  var add = function (oldArray, y) {
+
+    //TODO: y is const
+    if (contains(oldArray, y.operator, y.expression)) {//!TODO: it should work even without this (?)
+      return oldArray;
+    }
+    if (contains(oldArray, y.operator === Condition.EQZ ? Condition.NEZ : Condition.EQZ, y.expression)) {
+      return null;
+    }
+
+    var operator = null;// to not use a variable from scope accidently
+    var e = y.expression;//!
+
   //!new 2019-12-15:
   //!substitute:  x = 0, sin(x) != 0
-  if (Expression.has(e, Expression.Sin) || Expression.has(e, Expression.Cos) || Expression.has(e, Expression.Exponentiation)) {
-    var that = this;
+  if (Expression.has(e, Expression.Sin) ||
+      Expression.has(e, Expression.Cos) ||
+      Expression.has(e, Expression.Exponentiation) ||
+      Expression.has(e, Expression.Arctan)) {
+    if (oldArray.length > 0) {//TODO: test, fix
     e = Expression._map(function (x) {
-      if (x instanceof Expression.Function || x instanceof Expression.Exponentiation && (!(x.b instanceof Expression.Integer) || !(x.a instanceof Expression.Symbol))) {
-        var arg = new Expression.Symbol('arg');
-        var result = that.andZero(arg.subtract(x instanceof Expression.Exponentiation ? x.b : x.a));
-        for (var i = 0; i < result.array.length; i += 1) {//TODO: fix
-          var y = result.array[i];
+      if (x instanceof Expression.Function ||
+          x instanceof Expression.Exponentiation && (!(x.b instanceof Expression.Integer) || !(x.a instanceof Expression.Symbol))) {
+        var r = x instanceof Expression.Exponentiation ? x.b : x.a;
+        var arg = null;
+        var array = null;
+        if (!(r instanceof Expression.Symbol)) {
+          arg = new Expression.Symbol('arg');
+          array = add(oldArray, {expression: arg.subtract(r), operator: Condition.EQZ});
+          if (array == null) {
+            //! TODO: fix, should not happen
+            return x;
+          }
+        } else {
+          arg = r;
+          array = oldArray;
+        }
+        for (var i = 0; i < array.length; i += 1) {//TODO: fix
+          var y = array[i];
           if (y.operator === Condition.EQZ) {
             var polynomial = Polynomial.toPolynomial(y.expression, arg);
             if (polynomial.getDegree() === 1) {
               var yy = polynomial.getCoefficient(0).negate().divide(polynomial.getCoefficient(1));
               if (!Expression.has(yy, Expression.Function)) {// sin(yy)/cos(yy) is supported
+              if (yy.compare4Addition(arg) < 0 && !(yy instanceof Expression.Division) || Expression.isConstant(yy) || Expression.isConstant(yy.divide(Expression.PI))) {//TODO: fix
                 if (x instanceof Expression.Exponentiation) {
                   //?TODO: tests
                   return x.a.pow(yy);
+                } else if (x instanceof Expression.Arctan) {
+                  return yy.arctan();
                 } else {
                   yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) ? new Expression.Radians(yy) : yy;
                   if (x instanceof Expression.Sin) {
@@ -75,6 +107,7 @@ Condition.prototype._and = function (operator, e) {
                   }
                 }
               }
+              }
             }
           }
         }
@@ -82,20 +115,10 @@ Condition.prototype._and = function (operator, e) {
       }
       return x;
     }, e);
+    y = {expression: e, operator: y.operator};//TODO: fix
+    }
   }
   //!
-
-  var add = function (oldArray, y) {
-    //TODO: y is const
-    if (contains(oldArray, y.operator, y.expression)) {//!TODO: it should work even without this (?)
-      return oldArray;
-    }
-    if (contains(oldArray, y.operator === Condition.EQZ ? Condition.NEZ : Condition.EQZ, y.expression)) {
-      return null;
-    }
-
-    var operator = null;// to not use a variable from scope accidently
-    var e = y.expression;//!
 
     //!new
     if (e.isNegative()) {
@@ -307,6 +330,11 @@ Condition.prototype._and = function (operator, e) {
         }
       }
       //!
+      if (Expression.has(x.expression, Expression.Function) || Expression.has(x.expression, Expression.Exponentiation)) {
+        if (!(Expression.has(y.expression, Expression.Function) || Expression.has(y.expression, Expression.Exponentiation))) {
+          return addRest(add(newArray, y), oldArray, i, x);
+        }
+      }
 
       if ((x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
            x.operator === Condition.EQZ && y.operator === Condition.NEZ) &&

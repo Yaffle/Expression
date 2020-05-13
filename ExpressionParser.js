@@ -19,6 +19,7 @@
   var UNARY_PRECEDENCE = 6;
 
   var UNARY_PRECEDENCE_PLUS_ONE = UNARY_PRECEDENCE + 1; // TODO: remove
+  var UNARY_PRECEDENCE_PLUS_TWO = UNARY_PRECEDENCE + 2;
 
   var Operator = function (name, arity, rightToLeftAssociative, precedence, i) {
     this.name = name;
@@ -199,14 +200,14 @@
       var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
       return a2.cos().add(Expression.ONE).divide(a2.sin());
     }),
-    new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
+    new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_TWO, function (a) {
       var x = toDegrees(a);
       if (x == null) {
         throw new RangeError("NotSupportedError");
       }
       return x;
     }),
-    new Operator("rad", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
+    new Operator("rad", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_TWO, function (a) {
       var x = toRadians(a);
       if (x == null) {
         throw new RangeError("NotSupportedError");
@@ -218,13 +219,25 @@
       return a.exp();
     }),
     new Operator("log", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      throw new RangeError("NotSupportedError");
+      return a.logarithm();
+    }),
+    new Operator("lg", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.logarithm().divide(Expression.TEN.logarithm());
+    }),
+    new Operator("ln", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.logarithm();
     }),
 
     new Operator("\\left", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
     }),
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a;
+    }),
+    new Operator("├", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) { // like \\left
+      return a;
+    }),
+    new Operator("┤", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) { // like \\right
       return a;
     }),
 
@@ -237,13 +250,47 @@
     new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.exp().subtract(a.negate().exp()).divide(a.exp().add(a.negate().exp()));
     }),
+    new Operator("coth", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.exp().add(a.negate().exp()).divide(a.exp().subtract(a.negate().exp()));
+    }),
 
-    new Operator("arccos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("arcsin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("arctan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("arcosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("arsinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
-    new Operator("artanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, notSupported),
+    new Operator("arccos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      //return a.arccos();
+      //return a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot().divide(a).arctan();
+      var arcsin = a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
+      return arcsin.subtract(Expression.PI.divide(Expression.TWO)).negate();
+    }),
+    new Operator("arcsin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      //return a.arcsin();
+      // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
+      return a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
+    }),
+    new Operator("arctan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.arctan();
+    }),
+    new Operator("arccot", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      //return a.arccot();
+      //TODO: details ?
+      // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
+      return a.arctan().subtract(Expression.PI.divide(Expression.TWO)).negate();
+    }),
+
+    new Operator("arcosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
+      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
+      return x.add(x.multiply(x).subtract(Expression.ONE).squareRoot()).logarithm();
+    }),
+    new Operator("arsinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
+      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
+      return x.add(x.multiply(x).add(Expression.ONE).squareRoot()).logarithm();
+    }),
+    new Operator("artanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
+      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
+      return x.add(Expression.ONE).divide(x.subtract(Expression.ONE).negate()).logarithm().divide(Expression.TWO);
+    }),
+    new Operator("arcoth", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
+      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
+      return x.add(Expression.ONE).divide(x.subtract(Expression.ONE)).logarithm().divide(Expression.TWO);
+    }),
 
     new Operator("frac", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a, b) {
       return a.divide(b);
@@ -283,6 +330,7 @@
         }
       }
       names.sort(function (a, b) {
+        // longest is lesser then shortest when one of strings is a prefix of another
         return a + '\uFFFF' < b + '\uFFFF' ? -1 : +1;
       });
       var source = new Array(names.length);
@@ -691,14 +739,23 @@
           operand = context.get(symbolName);
           operand = context.wrap(operand);
           token = nextToken(tokenizer);
-        } else if (token.type === 'punctuator' && token.value === "|" && left == undefined) {
-          token = parsePunctuator(tokenizer, token, "|");
-          tmp = parseExpression(tokenizer, token, context, 0, undefined);
-          operand = tmp.result;
-          token = tmp.token;
-          token = parsePunctuator(tokenizer, token, "|");
-
-          operand = operand.determinant();//!
+        } else if (token.type === 'punctuator' && token.value === "|") {
+          if (left == undefined) {
+            token = parsePunctuator(tokenizer, token, "|");
+            tmp = parseExpression(tokenizer, token, context, 0, undefined);
+            operand = tmp.result;
+            token = tmp.token;
+            token = parsePunctuator(tokenizer, token, "|");
+            operand = operand.determinant();//!
+          } else {
+            //TODO: fix
+            token = parsePunctuator(tokenizer, token, "|");
+            tmp = parseExpression(tokenizer, token, context, 0, undefined);
+            operand = tmp.result;
+            token = tmp.token;
+            operand = new Expression.Matrix(left.matrix.augment(operand.matrix));//!
+            left = undefined;
+          }
         } else if (token.type === 'punctuator' && token.value === '■') {
           token = parsePunctuator(tokenizer, token, '■');
           token = parsePunctuator(tokenizer, token, '(');
@@ -933,9 +990,20 @@
     if (charCode === 'ϕ'.charCodeAt(0)) {
       return 'φ'; // 'ϕ'.normalize('NFKD')
     }
-    if (charCode === 0x202C) {
+    //if (charCode === 0x202C) {
+    //  return ' ';
+    //}
+    // /\p{Bidi_Control}/u.test(String.fromCharCode(charCode))
+    if (charCode === 0x061C ||
+        charCode === 0x200E ||
+        charCode === 0x200F ||
+        charCode >= 0x202A && charCode <= 0x202E ||
+        charCode >= 0x2066 && charCode <= 0x2069) {
       return ' ';
     }
+    //if (/\p{Cf}/u.test(String.fromCharCode(charCode))) {
+    //  return ' ';
+    //}
     return undefined;
   };
   //var replaceRegExp = /[...]/g;

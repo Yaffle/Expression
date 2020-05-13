@@ -298,6 +298,10 @@
     if (x instanceof Expression.ExponentiationOfMinusOne) {
       return false;
     }
+    if (x instanceof Expression.Exponentiation && getExponent(x) instanceof Expression.Integer) {
+      return isPositive(x.a); // x**2
+    }
+    //TODO: tests, fix for algebraic numbers (?)
     throw new TypeError("!" + x);
   };
 
@@ -408,8 +412,9 @@
             }
           }
           //!
+        } else {
+          return xf.pow(y).multiply(x.divide(xf).pow(y));
         }
-        return xf.pow(y).multiply(x.divide(xf).pow(y));
       }
     }
     //!
@@ -670,25 +675,29 @@
     }
 
     //?
-    /*
     if (y instanceof Expression.Symbol && (y.symbol === "n" || y.symbol === "k")) {
       var qi = QuadraticInteger.toQuadraticInteger(x);//?
       if (qi != null && qi.equals(qi.primeFactor()) && qi.a > 0 && qi.D > 0 && qi.isValid()) {
         if (qi.b > 0) {
           return new Expression.ExponentiationOfQuadraticInteger(x, y);
         }
+        /*
         if (qi.b < 0) {
           var xc = qi.conjugate().toExpression();
           return x.multiply(xc).pow(y).divide(xc.pow(y));
         }
+        */
       }
+      /*
       if (qi != null) {
         if (x._nthRoot(2) instanceof Expression.Addition) {//TODO: remove
           var t = x._nthRoot(2).pow(y);
           return new Expression.ExponentiationOfQuadraticInteger(x._nthRoot(2), y.multiply(Expression.TWO));
         }
       }
+      */
     }
+    /*
     if (y instanceof Multiplication && y.a instanceof Integer && y.b instanceof Expression.Symbol) {
       return x.pow(y.a).pow(y.b);
     }
@@ -715,6 +724,19 @@
 
     if (Expression.has(x, Expression.Sin) || Expression.has(x, Expression.Cos)) {
       return Expression._replaceBySinCos(Expression._replaceSinCos(x).pow(y));
+    }
+
+    if (x === Expression.E && y instanceof Expression.Logarithm) {
+      return y.a;
+    }
+    if (x === Expression.E && y instanceof Expression.Multiplication && y.a instanceof Integer && y.b instanceof Expression.Logarithm) {
+      return x.pow(y.b).pow(y.a);
+    }
+    if (x === Expression.E && y instanceof Expression.Multiplication && y.a instanceof Expression.Symbol && y.b instanceof Expression.Logarithm) {
+      return x.pow(y.b).pow(y.a);
+    }
+    if (x instanceof Expression.Integer && Expression.has(y, Expression.Logarithm)) {//?
+      return Expression.E.pow(x.logarithm().multiply(y));
     }
 
     throw new RangeError("NotSupportedError");
@@ -893,6 +915,8 @@
         result = result == undefined ? terms[j] : new Multiplication(result, terms[j]);
       }
       return result;
+    } else if (x instanceof Addition) {
+      return x.divide(getConstant(x));
     }
     return x;
   };
@@ -1128,6 +1152,12 @@
     }
     //!new 2020-02-13
     if (a instanceof Expression.Matrix || b instanceof Expression.Matrix) {
+      if (y instanceof Integer && x instanceof Multiplication) {
+        return +1;//?
+      }
+      if (x instanceof Integer && y instanceof Multiplication) {
+        return -1;//?
+      }
       return 0;
     }
     //!
@@ -1608,6 +1638,11 @@
       return e.a._pow(2).subtract(e.a.multiply(e.b)).add(e.b._pow(2));
     }
     //!
+    //?
+    //if (e instanceof Expression.Exponentiation && getExponent(e).equals(Expression.ONE.divide(Expression.TWO))) {//TODO: FIX
+      //return e;//?
+    //}
+    //?
 
   //TODO: fix
   //if (true) return undefined;
@@ -1810,18 +1845,20 @@
             if (getBase(v).equals(y.a)) {
               v = new Expression.Exponentiation(y.a, y.b.b.lcm(getExponent(v).getNumerator()));
             } else if (getBase(v) instanceof Expression.Symbol) {
-              if (!(y.a instanceof Expression.Addition && y.a.a.divide(getBase(v)) instanceof Integer && y.a.b instanceof Integer) || !(y.b instanceof Division && y.b.a instanceof Integer && y.b.b instanceof Integer)) {
-                throw new TypeError();
+              if ((y.a instanceof Expression.Addition && y.a.a.divide(getBase(v)) instanceof Integer && y.a.b instanceof Integer) && (y.b instanceof Division && y.b.a instanceof Integer && y.b.b instanceof Integer)) {
+                var n = y.b.getDenominator();
+                n = h(e, n, y);//!
+                //TODO: ?
+                //debugger;
+                // sqrt(y.a.a + y.a.b) = t
+                // k * v = y.a.a = t**2 - y.a.b
+                // v = (t**2 - y.a.b) / (y.a.a / v)
+                var t = getBase(v).pow(n).subtract(y.a.b).divide(y.a.a.divide(getBase(v)));
+                return t;
+              } else {
+                //TODO: test
+                //throw new TypeError();
               }
-              var n = y.b.getDenominator();
-              n = h(e, n, y);//!
-              //TODO: ?
-              //debugger;
-              // sqrt(y.a.a + y.a.b) = t
-              // k * v = y.a.a = t**2 - y.a.b
-              // v = (t**2 - y.a.b) / (y.a.a / v)
-              var t = getBase(v).pow(n).subtract(y.a.b).divide(y.a.a.divide(getBase(v)));
-              return t;
             }
           }
         }
@@ -2173,8 +2210,37 @@ if (simplifyIdentityMatrixPower) {
 
   // TODO: fix or remove ?
   Expression.prototype.gcd = function (x) {
+    //TODO: fix
     //return gcd(this, x, getVariable(this) || getVariable(x));
-    return gcd(this, x, getCommonVariable(this, x));
+    //TODO: remove this block (a workaround for buggy gcd)
+    var t1 = getTerm(this);
+    var t2 = getTerm(x);
+    if (t1 != null && t2 != null && t1.equals(t2)) {
+      return getConstant(this).gcd(getConstant(x)).multiply(t2);
+    }
+    //!2020-11-05 more workarounds:
+    t1 = getTerm(getFirstAdditionOperand(this));
+    t2 = getTerm(getFirstAdditionOperand(x));
+    if (t1 != null && t2 != null && t1.equals(t2)) {
+      var c1 = getConstant(getFirstAdditionOperand(this));
+      var c2 = getConstant(getFirstAdditionOperand(x));
+      if (c1 instanceof Integer && c2 instanceof Integer) {
+        var alpha = c1.truncatingDivide(c2);
+        if (alpha instanceof Expression.Integer && alpha.multiply(c2).equals(c1)) {
+          return this.subtract(x.multiply(alpha)).gcd(x);
+        }
+        var alpha = c2.truncatingDivide(c1);
+        if (alpha instanceof Expression.Integer && alpha.multiply(c1).equals(c2)) {
+          return this.gcd(x.subtract(this.multiply(alpha)));
+        }
+      }
+    }
+    if (this.equals(Expression.ZERO) || x.equals(Expression.ZERO)) {
+      return this.add(x);
+    }
+    //!
+    var result = gcd(this, x, getCommonVariable(this, x));
+    return result;
   };
   Expression.prototype.lcm = function (x) {
     return this.divide(this.gcd(x)).multiply(x);
@@ -2504,6 +2570,9 @@ if (simplifyIdentityMatrixPower) {
     return y.addMatrix(this);
   };
   Expression.Matrix.prototype.addMatrix = function (x) {
+    if (Expression.callback != undefined) {
+      Expression.callback(new Expression.Event("add", x, this));
+    }
     return new Expression.Matrix(x.matrix.add(this.matrix));
   };
 
@@ -2797,6 +2866,12 @@ if (simplifyIdentityMatrixPower) {
   Expression.prototype.addDivision = function (x) {
     return x.a.add(this.multiply(x.b)).divide(x.b);
   };
+  Division.prototype.addDivision = function (x) {
+    if (x.b.equals(this.b)) {
+      return x.a.add(this.a).divide(this.b);
+    }
+    return BinaryOperation.prototype.addDivision.call(this, x);
+  };
   Division.prototype.addExpression = function (x) {
     return x.multiply(this.b).add(this.a).divide(this.b);
   };
@@ -3086,10 +3161,24 @@ if (simplifyIdentityMatrixPower) {
   }
 
   function sortKeys(object) {
+    var previous = 0;
+    var ok = true;
+    for (var key in object) {
+      if (Object.prototype.hasOwnProperty.call(object, key)) {
+        var i = Number(key);
+        if (!(i > previous)) {
+          ok = false;
+        }
+        previous = i;
+      }
+    }
+    if (ok) {
+      return object;
+    }
     var keys = [];
     for (var key in object) {
       if (Object.prototype.hasOwnProperty.call(object, key)) {
-        keys.push(Number.parseInt(key, 10));
+        keys.push(Number(key));
       }
     }
     keys.sort(function (a, b) {
@@ -3334,12 +3423,12 @@ if (simplifyIdentityMatrixPower) {
       //for (var j = 1; j <= n; j += 1) {
       //}
       // `for-in` loop is used to have better performance for "a sparse array"
-      var f = roots["1"];
+      var f = roots[1];
       for (var jj in roots) {//TODO: fix the iteration order
         if (Object.prototype.hasOwnProperty.call(roots, jj)) {
-        if (jj !== "1") {
-          var j = Number.parseInt(jj, 10);
-          var r = roots[jj];
+          var j = Number(jj);
+        if (j !== 1) {
+          var r = roots[j];
           //y = y.multiply(makeRoot(r, j));
           var x = makeRoot(r, j);
           if (y !== Expression.ONE) {
@@ -3529,6 +3618,10 @@ if (simplifyIdentityMatrixPower) {
           if (n % 2 !== 0) {
             return new Expression.Exponentiation(t, Expression.Integer.fromNumber(N).divide(Expression.Integer.fromNumber(n)));
           }
+        }
+        //TODO: (ax+b)**(n+1)
+        if (p.getDegree() > 1 && p.getSquareFreePolynomial().equals(p) && n === 2) {//TODO: fix ?
+          return new Expression.Exponentiation(x, Expression.ONE.divide(Expression.Integer.fromNumber(n)));
         }
       }
     }
@@ -4120,6 +4213,9 @@ if (simplifyIdentityMatrixPower) {
       return isConstant(e.a);
     } else if (e instanceof Expression.Radians) {
       return isConstant(e.value);
+    //TODO:
+    //} else if (e instanceof Expression.Logarithm) {
+    //  return isConstant(e.a);//TODO: test
     }
     return false;
   };
@@ -4327,7 +4423,6 @@ if (simplifyIdentityMatrixPower) {
     return x.multiply(c).divide(this.multiply(c));
   };
 
-/*
   Expression.ExponentiationOfQuadraticInteger = function (x, y) {
     Expression.Exponentiation.call(this, x, y);
   };
@@ -4335,7 +4430,6 @@ if (simplifyIdentityMatrixPower) {
   Expression.ExponentiationOfQuadraticInteger.prototype.divideExpression = function (x) {
     return Expression.Exponentiation.prototype.divideExpression.call(this, x);
   };
-*/
 
   //!
   Expression.Division.prototype.negate = function () {
@@ -4470,6 +4564,14 @@ Expression.Multiplication.prototype.compare4MultiplicationSymbol = function (x) 
 Expression.Function.prototype.compare4Addition = function (y) {
   if (y instanceof Expression.Function) {
     return this.name < y.name ? -1 : (y.name < this.name ? +1 : this.a.compare4Addition(y.a));
+  }
+  if (y instanceof Multiplication) {
+    var x = this;
+    return Multiplication.compare4Addition(x, y);
+  }
+  if (y instanceof Addition) {
+    var x = this;
+    return Addition.compare4Addition(x, y);
   }
   return +1;
 };
@@ -4680,3 +4782,116 @@ Expression.prototype._abs = function () {
     }
     throw new TypeError("NotSupportedError");
   };
+
+Expression.Logarithm = function (argument) {
+  Expression.Function.call(this, "log", argument);
+};
+Expression.Logarithm.prototype = Object.create(Expression.Function.prototype);
+Expression.prototype.logarithm = function () {
+  var arg = this;
+  if (arg instanceof Expression.Integer) {
+    if (arg.compareTo(Expression.ZERO) <= 0) {
+      throw new RangeError("ArithmeticException");//TODO: better message
+    }
+    if (arg.compareTo(Expression.ONE) === 0) {
+      return Expression.ZERO;
+    }
+    var p = integerPrimeFactor(arg);
+    if (p.equals(arg)) {
+      return new Expression.Logarithm(arg);
+    }
+    return p.logarithm().add(arg.truncatingDivide(p).logarithm());
+  }
+  if (arg instanceof Expression.Division) {
+    var n = arg.getNumerator();
+    var d = arg.getDenominator();
+    if (d instanceof Integer || isConstant(n)) {
+      return n.logarithm().subtract(d.logarithm());
+    }
+  }
+  if (arg instanceof Expression.Multiplication) {
+    var c = getConstant(arg);
+    if (c instanceof Integer && !c.equals(Integer.ONE)) {
+      return c.logarithm().add(arg.divide(c).logarithm());
+    }
+    if (arg.b instanceof Expression.MatrixSymbol) {//?
+      return arg.a.logarithm().add(arg.b.logarithm());
+    }
+  }
+  if (arg instanceof Expression.Symbol) {
+    if (arg === Expression.E) {//?
+      return Expression.ONE;
+    }
+    return new Expression.Logarithm(arg);
+  }
+  if (arg instanceof Expression.NthRoot) {
+    var a = arg.a;
+    var n = arg.n;
+    if (a instanceof Expression.Integer && a.compareTo(Expression.ONE) > 0) {
+      return a.logarithm().divide(Expression.Integer.fromNumber(n));
+    }
+  }
+  if (arg instanceof Expression.Exponentiation) {
+    var b = getBase(arg);
+    var e = getExponent(arg);
+    if (b === Expression.E) {//?
+      return e;
+    }
+    if (b instanceof Expression.MatrixSymbol && e instanceof Integer) {//?
+      return b.logarithm().multiply(e);
+    }
+    if (b instanceof Expression.Integer) {
+      return b.logarithm().multiply(e);
+    }
+  }
+  if (arg instanceof Expression.Matrix) {
+    var matrix = arg.matrix;
+    if (matrix.isDiagonal()) {
+      return new Expression.Matrix(matrix.map(function (e, i, j) {
+        return i === j ? e.logarithm() : Expression.ZERO;
+      }));
+    }
+    var tmp = Expression.getEigenvalues(matrix);
+    var eigenvalues = tmp.eigenvalues;
+    var multiplicities = tmp.multiplicities;
+    if (Expression.sum(multiplicities) === matrix.cols()) {
+      var tmp2 = Expression.getEigenvectors(matrix, eigenvalues);
+      var eigenvectors = tmp2.eigenvectors;
+      if (eigenvectors.length === matrix.cols()) {
+        if (Expression.callback != undefined) {
+          Expression.callback(new Expression.Event("logarithm-using-diagonalization", new Expression.Matrix(matrix)));//TODO:
+        }
+        var tmp = Expression.diagonalize(matrix, eigenvalues, multiplicities, eigenvectors);
+        // https://en.wikipedia.org/wiki/Logarithm_of_a_matrix#Calculating_the_logarithm_of_a_diagonalizable_matrix
+        return new Expression.Matrix(tmp.T).multiply(new Expression.Matrix(tmp.L).logarithm()).multiply(new Expression.Matrix(tmp.T_INVERSED));
+      } else {
+        var tmp = Expression.getFormaDeJordan(matrix, eigenvalues, multiplicities);
+        // https://en.wikipedia.org/wiki/Logarithm_of_a_matrix#The_logarithm_of_a_non-diagonalizable_matrix
+        var J = tmp.J;
+        var logarithmOfJordanBlockMatrix = function (B) {
+          var K = B.map(function (e, i, j) {
+            return i !== j ? e.divide(B.e(i, i)) : Expression.ZERO;
+          });
+          var S = B.map(function (e, i, j) {
+            return i === j ? e.logarithm() : Expression.ZERO;
+          });
+          var n = B.cols();
+          for (var i = 1; i < n; i += 1) {
+            var x = K.pow(i).scale(Expression.ONE.divide(Expression.Integer.fromNumber(i)));
+            S = i % 2 === 1 ? S.add(x) : S.subtract(x);
+          }
+          return S;
+        };
+        var LJ = logarithmOfJordanBlockMatrix(J);
+        //if (!J.eql(matrix)) {
+        //TODO:
+        if (Expression.callback != undefined) {
+          Expression.callback(new Expression.Event("logarithm-using-Jordan-canonical-form", new Expression.Matrix(matrix)));
+        }
+        //}
+        return new Expression.Matrix(tmp.P).multiply(new Expression.Matrix(LJ)).multiply(new Expression.Matrix(tmp.P_INVERSED));
+      }
+    }
+  }
+  throw new TypeError("NotSupportedError");
+};

@@ -187,6 +187,9 @@ var map = function (f, u) {
   if (u instanceof Expression.Symbol) {
     return u;//?
   }
+  if (u instanceof Expression.Arctan) {
+    return f(map(f, u.a).arctan());
+  }
   throw new TypeError();
 };
 
@@ -252,7 +255,11 @@ var expandTrigonometryRules = function (A, type) {
       return expandTrigonometryRulesInternal(a.a.divide(b), a.b.divide(b), type);
     }
   }
-  if (A instanceof Expression.Symbol || A instanceof Expression.Degrees || A instanceof Expression.Radians || A instanceof Expression.Complex) {
+  if (A instanceof Expression.Symbol ||
+      A instanceof Expression.Degrees ||
+      A instanceof Expression.Radians ||
+      A instanceof Expression.Complex ||
+      A instanceof Expression.Arctan) {
     if (type === "cos") {
       return A.cos();
     }
@@ -376,7 +383,7 @@ var simplifyConstantValueInternal = function (d) {
     throw new RangeError();
   }
   if (d < 0) {
-    d += 360;
+    d = 0 - d;
   }
   if (d >= 180) {
     d = d - 180;
@@ -565,6 +572,25 @@ var simplifyConstantValue = function (x, type) {
       return x.divide(Expression.I).cosh();
     }
   }
+  if (x instanceof Expression.Arctan) {
+    if (Expression.callback != undefined) {
+      Expression.callback(new Expression.Event("trigonometric-function-of-inverse-trigonometric-function-arg", new Expression.Matrix(Matrix.I(1))));
+    }
+    // https://www.rapidtables.com/math/trigonometry/arctan.html#rules
+    // https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#Relationships_between_trigonometric_functions_and_inverse_trigonometric_functions
+    //TODO: lin in details
+    //TODO: test
+    var a = x.a;
+    if (type === "sin") {
+      //TODO: fix (sign - ?), fix complex numbers - ?
+      return a.getNumerator().divide(a.getDenominator()._pow(2).add(a.getNumerator()._pow(2)).squareRoot());
+    }
+    if (type === "cos") {
+      //TODO: fix (sign - ?), fix complex numbers - ?
+      return a.getDenominator().divide(a.getDenominator()._pow(2).add(a.getNumerator()._pow(2)).squareRoot());
+    }
+    //TODO:
+  }
   return undefined;
 };
 
@@ -599,8 +625,14 @@ var isArgumentValid = function (x, type) {
   if (x instanceof Addition) {
     return isArgumentValid(x.a, type) && isArgumentValid(x.b, type);
   }
+  if (x instanceof Expression.Arctan) {
+    return true;//?
+  }
   if (x instanceof Multiplication) {
     if (x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) {
+      return true;
+    }
+    if (x.a instanceof Integer && Expression.isScalar(x.b) && x.b instanceof Expression.Arctan) {
       return true;
     }
     if (Expression.isScalar(x.b) && x.b instanceof Expression.Symbol) {
@@ -872,3 +904,44 @@ Expression.Matrix.prototype.cos = function () {
   Expression._replaceSinCos = replaceSinCos;
   Expression._replaceBySinCos = replaceBySinCos;
 }());
+
+// Arctangent
+function Arctan(x) {
+  Expression.Function.call(this, "arctan", x);
+}
+Arctan.prototype = Object.create(Expression.Function.prototype);
+Expression.Arctan = Arctan;
+
+Expression.prototype.arctan = function () {
+  var x = this;
+  if (x.isNegative()) {
+    return x.negate().arctan().negate();
+  }
+  if (Expression.isConstant(x)) {
+    var value = Number(Expression.toDecimalString(x, {fractionDigits: 2}).replace(/<\/?[^>]+>/g, ''));
+    console.assert(!Number.isNaN(value));
+    var guess = Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 1.5;
+    if (RPN('tan(' + guess + '/180*pi' + ')').equals(x)) {
+      return RPN(guess + '/180*pi');
+    }
+    throw new RangeError("NotSupportedError")
+  }
+  if (x instanceof Division) {
+    var n = x.getNumerator();
+    var d = x.getDenominator();
+    if (d.subtract(Expression.ONE).subtract(n).multiply(d.subtract(Expression.ONE).add(n)).subtract(Expression.ONE).equals(Expression.ZERO)) {
+      var y = Expression.TWO.multiply(x).divide(Expression.ONE.subtract(x._pow(2)));
+      return (new Arctan(y)).divide(Expression.TWO);
+    }
+  }
+  /*
+  var t = simplifyConstantValue(x, "sin");
+  if (t != undefined) {
+    return t;
+  }
+  if (!isArgumentValid(x, "sin")) {
+    throw new RangeError("NotSupportedError");
+  }
+  */
+  return new Arctan(x);
+};

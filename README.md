@@ -60,6 +60,15 @@ example.js:
   })).simplify();
   console.log(result.toString());
 
+  // Square root of a matrix:
+  console.log(ExpressionParser.parse('{{33,24},{48,57}}**(1/2)').toString()); // {{5,2},{4,7}}
+
+  // Nth-root of a matrix:
+  console.log(ExpressionParser.parse('{{33,24},{48,57}}**(1/n)').toString()); // {{(3^(4/n)+2*3^(2/n))/3,(3^(4/n)-3^(2/n))/3},{(2*3^(4/n)-2*3^(2/n))/3,(2*3^(4/n)+3^(2/n))/3}}
+
+  // Nth-power of a matrix:
+  console.log(ExpressionParser.parse('{{33,24},{48,57}}**n').toString()); // {{(3^(4*n)+2*3^(2*n))/3,(3^(4*n)-3^(2*n))/3},{(2*3^(4*n)-2*3^(2*n))/3,(2*3^(4*n)+3^(2*n))/3}}
+
 ```
 <!-- {% endraw %} -->
 

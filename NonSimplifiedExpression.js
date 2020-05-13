@@ -39,6 +39,9 @@
   NonSimplifiedExpression.prototype.exp = function () {
     return new NonSimplifiedExpression(Expression.E).pow(this);
   };
+  NonSimplifiedExpression.prototype.logarithm = function () {
+    return new NonSimplifiedExpression(new Expression.Logarithm(this));
+  };
   NonSimplifiedExpression.prototype.inverse = function () {
     return new NonSimplifiedExpression(new Expression.Exponentiation(this, Expression.ONE.negate())); // to support the MathML serialization of the `inverse(B)`
     //return new NonSimplifiedExpression(Expression.ONE).divide(this);
@@ -96,6 +99,9 @@
   };
   NonSimplifiedExpression.prototype.cos = function () {
     return new NonSimplifiedExpression(new Expression.Cos(this));
+  };
+  NonSimplifiedExpression.prototype.arctan = function () {
+    return new NonSimplifiedExpression(new Expression.Arctan(this));
   };
   NonSimplifiedExpression.prototype.rank = function () {
     return new NonSimplifiedExpression(new Expression.Rank(this));
@@ -169,6 +175,12 @@
   };
   Expression.Cos.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).cos();
+  };
+  Expression.Arctan.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).arctan();
+  };
+  Expression.Logarithm.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).logarithm();
   };
   Expression.Rank.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).rank();

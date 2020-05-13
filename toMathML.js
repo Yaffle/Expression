@@ -272,8 +272,9 @@ Expression.Transpose.prototype.toMathML = function (options) {
   var x = this;
   //TODO: ^T ?
   // https://www.w3.org/TR/MathML3/chapter4.html#contm.transpose
+  var f = this.getPrecedence() >= x.a.getPrecedence();
   return "<msup>" +
-         x.a.toMathML(options) +
+         (f ? "<mrow><mo>(</mo>" : "") + x.a.toMathML(options) + (f ? "<mo>)</mo></mrow>" : "") +
          "<mi>T</mi>" +
          "</msup>";
 };
