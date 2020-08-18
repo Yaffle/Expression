@@ -94,14 +94,53 @@
   NonSimplifiedExpression.prototype.cubeRoot = function () {
     return new NonSimplifiedExpression(new Expression.CubeRoot(this));
   };
-  NonSimplifiedExpression.prototype.sin = function () {
-    return new NonSimplifiedExpression(new Expression.Sin(this));
-  };
   NonSimplifiedExpression.prototype.cos = function () {
-    return new NonSimplifiedExpression(new Expression.Cos(this));
+    return new NonSimplifiedExpression(new Expression.Function("cos", this));
+  };
+  NonSimplifiedExpression.prototype.sin = function () {
+    return new NonSimplifiedExpression(new Expression.Function("sin", this));
+  };
+  NonSimplifiedExpression.prototype.tan = function () {
+    return new NonSimplifiedExpression(new Expression.Function("tan", this));
+  };
+  NonSimplifiedExpression.prototype.cot = function () {
+    return new NonSimplifiedExpression(new Expression.Function("cot", this));
+  };
+  NonSimplifiedExpression.prototype.cosh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("cosh", this));
+  };
+  NonSimplifiedExpression.prototype.sinh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("sinh", this));
+  };
+  NonSimplifiedExpression.prototype.tanh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("tanh", this));
+  };
+  NonSimplifiedExpression.prototype.coth = function () {
+    return new NonSimplifiedExpression(new Expression.Function("coth", this));
+  };
+  NonSimplifiedExpression.prototype.arccos = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arccos", this));
+  };
+  NonSimplifiedExpression.prototype.arcsin = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arcsin", this));
   };
   NonSimplifiedExpression.prototype.arctan = function () {
-    return new NonSimplifiedExpression(new Expression.Arctan(this));
+    return new NonSimplifiedExpression(new Expression.Function("arctan", this));
+  };
+  NonSimplifiedExpression.prototype.arccot = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arccot", this));
+  };
+  NonSimplifiedExpression.prototype.arcosh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arcosh", this));
+  };
+  NonSimplifiedExpression.prototype.arsinh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arsinh", this));
+  };
+  NonSimplifiedExpression.prototype.artanh = function () {
+    return new NonSimplifiedExpression(new Expression.Function("artanh", this));
+  };
+  NonSimplifiedExpression.prototype.arcoth = function () {
+    return new NonSimplifiedExpression(new Expression.Function("arcoth", this));
   };
   NonSimplifiedExpression.prototype.rank = function () {
     return new NonSimplifiedExpression(new Expression.Rank(this));
@@ -131,6 +170,9 @@
   };
   NonSimplifiedExpression.prototype.transformEquality = function (b) {
     return new NonSimplifiedExpression(new Expression.Equality(this, b));
+  };
+  NonSimplifiedExpression.prototype.transformInequality = function (b, sign) {
+    return new NonSimplifiedExpression(new Expression.Inequality(this, b, sign));
   };
   NonSimplifiedExpression.prototype.transformComma = function (b) {
     return new NonSimplifiedExpression(new Expression.Comma(this, b));
@@ -170,14 +212,8 @@
   Expression.CubeRoot.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).cubeRoot();
   };
-  Expression.Sin.prototype.simplifyInternal = function (holder) {
-    return prepare(this.a, holder).sin();
-  };
-  Expression.Cos.prototype.simplifyInternal = function (holder) {
-    return prepare(this.a, holder).cos();
-  };
-  Expression.Arctan.prototype.simplifyInternal = function (holder) {
-    return prepare(this.a, holder).arctan();
+  Expression.Function.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder)[this.name]();
   };
   Expression.Logarithm.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).logarithm();
@@ -205,6 +241,9 @@
   };
   Expression.Equality.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).transformEquality(prepare(this.b, holder));
+  };
+  Expression.Inequality.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).transformInequality(prepare(this.b, holder), this.sign);
   };
   Expression.Matrix.prototype.simplifyInternal = function (holder) {
     return new Expression.Matrix(this.matrix.map(function (e, i, j) {

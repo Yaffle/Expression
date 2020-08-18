@@ -12,10 +12,10 @@
 // a != n
 
 
-import nthRoot from './nthRoot.js';
+import nthRoot from './nthRoot.compiled.js';
 import BigInteger from './BigInteger.js';
 
-import primeFactor from './primeFactor.js';
+import primeFactor from './primeFactor.compiled.js';
 
 /*
 
@@ -26,13 +26,12 @@ import primeFactor from './primeFactor.js';
 
 */
 
+function abs(a) {
+  return a < 0 ? BigInteger.unaryMinus(a) : a;
+}
+
   function ngcd(a, b) {
-    while (b != 0) {
-      var t = BigInteger.remainder(a, b);
-      a = b;
-      b = t;
-    }
-    return a;
+    return nthRoot.gcd(a, b);
   }
 
 // a + b*sqrt(D)
@@ -171,24 +170,16 @@ QuadraticInteger._factors = function (n) {
   return factors(n);
 };
 
-function abs(a) {
-  return a < 0 ? BigInteger.unaryMinus(a) : a;
-}
-
 QuadraticInteger.prototype.primeFactor = function () {
-
-  function sqrt(n) {
-    return nthRoot(n, 2);
-  }
 
   var a = this.a;
   var b = this.b;
   var D = this.D;
-  var g = abs(ngcd(a, D));
+  var g = ngcd(a, D);
   if (g == D) {//TODO: g != 1 - ?
     return new QuadraticInteger(BigInteger.BigInt(0), BigInteger.BigInt(1), D);
   }
-  var g = abs(ngcd(a, b));
+  var g = ngcd(a, b);
   //!
   //while (BigInteger.remainder(g, 2) == 0) {
   //  g = BigInteger.divide(g, 2);
@@ -210,15 +201,15 @@ QuadraticInteger.prototype.primeFactor = function () {
       //}
       var guess = BigInteger.add(norm, bbD);
       if (guess >= 0) {
-        var a = sqrt(guess);
-        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(ngcd(a, b)) === 1
+        var a = nthRoot(guess, 2);
+        if (BigInteger.equal(guess, BigInteger.exponentiate(a, BigInteger.BigInt(2)))) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
       var guess = BigInteger.add(BigInteger.unaryMinus(norm), bbD);
       if (guess >= 0) {
-        var a = sqrt(guess);
-        if (BigInteger.equal(guess, BigInteger.multiply(a, a))) { // && Math.abs(ngcd(a, b)) === 1
+        var a = nthRoot(guess, 2);
+        if (BigInteger.equal(guess, BigInteger.exponentiate(a, BigInteger.BigInt(2)))) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
@@ -321,8 +312,8 @@ QuadraticInteger.prototype.remainder = function (y) {
       if (remainder.b == 0) {
         return nk;
       }
-      if (abs(ngcd(remainder.a, remainder.b)) != 1) {
-        var i = Expression.Integer.fromBigInt(abs(ngcd(remainder.a, remainder.b)));
+      if (ngcd(remainder.a, remainder.b) != 1) {
+        var i = Expression.Integer.fromBigInt(ngcd(remainder.a, remainder.b));
         nk = nk.multiply(i);
         remainder = remainder.truncatingDivide(i);
       }
@@ -409,7 +400,7 @@ function toQuadraticInteger(e) {
   //}
   if (e instanceof Expression.Addition) {
     var g = e.a.gcd(e.b);
-    if (!g.equals(Expression.ONE)) {
+    if (!g.equals(Expression.ONE) && g instanceof Expression.Integer) {
       var qi = toQuadraticInteger(e.divide(g));
       return qi == null ? null : new AlmostQuadraticInteger(g, qi);
     }
@@ -520,18 +511,7 @@ QuadraticInteger.prototype.compareTo = function (e) {
 */
 
 
-/*
 
-+    var y = evaluateExpression(e.a, context);
-+    if (y === "CANNOT_DIVIDE" || y == null) {
-+      return y;
-+    }
-+    //TODO: debug
-+    var yy = new Interval(context.nthRoot(y.a, n).a, context.nthRoot(y.b, n).b);
-+    var s = context.nthRoot(context.scalingCoefficient, n);
-+    yy = context.divide(yy, context.multiply(Interval.degenerate(context.scalingCoefficient), s));
-+    return yy;
-*/
 
 
 
@@ -685,7 +665,7 @@ function AlmostQuadraticInteger(k, qi) { // k * qi
   if (qi.b == 0) {
     throw new TypeError();
   }
-  if (ngcd(qi.a, qi.b) != 1 && ngcd(qi.a, qi.b) != -1) {
+  if (ngcd(qi.a, qi.b) != 1) {
     throw new TypeError();
   }
   this.k = k;
@@ -754,6 +734,9 @@ AlmostQuadraticInteger.prototype.remainder = function (y) {
       d = toQuadraticInteger(d);
     }
     if (d == null) debugger;
+    if (n instanceof Expression.Multiplication && n.a instanceof Expression.Integer && n.b instanceof Expression.SquareRoot) {
+      return new QuadraticInteger(Expression.ZERO.toBigInt(), n.a.toBigInt(), n.b.a.toBigInt()).remainder(this);
+    }
     if (!this.equals(toQuadraticInteger(n))) {
       return toQuadraticInteger(n).remainder(d);
     }
@@ -771,7 +754,7 @@ AlmostQuadraticInteger.prototype.remainder = function (y) {
   if (remainder instanceof Expression.Integer) {
     return this.k.multiply(remainder);//TODO: fix
   }
-  var t = Expression.Integer.fromBigInt(abs(ngcd(remainder.a, remainder.b)));
+  var t = Expression.Integer.fromBigInt(ngcd(remainder.a, remainder.b));
   var nk = this.k.multiply(t);
   remainder = remainder.truncatingDivide(t);
   if (remainder.b == 0) {

@@ -2,8 +2,8 @@
 
 //TODO: fix imports with side-effects - ?
 import BigInteger from './BigInteger.js';
-import primeFactor from './primeFactor.js';
-import nthRoot from './nthRoot.js';
+import primeFactor from './primeFactor.compiled.js';
+import nthRoot from './nthRoot.compiled.js';
 import Expression from './Expression.js';
 import toDecimalStringInternal from './toDecimalString.js';
 import './GF2.js';

@@ -1,7 +1,7 @@
   import Expression from './Expression.js';
   import QuadraticInteger from './QuadraticInteger.js';
   import BigInteger from './BigInteger.js';
-  import nthRoot from './nthRoot.js';
+  import nthRoot from './nthRoot.compiled.js';
 
   var Integer = Expression.Integer;
 
@@ -220,7 +220,7 @@
       //  bitset |= 1 << ((i * i) % 32);
       //}
       var bitset = 33751571;
-      var result = (bitset >> (n & n.constructor(31))) & 1;
+      var result = (bitset >> Number(n & n.constructor(31))) & 1;
       return result === 1;
     }
     function norm(a, b) {
@@ -230,11 +230,11 @@
       var d = BigInteger.add(BigInteger.multiply(a, a), BigInteger.multiply(b, b));
       var x = BigInteger.add(BigInteger.multiply(r, a), BigInteger.multiply(i, b));
       var y = BigInteger.subtract(BigInteger.multiply(i, a), BigInteger.multiply(r, b));
-      return BigInteger.remainder(x, d) == 0 && BigInteger.remainder(y, d) == 0;
+      return BigInteger.equal(BigInteger.remainder(x, d), 0) && BigInteger.equal(BigInteger.remainder(y, d), 0);
     }
 
-    var r = this.real.toNumber();
-    var i = this.imaginary.toNumber();
+    var r = this.real.toBigInt();
+    var i = this.imaginary.toBigInt();
     var n = norm(r, i);
     //if (n > (9007199254740991 + 1) / 2) {
       //TODO: should not throw (see a call from Polynomial#getroots)
@@ -247,9 +247,9 @@
       while (c > 0) {
         if (canBeSquare(c)) {
           var a = nthRoot(c, 2);
-          if (BigInteger.equal(BigInteger.multiply(a, a), c)) {
+          if (BigInteger.equal(BigInteger.exponentiate(a, BigInteger.BigInt(2)), c)) {
             if (norm(a, b) > 1 && hasDivisor(r, i, a, b)) {
-              return b == 0 ? new Expression.Complex(Expression.ZERO, new Expression.Integer(a)) : new Complex(new Expression.Integer(a), new Expression.Integer(b));
+              return BigInteger.equal(b, 0) ? new Expression.Complex(Expression.ZERO, new Expression.Integer(a)) : new Complex(new Expression.Integer(a), new Expression.Integer(b));
             }
           }
         }

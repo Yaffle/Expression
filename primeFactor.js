@@ -1,50 +1,60 @@
-import BigInteger from './BigInteger.js';
 import nthRoot from './nthRoot.js';
 
 function min(a, b) {
-  return BigInteger.lessThan(a, b) ? a : b;
+  return a < b ? a : b;
 }
 
-function modPow(base, exponent, modulus, accumulator) {
-  return !BigInteger.lessThan(BigInteger.BigInt(0), exponent) ? accumulator : modPow(BigInteger.remainder(BigInteger.multiply(base, base), modulus), BigInteger.divide(exponent, BigInteger.BigInt(2)), modulus, !BigInteger.lessThan(BigInteger.remainder(exponent, BigInteger.BigInt(2)), BigInteger.BigInt(1)) ? BigInteger.remainder(BigInteger.multiply(accumulator, base), modulus) : accumulator);
+function modPow(base, exponent, modulus) {
+  // exponent can be huge, use non-recursive variant
+  var accumulator = 1n;
+  while (exponent !== 0n) {
+    if (exponent % 2n === 0n) {
+      exponent /= 2n;
+      base = (base * base) % modulus;
+    } else {
+      exponent -= 1n;
+      accumulator = (accumulator * base) % modulus;
+    }
+  }
+  return accumulator;
 }
 
-function bitLength(n) {
-  var x = BigInteger.toNumber(n);
-  return x < 1 / 0 ? Math.floor(Math.log(x) / Math.log(2)) : 1024 + bitLength(BigInteger.divide(n, BigInteger.exponentiate(2, 1024)));
-}
-
-function log(n) {
-  //n = f * 2**e
-  //Math.log(n) = Math.log(f) + Math.log(2) * e;
-  var x = BigInteger.toNumber(n);
-  return x < 1 / 0 ? Math.log(x) : Math.log(BigInteger.toNumber(BigInteger.divide(n, BigInteger.exponentiate(2, bitLength(n) - 53))) + Math.log(2) * (bitLength(n) - 53));
+function naturalLogarithm(n) {
+  var number = Number(n);
+  if (number < 1 / 0) {
+    return Math.log(number);
+  }
+  // https://github.com/tc39/proposal-bigint/issues/205
+  var s = n.toString(16);
+  var p = Math.floor(Math.log((Number.MAX_SAFE_INTEGER + 1) / 32 + 0.5) / Math.log(2));
+  var l = Math.floor(p / 4);
+  return Math.log(Number('0x' + s.slice(0, l)) / Math.pow(2, 4 * l)) + 4 * Math.log(2) * s.length;
 }
 
 // isPrime implementation is stolen from:
 // https://github.com/peterolson/BigInteger.js
 // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Deterministic_variants
 function isPrime(n) {
-  if (BigInteger.lessThan(n, BigInteger.BigInt(2))) {
+  if (n < 2n) {
     throw new RangeError();
   }
-  if (!BigInteger.lessThan(BigInteger.BigInt(2), n)) {
+  if (n === 2n) {
     return true;
   }
-  if (BigInteger.lessThan(BigInteger.remainder(n, BigInteger.BigInt(2)), BigInteger.BigInt(1))) {
+  if (n % 2n === 0n) {
     return false;
   }
-  var s = 0;
-  var d = BigInteger.subtract(n, BigInteger.BigInt(1));
-  while (BigInteger.lessThan(BigInteger.remainder(d, BigInteger.BigInt(2)), BigInteger.BigInt(1))) {
-    d = BigInteger.divide(d, BigInteger.BigInt(2));
-    s += 1;
+  var r = 0;
+  var d = n - 1n;
+  while (d % 2n === 0n) {
+    d /= 2n;
+    r += 1;
   }
-  for (var a = min(BigInteger.subtract(n, BigInteger.BigInt(1)), BigInteger.BigInt(Math.floor(2 * Math.pow(log(n), 2)))); !BigInteger.lessThan(a, BigInteger.BigInt(2)); a = BigInteger.subtract(a, BigInteger.BigInt(1))) {
-    var adn = modPow(a, d, n, BigInteger.BigInt(1));
-    if (BigInteger.lessThan(adn, BigInteger.BigInt(1)) || BigInteger.lessThan(BigInteger.BigInt(1), adn)) {
-      for (var r = 0, x = adn; BigInteger.lessThan(x, BigInteger.subtract(n, BigInteger.BigInt(1))); r += 1, x = BigInteger.remainder(BigInteger.multiply(x, x), n)) {
-        if (r === s - 1) {
+  for (var a = 2n, to = min(n - 2n, BigInt(Math.floor(2 * Math.pow(naturalLogarithm(n), 2)))); a <= to; a += 1n) {
+    var adn = modPow(a, d, n);
+    if (adn !== 1n) {
+      for (var i = 0, x = adn; x !== n - 1n; i += 1, x = (x * x) % n) {
+        if (i === r - 1) {
           return false;
         }
       }
@@ -54,67 +64,99 @@ function isPrime(n) {
 }
 
 function abs(a) {
-  return BigInteger.lessThan(a, BigInteger.BigInt(0)) ? BigInteger.unaryMinus(a) : a;
+  return a < 0n ? -a : a;
 }
 
 function gcd(a, b) {
-  while (BigInteger.lessThan(BigInteger.BigInt(0), b)) {
-    var t = BigInteger.remainder(a, b);
+  while (b !== 0n) {
+    let r1 = a % b;
+    let r2 = b - r1;
+    let r = r1 < r2 ? r1 : r2;
     a = b;
-    b = t;
+    b = r;
   }
   return a;
+}
+
+function f(x, c, mod) {
+  //return ((x * x) % mod + c) % mod;
+  return (x * x + c) % mod;
+}
+
+// https://cp-algorithms.com/algebra/factorization.html
+function brent(n, x0 = 2n, c = 1n) {
+    var x = x0;
+    var g = 1;
+    var q = 1n;
+    var xs, y;
+
+    var m = 128;
+    var l = 1;
+    while (g == 1) {
+        y = x;
+        for (var i = 1; i < l; i++)
+            x = f(x, c, n);
+        var k = 0;
+        while (k < l && g == 1) {
+            xs = x;
+            for (var i = 0; i < m && i < l - k; i++) {
+                x = f(x, c, n);
+                q = (q * abs(y - x)) % n;
+            }
+            g = gcd(q, n);
+            k += m;
+        }
+        l *= 2;
+    }
+    if (g == n) {
+        do {
+            xs = f(xs, c, n);
+            g = gcd(abs(xs - y), n);
+        } while (g == 1);
+    }
+    return g;
 }
 
 // Pollard's rho implementation is stolen from:
 // https://github.com/jiggzson/nerdamer/blob/master/nerdamer.core.js
 // https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm#C_code_sample
-function primeFactorByPollardRho(n) {
-  if (BigInteger.lessThan(n, BigInteger.BigInt(2))) {
-    throw new RangeError();
-  }
-  if (isPrime(n)) {
-    return n;
-  }
-  var factor = n;
-  for (var x0 = BigInteger.BigInt(2); !BigInteger.lessThan(factor, n); x0 = BigInteger.add(x0, BigInteger.BigInt(1))) {
-    if (BigInteger.lessThan(BigInteger.remainder(n, x0), BigInteger.BigInt(1))) {
-      //?
+/*
+function factorByPollardRho(n, x0 = 2n, c = 1n) {
+    var factor = n;
+    if (n % x0 === 0n) {//?
       return x0;
     }
     var xFixed = x0;
     var cycleSize = 2;
     var x = x0;
-    factor = BigInteger.BigInt(1);
-    while (BigInteger.lessThan(factor, BigInteger.BigInt(2))) {
-      var test = BigInteger.BigInt(1);
+    factor = 1n;
+    while (factor === 1n) {
+      var test = 1n;
       var testStart = x;
       var found = false;
-      for (var count = 1; count <= cycleSize && BigInteger.lessThan(factor, BigInteger.BigInt(2)); count += 1) {
-        x = BigInteger.remainder(BigInteger.add(BigInteger.multiply(x, x), BigInteger.BigInt(1)), n);
+      for (var count = 1; count <= cycleSize && factor === 1n; count += 1) {
+        x = (x * x + c) % n;
         //factor = gcd(abs(x - xFixed), n);
-        test = BigInteger.remainder(BigInteger.multiply(test, abs(BigInteger.subtract(x, xFixed))), n);
+        test = (test * abs(x - xFixed)) % n;
         if (found || count === cycleSize || count % 16 === 0) {
           // https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm#Variants
           factor = gcd(test, n);
-          if (!found && !BigInteger.lessThan(factor, BigInteger.BigInt(2))) {
+          if (!found && factor !== 1n) {
             cycleSize *= 2;
-            factor = BigInteger.BigInt(1);
+            factor = 1n;
             x = testStart;
             found = true;
           }
-          test = BigInteger.BigInt(1);
+          test = 1n;
           testStart = x;
         }
       }
       cycleSize *= 2;
       xFixed = x;
     }
-  }
-  var a = primeFactor(factor);
-  var b = primeFactor(BigInteger.divide(n, factor));
-  return BigInteger.lessThan(a, b) ? a : b;
+    return factor;
 }
+*/
 
 var WHEEL3 = [1, 2, 2, 4, 2, 4, 2, 4, 6, 2, 6];
 
@@ -137,32 +179,67 @@ function primeFactorUsingWheel(n) {
   return n;
 }
 
+function primeFactorUsingWheelBig(n, max) {
+  var steps = WHEEL3;
+  var cycle = 3;
+  var i = 2n;
+  var s = 0;
+  while (i <= max) {
+    if (n % i === 0n) {
+      return i;
+    }
+    i += BigInt(steps[s]);
+    s += 1;
+    if (s === steps.length) {
+      s = cycle;
+    }
+  }
+  return n;
+}
+
 function primeFactor(n) {
-  var x = BigInteger.toNumber(n);
+  var x = Number(n);
   if (x < 1) {
     throw new TypeError("primeFactor of a negative integer");
   }
 
   //! optimize n = f**2
   var squareRoot = nthRoot(n, 2);
-  if (BigInteger.equal(BigInteger.exponentiate(squareRoot, BigInteger.BigInt(2)), n)) {
+  if (squareRoot**2n === n) {
     return primeFactor(squareRoot);
   }
   //! optimize n = f**3
   var cubicRoot = nthRoot(n, 3);
-  if (BigInteger.equal(BigInteger.exponentiate(cubicRoot, BigInteger.BigInt(3)), n)) {
+  if (cubicRoot**3n === n) {
     return primeFactor(cubicRoot);
   }
 
-  if (x <= 9007199254740991) {
-    return BigInteger.BigInt(primeFactorUsingWheel(x));
-  }
-  var s = BigInteger.toNumber(gcd(n, BigInteger.BigInt(304250263527210))); // a primorial
+  var s = Number(gcd(n, BigInt(304250263527210))); // a primorial - https://en.wikipedia.org/wiki/Primorial
   if (s !== 1) {
     //TODO: use-cases - ?
-    return BigInteger.BigInt(primeFactorUsingWheel(s));
+    return BigInt(primeFactorUsingWheel(s));
   }
-  return primeFactorByPollardRho(n);
+  if (x <= 9007199254740991) {
+    return BigInt(primeFactorUsingWheel(x));
+  }
+  if (isPrime(n)) {
+    return n;
+  }
+  var x0 = 2 - 1;
+  var g = n;
+  do {
+    x0 += 1;
+    g = brent(n, BigInt(x0));
+  } while (g == n);
+  var factor = g;
+  if (n / factor < factor) {
+    factor = n / factor;
+  }
+  var a = primeFactor(factor);
+  var b = a > nthRoot(nthRoot(n / factor, 2), 2) ? primeFactor(n / factor) : primeFactorUsingWheelBig(n / factor, a);
+  return min(a, b);
 }
+
+primeFactor._isPrime = isPrime;
 
 export default primeFactor;

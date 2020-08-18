@@ -28,7 +28,7 @@ Expression.Polynomial.prototype.toMathML = function (options) {
 // variable - Expression
 var printPartOfAddition = function (isLast, isFirst, coefficient, variable, options) {
   if (coefficient.equals(Expression.ZERO)) {
-    return (isLast && isFirst ? "<mn>0</mn>" : "");
+    return (isLast && isFirst ? Expression.ZERO.toMathML() : "");
   }
   var isNegative = false;
   if (coefficient.isNegative() && !isFirst) {
@@ -46,18 +46,50 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
          (c || !areBracketsRequired ? '' : '<mrow><mo>(</mo>') +
          (c ? '' : coefficient.toMathML(options)) +
          (c || !areBracketsRequired ? '' : '<mo>)</mo></mrow>') +
-         (c ? '' : '<mo>&times;</mo>') +
+         (c ? '' : '<mo>&sdot;</mo>') +
          variable.toMathML(options) +
          (c ? '' : '</mrow>');
 };
 
 
-var decimalToMathML = function (sign, number) {
-  return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
+var decimalToMathML = function (parts) {
+  var formatNumber = function (s) {
+    var locale = undefined;//TODO: ?
+    var numberFormat = getNumberFormat(locale);
+    if (numberFormat == undefined) {
+      return s;
+    }
+    return numberFormat.format(s + '1').slice(0, -numberFormat.format('1').length);
+  };
+  return (parts.exponentInteger !== "" ? "<mrow>" : "") +
+         (parts.plusSign !== "" || parts.minusSign !== "" ? "<mrow>" : "") +
+         (parts.plusSign !== "" ? "<mo>+</mo>" : "") +
+         (parts.minusSign !== "" ? "<mo>&minus;</mo>" : "") +
+         "<mn>" + formatNumber(parts.number) + "</mn>" +
+         (parts.plusSign !== "" || parts.minusSign !== "" ? "</mrow>" : "") +
+         (parts.exponentInteger !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo><msup>" + "<mn>" + formatNumber('10') + "</mn>" + decimalToMathML({plusSign: "", minusSign: parts.exponentMinusSign, number: parts.exponentInteger, exponentMinusSign: "", exponentInteger: ""}) + "</msup>" : "") +
+         (parts.exponentInteger !== "" ? "</mrow>" : "");
 };
+
 var complexToMathML = function (real, imaginary) {
-  return '<mrow>' + real + (imaginary.indexOf('<mo>&minus;</mo>') !== -1 ? '<mo>&minus;</mo>' : '<mo>+</mo>') + (imaginary !== '' ? imaginary.replace(/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>/g, '<mn>$1</mn>') + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
+  if (imaginary.replace(/<[^>]+>/g, '') === '1') {
+    return '<mrow>' + real + '<mo>+</mo><mi>&ii;</mi></mrow>';
+  }
+  if (imaginary.replace(/<[^>]+>/g, '').replace(/&minus;/g, '-') === '-1') {
+    return '<mrow>' + real + '<mo>&minus;</mo><mi>&ii;</mi></mrow>';
+  }
+  if (real === '') {
+    return '<mrow>' + imaginary + '<mo>' + (/<msup>/.test(imaginary) || /[^0-9]/.test(imaginary) ? '&sdot;' : '&it;') + '</mo><mi>&ii;</mi></mrow>';
+  }
+  var signBetween = '+';
+  if (/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>(?!<\/msup>)/.test(imaginary)) {
+    signBetween = '-';
+    imaginary = imaginary.replace(/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>(?!<\/msup>)/g, '<mn>$1</mn>');
+  }
+  return '<mrow>' + real + '<mo>' + (signBetween === '-' ? '&minus;' : '+') + '</mo>' + '<mrow>' + imaginary + '<mo>' + (/<msup>/.test(imaginary) || /[^0-9]/.test(imaginary) ? '&sdot;' : '&it;') + '</mo>' + '<mi>&ii;</mi>' + '</mrow>' + '</mrow>';
 };
+Expression._decimalToMathML = decimalToMathML;
+Expression._complexToMathML = complexToMathML;
 
   function isConstant(e) {
     if (e instanceof Expression.Symbol) {
@@ -89,19 +121,85 @@ var complexToMathML = function (real, imaginary) {
     return true;
   }
 
+var groupByTerm = function (e) {
+  if (e instanceof Expression.Division || e instanceof Expression.Addition) {
+    var numerator = e.getNumerator();
+    var denominator = e.getDenominator();
+    if (denominator instanceof Expression.Integer) {
+      var summands = [];
+      for (var summand of numerator.summands()) {
+        summands.push(summand);
+      }
+      var map = {};//TODO: FIX, test(?)
+      summands.reverse();
+      for (var i = 0; i < summands.length; i += 1) {
+        var summand = summands[i];
+        //var constant = Expression.getConstant(summand); - ?
+        var constant = Expression.ONE;
+        for (var factor of summand.factors()) {
+          if (isConstant(factor)) {
+            constant = constant.multiply(factor);
+          }
+        }
+        var term = summand.divide(constant);
+        var key = "_" + term.toString();
+        map[key] = map[key] || {
+          constant: Expression.ZERO,
+          term: term
+        };
+        map[key].constant = map[key].constant.add(constant.divide(denominator));
+      }
+      var result = null;
+      for (var key in map) {
+        if (Object.prototype.hasOwnProperty.call(map, key)) {
+          var constant = map[key].constant;
+          var term = map[key].term;
+          var s = false;
+          if (result != null && constant.isNegative()) {
+            constant = constant.negate();
+            s = true;
+          }
+          var x = new NonSimplifiedExpression(term.equals(Expression.ONE) ? constant : (constant.equals(Expression.ONE) ? map[key].term : new Expression.Multiplication(constant, map[key].term)));
+          result = result == null ? x : new Expression.Addition(result, s ? new Expression.Multiplication(Expression.ONE.negate(), x) : x);
+        }
+      }
+      return new NonSimplifiedExpression(result);
+    }
+  }
+  return undefined;
+};
+
+var getRounding = function (options) {
+  var rounding = options != undefined ? options.rounding : undefined;
+  if (options != undefined && rounding == undefined && options.fractionDigits != undefined && options.fractionDigits !== -1) {
+    console.debug('deprecated fractionDigits, use rounding instead');
+    rounding = {fractionDigits: options.fractionDigits};
+  }
+  return rounding;
+};
+
 //TODO: move
 Expression.toDecimalString = function (x, options) {
-  var fractionDigits = options != null ? options.fractionDigits : -1;
-  if (fractionDigits >= 0 && isConstant(x)) {
-    return toDecimalStringInternal(x, fractionDigits, decimalToMathML, complexToMathML);
+  var rounding = getRounding(options);
+  if (rounding != null) {
+    if (isConstant(x)) {
+      return toDecimalStringInternal(x, rounding, decimalToMathML, complexToMathML);
+    } else if (!Expression.has(x, NonSimplifiedExpression)) {
+      var grouped = groupByTerm(x);
+      if (grouped != undefined) {
+        return grouped.toMathML(options);
+      }
+    }
   }
   return undefined;
 };
 
 var getPrecedence = function (x, options) {
-  var fractionDigits = options != null ? options.fractionDigits : -1;
-  if (fractionDigits >= 0 && isConstant(x) && Expression.has(x, Expression.Complex)) {
-    return new Expression.Addition(Expression.ONE, Expression.ONE).getPrecedence();
+  var rounding = getRounding(options);
+  if (rounding != null && isConstant(x.unwrap()) && Expression.has(x.unwrap(), Expression.Complex)) {
+    if (!x.unwrap().equals(Expression.I)) {
+      return new Expression.Addition(Expression.ONE, Expression.ONE).getPrecedence();
+    }
   }
   return x.getPrecedence();
 };
@@ -176,8 +274,9 @@ Expression.Matrix.prototype.toMathML = function (options) {
     columnlinesAttribute = columnlinesAttribute.slice(0, -1);
   }
   //! 2017-07-06 rowspacing="0ex" was added to make it look better with Native MathML (when it is supported) and to have the same style as in mathml.css
+  //  rowspacing="0ex" is also needed when verticalStrike !== -1
   var useColumnspacing = verticalStrike !== -1 || horizontalStrike !== -1 || pivotCell != undefined || cellIdGenerator != undefined;
-  result += "<mtable" + (useColumnspacing ? " rowspacing=\"0ex\"" + " columnspacing=\"0em\"" : " rowspacing=\"0ex\"") + (variableNames != undefined ? " columnalign=\"right\"" : "") + (columnlinesAttribute !== "" ? " columnlines=\"" + columnlinesAttribute + "\"" : "") + ">";
+  result += "<mtable" + " rowspacing=\"0ex\"" + (useColumnspacing ? " columnspacing=\"0em\"" : "") + (variableNames != undefined ? " columnalign=\"right\"" : "") + (columnlinesAttribute !== "" ? " columnlines=\"" + columnlinesAttribute + "\"" : "") + ">";
   while (++i < rows) {
     var j = -1;
     if (variableNames != undefined) {// TODO: fix?
@@ -316,7 +415,7 @@ Expression.Function.prototype.toMathML = function (options) {
   var fa = !(x.a instanceof Expression.Matrix) && !(x.a instanceof NonSimplifiedExpression && x.a.e instanceof Expression.Matrix);//?
   //TODO: fix
   return "<mrow>" +
-         (typeof i18n !== "undefined" ? "<mi>" + (x.name === "rank" ? i18n.rankDenotation : (x.name === "sin" ? i18n.sinDenotation : (x.name === "tan" ? i18n.tanDenotation : x.name))) + "</mi>" : "<mi>" + x.name + "</mi>") +
+         "<mi>" + (Expression.denotations[x.name] || x.name) + "</mi>" +
          "<mo>&af;</mo>" +
          (fa ? "<mrow><mo>(</mo>" : "") +
          x.a.toMathML(Expression.setTopLevel(true, options)) +
@@ -344,24 +443,44 @@ Expression.Division.prototype.toMathML = function (options) {
          "</mfrac>";
 };
 
-Expression.Integer.prototype.toMathML = function (options) {
-  var d = Expression.toDecimalString(this, options);
-  if (d != undefined) {
-    return d;
+Expression.locale = undefined;
+var cacheLocale = '';
+var cachedNumberFormat = null;
+//TODO: remove !!!
+globalThis.addEventListener('languagechange', function (event) {
+  cacheLocale = '';
+});
+var getNumberFormat = function () {
+  var locale = Expression.locale;
+  if (cacheLocale !== locale) {
+    cacheLocale = locale;
+    cachedNumberFormat = new Intl.NumberFormat(locale, {maximumFractionDigits: 1/0, minimumFractionDigits: 0, useGrouping: false});
   }
+  return cachedNumberFormat;
+};
+
+Expression.Integer.prototype.toMathML = function (options) {
+  //var d = Expression.toDecimalString(this, options);
+  //if (d != undefined) {
+  //  return d;
+  //}
   var x = this;
-  var tmp = x.toString();
-  return tmp.slice(0, 1) === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp.slice(1) + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
+  var sign = x.compareTo(Expression.ZERO) < 0 ? '-' : '';
+  var abs = x.compareTo(Expression.ZERO) < 0 ? x.negate() : x;
+  var s = abs.value.toString();
+  var tmp = getNumberFormat().format(s);
+  return sign === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
 };
 Expression.BinaryOperation.prototype.toMathML = function (options) {
+  options = options == null ? {} : options;
   if (options != null &&
-      options.fractionDigits >= 0 &&
+      options.rounding != null &&
       this.unwrap() instanceof Expression.Exponentiation &&
       this.unwrap().a.unwrap() instanceof Expression.Symbol &&
       this.unwrap().a.unwrap() !== Expression.E &&
       this.unwrap().a.unwrap() !== Expression.PI &&
       (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
-    options = Object.assign({}, options, {fractionDigits: -1});
+    options = Object.assign({}, options, {rounding: null});
   }
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
@@ -369,7 +488,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   }
 
   //!2019-05-16
-  if (this instanceof Expression.Addition) {
+  if (this instanceof Expression.Addition && options.printId == undefined) {
     var s = [];
     var b = null;
     for (var x of this.summands()) {
@@ -435,9 +554,40 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       return "<mrow><mo>&minus;</mo>" + (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") + "</mrow>";
   }
   //TODO: fix spaces (matrix parsing)
+  // &times; looks better than &it; when multiplying matrices (?)
+  // &sdot; looks better than &times;
+  var isScalarOrMatrixSymbol = function (e) {
+    return Expression.isScalar(e.unwrap()) || e.unwrap() instanceof Expression.MatrixSymbol;
+  };
+  var base = function (e) {
+    return e instanceof Expression.Exponentiation && e.b.unwrap() instanceof Expression.Integer ? e.a.unwrap() : e;
+  };
+  var canUseInvisibleTimes = function (e) {
+    return !fa && !fb && (e.a.unwrap() instanceof Expression.Integer || base(e.a.unwrap()) instanceof Expression.Symbol || e.a.unwrap() instanceof Expression.Multiplication && base(e.a.unwrap().b.unwrap()) instanceof Expression.Symbol) && (base(e.b.unwrap()) instanceof Expression.Symbol || options.rounding == null && e.b.unwrap() instanceof Expression.SquareRoot);
+    //return options.rounding == null && !fa && !fb && isScalarOrMatrixSymbol(e.a) && isScalarOrMatrixSymbol(e.b) && !(e.a instanceof Expression.Integer && (e.b instanceof Expression.Integer || e.b instanceof Expression.Exponentiation && e.b.a instanceof Expression.Integer))
+  };
+  //!2020-08-02
+  if (this instanceof Expression.Multiplication && options.printId == undefined) {
+    var f = true;
+    for (var x = this; x != null; x = x instanceof Expression.Multiplication ? x.a.unwrap() : null) {
+      var factor = x instanceof Expression.Multiplication ? x.b.unwrap() : x;
+      if (!(base(factor).unwrap() instanceof Expression.Symbol && Expression.isScalar(factor))) {
+        f = false;
+      }
+    }
+    if (f) {
+      var s = [];
+      for (var x = this; x != null; x = x instanceof Expression.Multiplication ? x.a.unwrap() : null) {
+        var factor = x instanceof Expression.Multiplication ? x.b.unwrap() : x;
+        s.push(factor.toMathML(Expression.setTopLevel(fence, options)));
+      }
+      s = s.reverse().join('<mo>&it;</mo>');
+      return '<mrow>' + s + '</mrow>';
+    }
+  }
   return "<mrow>" +
          (fa ? "<mrow><mo>(</mo>" : "") + a.toMathML(Expression.setTopLevel(fa || options == undefined || options.isTopLevel, options)) + (fa ? "<mo>)</mo></mrow>" : "") +
-         (s === '*' ? '<mo>&times;</mo>' : (s === '-' ? '<mo>&minus;</mo>' : (s === '/' ? '<mo>&#x2215;</mo>' : '<mo>' + s + '</mo>'))) +
+         (s === '*' ? (canUseInvisibleTimes(this) ? '<mo>&it;</mo>' : '<mo>&sdot;</mo>') : (s === '-' ? '<mo>&minus;</mo>' : (s === '/' ? '<mo>&#x2215;</mo>' : (this instanceof Expression.Comma ? '<mo lspace="0em" rspace="0.55em">' + ',' + '</mo>' : '<mo>' + s + '</mo>')))) +
          (fb ? "<mrow><mo>(</mo>" : "") + b.toMathML(Expression.setTopLevel(fb, options)) + (fb ? "<mo>)</mo></mrow>" : "") +
          "</mrow>";
 };
@@ -450,10 +600,8 @@ Expression.Symbol.prototype.toMathML = function (options) {
     var indexes = s.slice(i + 1).replace(/^\(|\)$/g, "").split(",");
     var indexesMathML = "";
     for (var j = 0; j < indexes.length; j += 1) {
-      indexesMathML += (j !== 0 ? "<mo>,</mo>" : "") +
-                       (/^\d+$/.exec(indexes[j]) != undefined ? "<mn>" : "<mi>") +
-                       indexes[j] +
-                       (/^\d+$/.exec(indexes[j]) != undefined ? "</mn>" : "</mi>");
+      indexesMathML += j !== 0 ? "<mo>,</mo>" : "";
+      indexesMathML += /^\d+$/.exec(indexes[j]) != undefined ? Expression.Integer.fromString(indexes[j]).toMathML() : "<mi>" + indexes[j] + "</mi>";
     }
     if (indexes.length > 1) {
       indexesMathML = "<mrow>" + indexesMathML + "</mrow>";
@@ -463,7 +611,7 @@ Expression.Symbol.prototype.toMathML = function (options) {
            indexesMathML +
            "</msub>";
   }
-  return "<mi>" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="Identity Matrix" aria-label="Identity Matrix">' + s + '</span>' : s) + "</mi>";
+  return "<mi>" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="' + i18n.identityMatrix + '" aria-label="' + i18n.identityMatrix + '">' + s + '</span>' : s) + "</mi>";
 };
 Expression.Negation.prototype.toMathML = function (options) {
   var b = this.b;
@@ -490,9 +638,17 @@ Condition.prototype.toMathML = function (options) {
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
-    s += (i !== 0 ? '<mo>,</mo>' : '');
+    var c = this.array[i];
+    s += (i !== 0 ? '<mo lspace="0em" rspace="0.55em">,</mo>' : '');
     s += '<mrow>';
-    s += this.array[i].expression.toMathML(options) + (this.array[i].operator === Condition.NEZ ? '<mo>&ne;</mo><mn>0</mn>' : '') + (this.array[i].operator === Condition.EQZ ? '<mo>=</mo><mn>0</mn>' : '');
+    var operator = '<mo>' + (c.operator === Condition.NEZ ? '&ne;' : (c.operator === Condition.EQZ ? '=' : (c.operator === Condition.GTZ ? '&gt;' : '???'))) + '</mo>';
+    if (c.expression instanceof Expression.Addition && c.expression.a instanceof Expression.Symbol && c.expression.b instanceof Expression.Integer) {//TODO: ?
+      var left = c.expression.a;
+      var right = c.expression.b.negate();
+      s += left.toMathML(options) + operator + right.toMathML(options);
+    } else {
+      s += c.expression.toMathML(options) + operator + Expression.ZERO.toMathML();
+    }
     s += '</mrow>';
   }
   return this.array.length === 1 ? s : '<mrow>' + s + '</mrow>';
@@ -518,7 +674,7 @@ Expression.Radians.prototype.toMathML = function (options) {
 
 NonSimplifiedExpression.prototype.toMathML = function (options) {
   //?
-  //options = options.fractionDigits >= 0 ? Object.assign({}, options, {fractionDigits: -1}) : options;
+  //options = options.rounding != null ? Object.assign({}, options, {rounding: null}) : options;
   if (options != null && options.printId != undefined) {
     return "<mrow id=\"" + this.getId() + "\">" + this.e.toMathML(options) + "</mrow>";
   }

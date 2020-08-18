@@ -22,8 +22,11 @@ function Condition(array) {
 Condition.NEZ = " != 0";
 Condition.EQZ = " == 0";
 
+Condition.GTZ = " > 0";
+//Condition.GTEZ = " >= 0";
+
 Condition.prototype._and = function (operator, e) {
-  if (operator !== Condition.NEZ && operator !== Condition.EQZ) {
+  if (operator !== Condition.NEZ && operator !== Condition.EQZ && operator !== Condition.GTZ) {
     throw new TypeError();
   }
   if (e == undefined) {
@@ -64,10 +67,11 @@ Condition.prototype._and = function (operator, e) {
   if (Expression.has(e, Expression.Sin) ||
       Expression.has(e, Expression.Cos) ||
       Expression.has(e, Expression.Exponentiation) ||
-      Expression.has(e, Expression.Arctan)) {
+      Expression.has(e, Expression.Arctan) ||
+      Expression.has(e, Expression.Logarithm)) {
     if (oldArray.length > 0) {//TODO: test, fix
     e = Expression._map(function (x) {
-      if (x instanceof Expression.Function ||
+      if (x instanceof Expression.Function && !(x instanceof Expression.NthRoot) ||
           x instanceof Expression.Exponentiation && (!(x.b instanceof Expression.Integer) || !(x.a instanceof Expression.Symbol))) {
         var r = x instanceof Expression.Exponentiation ? x.b : x.a;
         var arg = null;
@@ -96,6 +100,8 @@ Condition.prototype._and = function (operator, e) {
                   return x.a.pow(yy);
                 } else if (x instanceof Expression.Arctan) {
                   return yy.arctan();
+                } else if (x instanceof Expression.Logarithm) {
+                  return yy.logarithm();
                 } else {
                   yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) ? new Expression.Radians(yy) : yy;
                   if (x instanceof Expression.Sin) {
@@ -210,6 +216,13 @@ Condition.prototype._and = function (operator, e) {
 
     var p = Expression.getMultivariatePolynomial(y.expression);
     if (p != null) {
+      //!new 2018-12-24
+      //TODO: fix (?Polynomial#getContent()?)
+        var t = Expression.getNthRootConjugate(p.p.getCoefficient(p.p.getDegree()));
+        if (t != undefined && Expression.isConstant(t)) {//TODO: fix
+          return add(oldArray, {expression: t.multiply(y.expression), operator: y.operator});
+        }
+      //!
       var content = p.p.getContent();
       if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
         // content * y.expression.divide(content)
@@ -339,7 +352,8 @@ Condition.prototype._and = function (operator, e) {
       if ((x.operator === Condition.NEZ && y.operator === Condition.EQZ ||
            x.operator === Condition.EQZ && y.operator === Condition.NEZ) &&
            (Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression)) || true)) {
-        var g = x.expression.gcd(y.expression);
+        var g = x.expression.polynomialGCD(y.expression);
+        //var g = x.expression.gcd(y.expression);
         while (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
           if (x.operator === Condition.EQZ) {
             x = {
@@ -381,12 +395,16 @@ Condition.prototype._and = function (operator, e) {
         //}
       }
       var newMethodEnabled = true;
-      if (x.operator === Condition.NEZ && y.operator === Condition.EQZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+      var singleVariablePolynomials = Expression.isSingleVariablePolynomial(x.expression) &&
+                                      Expression.isSingleVariablePolynomial(y.expression) &&
+                                      Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression));
+      if (x.operator === Condition.NEZ && y.operator === Condition.EQZ && singleVariablePolynomials) {
         y = y;
-      } else if (x.operator === Condition.EQZ && y.operator === Condition.NEZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+      } else if (x.operator === Condition.EQZ && y.operator === Condition.NEZ && singleVariablePolynomials) {
         y = x;
-      } else if (x.operator === Condition.EQZ && y.operator === Condition.EQZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
-        var g = x.expression.gcd(y.expression);
+      } else if (x.operator === Condition.EQZ && y.operator === Condition.EQZ && singleVariablePolynomials) {
+        var g = x.expression.polynomialGCD(y.expression);
+        //var g = x.expression.gcd(y.expression);
         if (g instanceof Expression.Integer) {
           return null;
         }
@@ -395,7 +413,7 @@ Condition.prototype._and = function (operator, e) {
           expression: g
         };
         return addRest(newArray, oldArray, i, y);
-      } else if (x.operator === Condition.NEZ && y.operator === Condition.NEZ && Expression.isSingleVariablePolynomial(x.expression.multiply(y.expression))) {
+      } else if (x.operator === Condition.NEZ && y.operator === Condition.NEZ && singleVariablePolynomials) {
         var g = x.expression.gcd(y.expression);
         x = {
           operator: x.operator,
@@ -410,6 +428,9 @@ Condition.prototype._and = function (operator, e) {
 
         //!new 2020-16-02
         var getConstant = function (e) {
+          if (e instanceof Expression.Multiplication && e.a instanceof Expression.Matrix) {//TODO: ?
+            return e.a.multiply(getConstant(e.b));
+          }
           var c = Expression.getConstant(e);
           for (var f of e.divide(c).factors()) {
             if (f instanceof Expression.NthRoot && Expression.isConstant(f.a)) {
@@ -501,10 +522,10 @@ Condition.prototype._and = function (operator, e) {
             }
           }
         }
-        if (newMethodEnabled && false) {
+        if (newMethodEnabled && true) {
           // Condition.TRUE.andNotZero(RPN('b*c-a*d')).andZero(RPN('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
           if (x.operator === Condition.NEZ && y.operator === Condition.EQZ) {
-            // consider y = x * q + r, where q is not zero
+            // consider y = x * q + r, where q is not zero (? and x is not zero)
             // then y != r
 
             var pivot = getPivotMonomial(x.expression);
@@ -515,8 +536,24 @@ Condition.prototype._and = function (operator, e) {
                 if (q instanceof Expression.Integer && !q.equals(Expression.ZERO)) {//TODO: when q is a multiplicaiton of other != 0 conditions
                   //?TODO: prevent infinite loop: how?
                   var r = y.expression.subtract(q.multiply(x.expression));
-                  if (oldArray.length < add(oldArray.slice(0), {expression: r, operator: Condition.NEZ}).length) {//?TODO: better way
-                    return addRest(add(add(newArray, x), {expression: r, operator: Condition.NEZ}), oldArray, i - 1, y);
+                  var rr = {expression: r, operator: Condition.NEZ};
+                  var flag = false;
+                  if (true) {
+                    //! 2020-07-05
+                    var flag = false;
+                    for (var ii = 0; ii < oldArray.length; ii++) {
+                      var n = oldArray[ii]
+                      if (n.operator === Condition.EQZ) {
+                        var g = n.expression.gcd(rr.expression);
+                        if (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {
+                          flag = true;
+                        }
+                      }
+                    }
+                  }
+                  //flag = oldArray.length < add(oldArray.slice(0), rr).length;//?TODO: better way
+                  if (flag) {
+                    return addRest(add(add(newArray, x), rr), oldArray, i - 1, y);
                   }
                 }
               }
@@ -525,7 +562,7 @@ Condition.prototype._and = function (operator, e) {
           }
         }
         //!
-        if (!newMethodEnabled) {
+        if (!newMethodEnabled || true) {
 
         var p = null;
         var pOperator = null;
@@ -620,22 +657,26 @@ Condition.prototype._and = function (operator, e) {
         }
         if (pp != null) {
           var polynomial = Polynomial.toPolynomial(p, pp.v);
-          var a = polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
-          if (!a.equals(p) &&
-              (pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined) &&
+          if ((pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined || (!pp.p.getCoefficient(0).equals(Expression.ZERO) && Expression.isConstant(pp.p.getCoefficient(0)))) &&
+              (!newMethodEnabled || Expression.isConstant(pp.p.getCoefficient(0))) && //!? new 2020-06-18
               !(p instanceof Expression.Symbol)) {//TODO: replace only if the result is more simple (?): a*v != 0 or b != 0
-            var tmp = {
-              operator: pOperator,
-              expression: a
-            };
-            newArray = add(newArray, tmp);
-            if (newArray == null) {
-              return null;
-            }
-            if (true) {
-              return addRest(newArray, oldArray, i, other);
+            var a = polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
+            if (!a.equals(p)) {
+              var tmp = {
+                operator: pOperator,
+                expression: a
+              };
+              newArray = add(newArray, tmp);
+              if (newArray == null) {
+                return null;
+              }
+              if (true) {
+                return addRest(newArray, oldArray, i, other);
+              } else {
+                y = other;
+              }
             } else {
-              y = other;
+              newArray.push(x);
             }
           } else {
             newArray.push(x);
@@ -701,12 +742,13 @@ Condition.prototype._and = function (operator, e) {
     //TODO: only when multiple variables and has `f != 0`
     //TODO: test with replacements
     //TODO: !!!
-    if (newMethodEnabled && false) {
+    if (newMethodEnabled && true) {
     var base = new Condition(newArray);
     for (var i = 0; i < newArray.length; i += 1) {
       var y = newArray[i];
       if (y.operator === Condition.EQZ) {
         var f = y.expression;
+        /*
         //if (!Expression.isSingleVariablePolynomial(f)) {// performace (?)
           if (!Expression.isConstant(f.divide(Expression.simpleDivisor(f)))) {
             while (!Expression.isConstant(f)) {
@@ -719,6 +761,23 @@ Condition.prototype._and = function (operator, e) {
             }
           }
         //}
+        */
+          var g = null;
+          for (var s of f.summands()) {
+            var a = s.divide(Expression.getConstant(s));
+            if (g == null) {
+              g = a;
+            } else {
+              g = g.gcd(a);
+            }
+          }
+          if (!g.equals(Expression.ONE) && f instanceof Expression.Addition) {
+            // can g be equal to 0 ?
+            if (new Condition(newArray.slice(0, i).concat(newArray.slice(i + 1))).andZero(g).isFalse()) { // TODO: fix
+              return add(newArray, {expression: g, operator: Condition.NEZ});
+            }
+          }
+
       }
     }
     }
@@ -746,6 +805,9 @@ Condition.prototype.andNotZero = function (e) {
 Condition.prototype.andZero = function (e) {
   return this._and(Condition.EQZ, e);
 };
+Condition.prototype.andGreaterZero = function (e) {
+  return this._and(Condition.GTZ, e);
+};
 Condition.prototype.isFalse = function () {
   return this === Condition.FALSE;
 };
@@ -763,7 +825,7 @@ Condition.prototype.toString = function (options) {
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
-    s += (i !== 0 ? ', ' : '') + this.array[i].expression.toString(options) + (this.array[i].operator === Condition.NEZ ? ' != 0' : '') + (this.array[i].operator === Condition.EQZ ? ' == 0' : '');
+    s += (i !== 0 ? ', ' : '') + this.array[i].expression.toString(options) + (this.array[i].operator === Condition.NEZ ? ' != 0' : '') + (this.array[i].operator === Condition.EQZ ? ' == 0' : (this.array[i].operator === Condition.GTZ ? ' > 0' : ''));
   }
   return s;
 };

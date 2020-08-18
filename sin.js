@@ -166,7 +166,7 @@ var map = function (f, u) {
     return u;
   }
   if (u instanceof Expression.NthRoot) {
-    return u;
+    return f(u);
   }
   if (u instanceof Expression.Negation) {
     return u;//?
@@ -185,10 +185,13 @@ var map = function (f, u) {
     return u;//?
   }
   if (u instanceof Expression.Symbol) {
-    return u;//?
+    return f(u);//?
   }
   if (u instanceof Expression.Arctan) {
     return f(map(f, u.a).arctan());
+  }
+  if (u instanceof Expression.Logarithm) {
+    return f(map(f, u.a).logarithm());
   }
   throw new TypeError();
 };
@@ -256,6 +259,7 @@ var expandTrigonometryRules = function (A, type) {
     }
   }
   if (A instanceof Expression.Symbol ||
+      A instanceof Expression.Exponentiation && A.a instanceof Expression.Symbol && Expression.isScalar(A.a) && A.b instanceof Expression.Integer && A.b.compareTo(Expression.ONE) > 0 || // TODO: ?
       A instanceof Expression.Degrees ||
       A instanceof Expression.Radians ||
       A instanceof Expression.Complex ||
@@ -367,7 +371,12 @@ Expression.Division.prototype.compare4Multiplication = function (y) {
 Expression.Division.prototype.compare4MultiplicationSymbol = function () {
   return +1;//TODO:
 };
-
+Expression.Division.prototype.compare4MultiplicationInteger = function () {
+  return +1;//TODO:
+};
+Expression.Division.prototype.compare4MultiplicationNthRoot = function () {
+  return +1;//TODO:
+};
 
 Expression.simplifyTrigonometry = simplifyTrigonometry;//?
 
@@ -594,14 +603,65 @@ var simplifyConstantValue = function (x, type) {
   return undefined;
 };
 
+Expression.prototype.cosh = function () {
+  var a = this;
+  return a.exp().add(a.negate().exp()).divide(Expression.TWO);
+};
+
 Expression.prototype.sinh = function () {
   var a = this;
   return a.exp().subtract(a.negate().exp()).divide(Expression.TWO);
 };
 
-Expression.prototype.cosh = function () {
+Expression.prototype.tanh = function () {
   var a = this;
-  return a.exp().add(a.negate().exp()).divide(Expression.TWO);
+  return a.exp().subtract(a.negate().exp()).divide(a.exp().add(a.negate().exp()));
+};
+
+Expression.prototype.coth = function () {
+  var a = this;
+  return a.exp().add(a.negate().exp()).divide(a.exp().subtract(a.negate().exp()));
+};
+
+Expression.prototype.arccos = function () {
+  var a = this;
+  //return a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot().divide(a).arctan();
+  var arcsin = a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
+  return arcsin.subtract(Expression.PI.divide(Expression.TWO)).negate();
+};
+
+Expression.prototype.arcsin = function () {
+  var a = this;
+  // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
+  return a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
+};
+
+Expression.prototype.arccot = function () {
+  var a = this;
+  //TODO: details ?
+  // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
+  return a.arctan().subtract(Expression.PI.divide(Expression.TWO)).negate();
+};
+
+Expression.prototype.arcosh = function () {
+  var x = this;
+  // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
+  return x.add(x.multiply(x).subtract(Expression.ONE).squareRoot()).logarithm();
+};
+Expression.prototype.arsinh = function () {
+  var x = this;
+  // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
+  return x.add(x.multiply(x).add(Expression.ONE).squareRoot()).logarithm();
+};
+Expression.prototype.artanh = function () {
+  var x = this;
+  // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
+  return x.add(Expression.ONE).divide(x.subtract(Expression.ONE).negate()).logarithm().divide(Expression.TWO);
+};
+Expression.prototype.arcoth = function () {
+  var x = this;
+  // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
+  return x.add(Expression.ONE).divide(x.subtract(Expression.ONE)).logarithm().divide(Expression.TWO);
 };
 
 var isArgumentValid = function (x, type) {
@@ -621,6 +681,10 @@ var isArgumentValid = function (x, type) {
   }
   if (x instanceof Expression.Symbol) {
     return Expression.isScalar(x);
+  }
+  if (x instanceof Expression.Exponentiation) {
+    //TODO: ?
+    return x.a instanceof Expression.Symbol && Expression.isScalar(x.a) && x.b instanceof Expression.Integer && x.b.compareTo(Expression.ONE) > 0;
   }
   if (x instanceof Addition) {
     return isArgumentValid(x.a, type) && isArgumentValid(x.b, type);
@@ -647,9 +711,11 @@ var isArgumentValid = function (x, type) {
     var t = x.divide(c);
     if (Expression.isScalar(x) &&
         (c instanceof Integer || c instanceof Expression.Complex) &&
-        (t instanceof Multiplication || t instanceof Expression.Symbol)) {
+        (t instanceof Multiplication || t instanceof Expression.Symbol || t instanceof Expression.Exponentiation)) {
       for (var y of t.factors()) {
-        if (!(y instanceof Expression.NthRoot) && !(y instanceof Expression.Symbol)) {
+        if (!(y instanceof Expression.NthRoot) &&
+            !(y instanceof Expression.Symbol) &&
+            !(y instanceof Expression.Exponentiation && y.a instanceof Expression.Symbol && Expression.isScalar(y.a) && y.b instanceof Expression.Integer && y.b.compareTo(Expression.ONE) > 0)) {
           return false;
         }
       }
@@ -796,7 +862,13 @@ Expression.Degrees.prototype.equals = function (y) {
 Expression.Degrees.prototype.compare4AdditionSymbol = function (x) {
   return -1;
 };
+Expression.Degrees.prototype.negate = function () {
+  return new Expression.Degrees(this.value.negate());
+};
 
+Expression.Degrees.prototype.multiply = function (y) {
+  return new Expression.Degrees(this.value.multiply(y));
+};
 
 //!new 2019-12-27
 Expression.Radians = function (value) {
@@ -920,11 +992,11 @@ Expression.prototype.arctan = function () {
   if (Expression.isConstant(x)) {
     var value = Number(Expression.toDecimalString(x, {fractionDigits: 2}).replace(/<\/?[^>]+>/g, ''));
     console.assert(!Number.isNaN(value));
-    var guess = Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 1.5;
-    if (RPN('tan(' + guess + '/180*pi' + ')').equals(x)) {
-      return RPN(guess + '/180*pi');
+    var guess = Integer.fromNumber(Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 3).divide(Integer.fromNumber(360)).multiply(Expression.PI);
+    if (guess.tan().equals(x)) {
+      return guess;
     }
-    throw new RangeError("NotSupportedError")
+    throw new RangeError("NotSupportedError");
   }
   if (x instanceof Division) {
     var n = x.getNumerator();
@@ -933,6 +1005,49 @@ Expression.prototype.arctan = function () {
       var y = Expression.TWO.multiply(x).divide(Expression.ONE.subtract(x._pow(2)));
       return (new Arctan(y)).divide(Expression.TWO);
     }
+  }
+  if (x instanceof Expression.Matrix) {
+    if (x.matrix.isDiagonal()) {
+      return new Expression.Matrix(x.matrix.map(function (e, i, j) {
+        return i === j ? e.arctan() : Expression.ZERO;
+      }));
+    }
+    // https://math.stackexchange.com/questions/2077674/what-is-the-alternate-form-of-arcsin-x
+    // y = arctan(x)
+    // tan(y) = x
+    // -i*(e**(iy)-e**(-iy))/(e**(iy)+e**(-iy)) = x
+    // y = ln((i-x)/(i+x))/(2i)
+    // y = (ln((i-x)/(i+x)/i)+ln(i))/(2i)
+    //TODO: details (a link or a formula - ?)
+    var b = Expression.I.subtract(x).divide(Expression.I.add(x)).matrix;
+    //var tmp = Expression.getFormaDeJordan(b, Expression.getEigenvalues(b).eigenvalues, Expression.getEigenvalues(b).multiplicities);
+    //var J = tmp.J;
+    var c = b.map(function (e, i, j) {
+      return i === j ? e : Expression.ZERO;
+    });
+    //c = tmp.P.multiply(c).multiply(tmp.P_INVERSED);
+    var complexLogarithm = function (e) {
+      if (e instanceof Division) {
+        return complexLogarithm(e.a).subtract(e.b.logarithm());
+      }
+      var c = Expression.getComplexConjugate(e);
+      if (c != undefined) {
+        var real = e.add(c).divide(Expression.TWO);
+        var imaginary = e.subtract(c).multiply(Expression.I.negate()).divide(Expression.TWO);
+        var phi = real.equals(Expression.ZERO) ? Expression.PI.divide(Expression.TWO) : imaginary.divide(real).arctan();
+        if (real.isNegative()) {//?
+          phi = phi.add(Expression.PI);
+        }
+        // https://www.varsitytutors.com/hotmath/hotmath_help/topics/polar-form-of-a-complex-number
+        return e.divide(Expression.I.multiply(phi).exp()).logarithm().add(Expression.I.multiply(phi));
+      }
+      return e.logarithm();
+    };
+    var lnC = new Expression.Matrix(c.map(function (e, i, j) {
+      return i === j ? complexLogarithm(e) : Expression.ZERO;
+    }));
+    //Expression.I.multiply(Expression.PI).divide(Expression.TWO);
+    return new Expression.Matrix(b.multiply(c.inverse())).logarithm().add(lnC).divide(Expression.TWO.multiply(Expression.I));
   }
   /*
   var t = simplifyConstantValue(x, "sin");
@@ -944,4 +1059,20 @@ Expression.prototype.arctan = function () {
   }
   */
   return new Arctan(x);
+};
+
+Expression.prototype.tan = function () {
+  var a = this;
+  //return a.sin().divide(a.cos());
+  var a2 = a.multiply(Expression.TWO);
+  return a2.sin().divide(a2.cos().add(Expression.ONE));
+};
+Expression.prototype.cot = function () {
+  var a = this;
+  if (a instanceof Expression.Matrix) {
+    return a.cos().divide(a.sin());
+  }
+  //return a.cos().divide(a.sin());
+  var a2 = a.multiply(Expression.TWO);
+  return a2.cos().add(Expression.ONE).divide(a2.sin());
 };

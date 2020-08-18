@@ -5,9 +5,14 @@ import toDecimalStringInternal from './toDecimalString.js';
 function PolynomialRoot(polynomial, interval) {
   Expression.Symbol.call(this, "@");
   this.polynomial = polynomial;
+  //TODO: https://www.wolframalpha.com/input/?i=x**5%2B7x**3%2Bx**2%2Bx%2B1%3D0
   this.interval = interval;
 }
 PolynomialRoot.prototype = Object.create(Expression.Symbol.prototype);
+
+PolynomialRoot.prototype.toDecimal = function (precision) {
+  return this.polynomial.getZero(this.interval, precision);
+};
 
 Expression.PolynomialRoot = PolynomialRoot;
 
@@ -43,6 +48,7 @@ function makeExpressionWithPolynomialRoot(e, root) {
   var c = function (x) {
     return Polynomial.toPolynomial(x, v).divideAndRemainder(v.polynomial).remainder.calcAt(v);
   };
+  var oldE = e;
   e = c(e.getNumerator()).divide(c(e.getDenominator()));
   if (e instanceof Expression.Integer) {
     return e;
@@ -83,25 +89,26 @@ ExpressionWithPolynomialRoot.prototype.toString = function (options) {
     return Expression.ZERO.toString(options);
   }
   //return this.e.toString(options);
-  var tmp = toDecimalStringInternal(this.e, options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, undefined, undefined);
+  if (options.fractionDigits !== -1 && options.fractionDigits != null) {
+    console.debug('options.fractionDigits is deprecated, please use options.rounding');
+  }
+  var rounding = options.rounding != null ? options.rounding : (options.fractionDigits !== -1 && options.fractionDigits != null ? {fractionDigits: options.fractionDigits} : {fractionDigits: 3});
+  var tmp = toDecimalStringInternal(this.e, rounding, undefined, undefined);
   return tmp;
 };
 
 ExpressionWithPolynomialRoot.prototype.toMathML = function (options) {
-  //TODO: remove
-  var decimalToMathML = function (sign, number) {
-    return (sign < 0 ? "<mrow>" : "") + (sign < 0 ? "<mo>&minus;</mo>" : "") + "<mn>" + number + "</mn>" + (sign < 0 ? "</mrow>" : "");
-  };
-  var complexToMathML = function (real, imaginary) {
-    return '<mrow>' + real + (imaginary.indexOf('<mo>&minus;</mo>') !== -1 ? '<mo>&minus;</mo>' : '<mo>+</mo>') + (imaginary !== '' ? imaginary.replace(/<mrow><mo>&minus;<\/mo><mn>([^<]*)<\/mn><\/mrow>/g, '<mn>$1</mn>') + '<mo>&it;</mo>' : '') + '<mi>&ii;</mi>' + '</mrow>';
-  };
-
+  options = options || {};
   //TODO:
   if (this.equals(Expression.ZERO)) {
     return Expression.ZERO.toMathML(options);
   }
   //return this.e.toMathML(options);
-  var tmp = toDecimalStringInternal(this.e, options != null && options.fractionDigits !== -1 && options.fractionDigits != null ? options.fractionDigits : 3, decimalToMathML, complexToMathML);
+  if (options.fractionDigits !== -1 && options.fractionDigits != null) {
+    console.debug('options.fractionDigits is deprecated, please use options.rounding');
+  }
+  var rounding = options.rounding != null ? options.rounding : (options.fractionDigits !== -1 && options.fractionDigits != null ? {fractionDigits: options.fractionDigits} : {fractionDigits: 3});
+  var tmp = toDecimalStringInternal(this.e, rounding, Expression._decimalToMathML, Expression._complexToMathML);
   return tmp;
 };
 
@@ -153,6 +160,9 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
   return true;
 };
 
+ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
+  return makeExpressionWithPolynomialRoot(this.e._nthRoot(n), this.root);
+};
 
   // https://math.stackexchange.com/questions/309178/polynomial-root-finding
   function SturmSequence(f) {
@@ -261,6 +271,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
   Polynomial.prototype.getRootsInterval = function () {
     //TODO: only integer coefficients (?)
     // https://en.wikipedia.org/wiki/Sturm%27s_theorem#Number_of_real_roots
+    // https://en.wikipedia.org/wiki/Geometrical_properties_of_polynomial_roots#Lagrange's_and_Cauchy's_bounds
     var max = null;
     //TODO: fix the iteration
     for (var i = 0; i < this.getDegree(); i += 1) {
@@ -273,6 +284,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     return {a: M.negate(), b: M};
   };
 
+  //TODO: BigDecimal - ?, rounding - ?
   Polynomial.prototype.getZero = function (interval, precision) {
     var e = Expression.pow(Expression.TEN, precision); // epsilon^-1
     if (!(e instanceof Expression.Integer)) {
@@ -364,8 +376,11 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
 
   Polynomial.prototype.hasRoot = function (polynomialRoot) {
     var f = this;
+    if (f.getDegree() === -1) {
+      return false;
+    }
     var p = polynomialRoot.polynomial;
-    var g = gcd(f, p);
+    var g = Polynomial.polynomialGCD(f, p);
     if (g.getDegree() < 1) {
       return false;
     }
@@ -385,6 +400,7 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
   };
 
   //TODO: optimize - ?
+  /*
   var _countMultiplicities = function (multiplicities, rootIntervals, f) {
     var d = f.derive();
     var g = gcd(f, d);
@@ -402,25 +418,70 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
       _countMultiplicities(multiplicities, rootIntervals, g);
     }
   };
+  */
 
   // Polynomial.toPolynomial(RPN("x^3-8x^2+21x-18"), RPN("x")).getZeros(3).result.toString()
   Polynomial.prototype.getZeros = function (precision) {
+    precision = precision || 1;
     //TODO: test
     var content = this.getContent();
     var f = this.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
-
-    if (!f.hasIntegerCoefficients()) {
-      //return [];
-      return {result: [], multiplicities: []};
-    }
 
     // https://en.wikipedia.org/wiki/Square-free_polynomial
     var d = f.derive();
     var a0 = gcd(f, d);
     var p = f.divideAndRemainder(a0).quotient;
 
+    if (a0.getDegree() !== 0) {
+      p = p.divideAndRemainder(gcd(p, a0)).quotient; // roots with multiplicity = 1 (?)
+      var tmp1 = p.getZeros(precision);
+      var tmp2 = a0.getZeros(precision);
+      return {
+        result: tmp1.result.concat(tmp2.result),
+        multiplicities: tmp1.multiplicities.concat(tmp2.multiplicities.map(function (m) {
+          return m + 1;
+        }))
+      };
+    }
+
+    if (p.getDegree() === 0) {
+      return {
+        result: [],
+        multiplicities: []
+      };
+    }
+
     //!
     p = p.scale(p.getContent().inverse());
+    //!
+
+    if (!f.hasIntegerCoefficients()) {
+      //?new
+      var variable = new Expression.Symbol('$$')
+      var e = f.calcAt(variable);
+      var c = Expression.getConjugate(e);
+      if (c != null) {
+        var result = [];
+        var tmp = Polynomial.toPolynomial(c.multiply(e), variable).getZeros(precision);
+        for (var i = 0; i < tmp.result.length; i += 1) {
+          if (this.hasRoot(tmp.result[i].root)) {
+            result.push(tmp.result[i]);
+          } else {
+            //TODO:?
+            console.debug(tmp.result[i].root);
+          }
+        }
+        return {result: result, multiplicities: new Array(result.length).fill(1)};
+      }
+      //?
+      //return [];
+      return {result: [], multiplicities: []};
+    }
+
+    //!new
+    if (p.getDegree() === 3) {
+      //?
+    }
     //!
 
     // https://en.wikipedia.org/wiki/Sturm%27s_theorem
@@ -443,11 +504,8 @@ ExpressionWithPolynomialRoot.prototype.isUnaryPlusMinus = function () {
     //return result;
 
     //?
-    var multiplicities = new Array(intervals.length);
-    for (var i = 0; i < intervals.length; i += 1) {
-      multiplicities[i] = 1;
-    }
-    _countMultiplicities(multiplicities, intervals, a0);
+    var multiplicities = new Array(result.length).fill(1);
+    //_countMultiplicities(multiplicities, intervals, a0);
 
     return {result: result, multiplicities: multiplicities};
   };

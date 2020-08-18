@@ -206,6 +206,9 @@
     if (typeof x === "string") {
       return fromString(x);
     }
+    if (x instanceof BigIntegerInternal) {
+      return x;
+    }
     throw new RangeError();
   };
 
@@ -524,6 +527,15 @@
   BigIntegerInternal.greaterThan = function (a, b) {
     return compareTo(a, b) > 0;
   };
+  BigIntegerInternal.notEqual = function (a, b) {
+    return compareTo(a, b) !== 0;
+  };
+  BigIntegerInternal.lessThanOrEqual = function (a, b) {
+    return compareTo(a, b) <= 0;
+  };
+  BigIntegerInternal.greaterThanOrEqual = function (a, b) {
+    return compareTo(a, b) >= 0;
+  };
 
   BigIntegerInternal.exponentiate = function (a, b) {
     var n = BigIntegerInternal.toNumber(b);
@@ -533,11 +545,15 @@
     if (n > 9007199254740991) {
       var y = BigIntegerInternal.toNumber(a);
       if (y === 0 || y === -1 || y === +1) {
-        return BigIntegerInternal.BigInt(y === -1 && BigIntegerInternal.toNumber(BigIntegerInternal.remainder(b, BigIntegerInternal.BigInt(2))) === 0 ? +1 : y);
+        return y === -1 && BigIntegerInternal.toNumber(BigIntegerInternal.remainder(b, BigIntegerInternal.BigInt(2))) === 0 ? BigIntegerInternal.unaryMinus(a) : a;
       }
       throw new RangeError();
     }
-    var accumulator = BigIntegerInternal.BigInt(1);
+    if (n < 1) {
+      return BigIntegerInternal.BigInt(1);
+    }
+    var accumulator = a;
+    n -= 1;
     if (n > 0) {
       var x = a;
       while (n >= 2) {
@@ -559,6 +575,19 @@
     }
     if (radix !== 10 && (radix < 2 || radix > 36 || radix !== Math.floor(radix))) {
       throw new RangeError("radix argument must be an integer between 2 and 36");
+    }
+
+    // console.time(); var n = BigInteger.exponentiate(2**4, 2**16); console.timeEnd(); console.time(); n.toString(16).length; console.timeEnd();
+    if (this.length > 8 && true) { // https://github.com/GoogleChromeLabs/jsbi/blob/c9b179a4d5d34d35dd24cf84f7c1def54dc4a590/jsbi.mjs#L880
+      if (this.sign === 1) {
+        return '-' + BigIntegerInternal.unaryMinus(this).toString(radix);
+      }
+      var s = Math.floor(this.length * Math.log(BASE) / Math.log(radix) / 2 + 0.5 - 1);
+      var split = BigIntegerInternal.exponentiate(BigIntegerInternal.BigInt(radix), BigIntegerInternal.BigInt(s));
+      var q = BigIntegerInternal.divide(this, split);
+      var r = BigIntegerInternal.subtract(this, BigIntegerInternal.multiply(q, split));
+      var a = r.toString(radix);
+      return q.toString(radix) + '0'.repeat(s - a.length) + a;
     }
 
     var a = this;
@@ -610,11 +639,7 @@
     result += remainder[k].toString(radix);
     while (++k < size) {
       var t = remainder[k].toString(radix);
-      var j = groupLength - t.length;
-      while (--j >= 0) {
-        result += "0";
-      }
-      result += t;
+      result += "0".repeat(groupLength - t.length) + t;
     }
     return result;
   };
@@ -655,6 +680,15 @@
   BigIntWrapper.greaterThan = function (a, b) {
     return a > b;
   };
+  BigIntWrapper.notEqual = function (a, b) {
+    return a !== b;
+  };
+  BigIntWrapper.lessThanOrEqual = function (a, b) {
+    return a <= b;
+  };
+  BigIntWrapper.greaterThanOrEqual = function (a, b) {
+    return a >= b;
+  };
 
   BigIntWrapper.exponentiate = function (a, b) { // a**b
     if (typeof a !== "bigint") {
@@ -670,13 +704,24 @@
     if (n > 9007199254740991) {
       var y = Number(a);
       if (y === 0 || y === -1 || y === +1) {
-        return BigInt(y === -1 && Number(b % BigInt(2)) === 0 ? +1 : y);
+        return y === -1 && Number(b % BigInt(2)) === 0 ? -a : a;
       }
       throw new RangeError();
     }
-    var accumulator = BigInt(1);
-    if (n > 0) {
-      var x = a;
+    if (a === BigInt(2)) {
+      return BigInt(1) << b;
+    }
+    if (n === 1) {
+      return BigInt(1);
+    }
+    var x = a;
+    while (n % 2 === 0) {
+      n = Math.floor(n / 2);
+      x *= x;
+    }
+    var accumulator = x;
+    n -= 1;
+    if (n >= 2) {
       while (n >= 2) {
         var t = Math.floor(n / 2);
         if (t * 2 !== n) {
@@ -716,6 +761,12 @@
     return x;
   };
   var add = n(function (x, y) {
+    if (typeof x === "number" && x === 0) {
+      return y;
+    }
+    if (typeof y === "number" && y === 0) {
+      return x;
+    }
     var a = valueOf(x);
     var b = valueOf(y);
     return toResult(Internal.add(a, b));
@@ -730,11 +781,23 @@
       var c = valueOf(x);
       return Internal.multiply(c, c);
     }
+    if (typeof x === "number" && x === 0 || typeof y === "number" && y === 0) {
+      return 0;
+    }
+    if (typeof x === "number" && x === 1) {
+      return y;
+    }
+    if (typeof y === "number" && y === 1) {
+      return x;
+    }
     var a = valueOf(x);
     var b = valueOf(y);
-    return toResult(Internal.multiply(a, b));
+    return Internal.multiply(a, b);
   });
   var divide = n(function (x, y) {
+    if (typeof y === "number" && y === 1) {
+      return x;
+    }
     var a = valueOf(x);
     var b = valueOf(y);
     return toResult(Internal.divide(a, b));
@@ -745,9 +808,30 @@
     return toResult(Internal.remainder(a, b));
   });
   var exponentiate = n(function (x, y) {
+    if (typeof y === "number") {
+      if (y === 0) {
+        return 1;
+      }
+      if (y === 1) {
+        return x;
+      }
+      if (y === 2) {
+        var c = valueOf(x);
+        return Internal.multiply(c, c);
+      }
+      if (typeof x === "number" && Math.abs(x) > 2 && y >= 0) {
+        if (x % 2 === 0 && y > 42) {//TODO: ?
+          return multiply(exponentiate(2, y), exponentiate(x / 2, y));
+        }
+        var k = Math.floor(Math.log(9007199254740991) / Math.log(Math.abs(x) + 0.5));
+        if (k >= 2) {
+          return multiply(Math.pow(x, y % k), exponentiate(Math.pow(x, k), Math.floor(y / k)));
+        }
+      }
+    }
     var a = valueOf(x);
     var b = valueOf(y);
-    return toResult(Internal.exponentiate(a, b));
+    return Internal.exponentiate(a, b);
   });
   var unaryMinus = n(function (x) {
     var a = valueOf(x);
@@ -795,9 +879,8 @@
       if (value >= -9007199254740991 && value <= +9007199254740991) {
         return value;
       }
-      return Internal.BigInt(x);
     }
-    throw new RangeError();
+    return Internal.BigInt(x);
   };
   // Conversion to Number:
   BigInteger.toNumber = function (x) {
@@ -877,9 +960,18 @@
     }
     return greaterThan(x, y);
   };
+  BigInteger.notEqual = function (x, y) {
+    return !BigInteger.equal(x, y);
+  };
+  BigInteger.lessThanOrEqual = function (x, y) {
+    return !BigInteger.greaterThan(x, y);
+  };
+  BigInteger.greaterThanOrEqual = function (x, y) {
+    return !BigInteger.lessThan(x, y);
+  };
 
   BigInteger.exponentiate = function (x, y) {
-    if (typeof x === "number" && typeof y === "number" && y >= 0 && y < 53) { // Math.log2(9007199254740991 + 1)
+    if (typeof x === "number" && typeof y === "number" && y >= 0 && y < 53) { // 53 === log2(9007199254740991 + 1)
       var value = 0 + Math.pow(x, y);
       if (value >= -9007199254740991 && value <= 9007199254740991) {
         return value;

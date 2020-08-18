@@ -83,14 +83,24 @@
       return a.transformEquality(b);
     }),
     new Operator("≠", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformNotEqual(b);//TODO:
+      return a.transformInequality(b, '!=');//TODO:
     }),
     new Operator("!=", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformNotEqual(b);//TODO:
+      return a.transformInequality(b, '!=');//TODO:
+    }),
+    new Operator(">", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformInequality(b, '>');//TODO: ?
+    }),
+    new Operator("<", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformInequality(b, '<');//TODO: ?
+    }),
+    new Operator("⩽", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformInequality(b, '<=');//TODO: ?
+    }),
+    new Operator("⩾", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformInequality(b, '>=');//TODO: ?
     }),
     new Operator(";", 2, LEFT_TO_RIGHT, COMMA_PRECEDENCE, function (a, b) {
-      //throw new RangeError("NotSupportedError");
-      //return a.transformStatement(b);
       return a.transformComma(b);
     }),
     new Operator(",", 2, LEFT_TO_RIGHT, COMMA_PRECEDENCE, function (a, b) {
@@ -185,21 +195,14 @@
       return a.sin();
     }),
     new Operator("tan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      //a = prepareTrigonometricArgument(a);
-      //return a.sin().divide(a.cos());
-      var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
-      return a2.sin().divide(a2.cos().add(Expression.ONE));
+      a = prepareTrigonometricArgument(a);
+      return a.tan();
     }),
     new Operator("cot", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      if (a instanceof Expression.Matrix) {
-        a = prepareTrigonometricArgument(a);
-        return a.cos().divide(a.sin());
-      }
-      //a = prepareTrigonometricArgument(a);
-      //return a.cos().divide(a.sin());
-      var a2 = prepareTrigonometricArgument(a.multiply(Expression.TWO));
-      return a2.cos().add(Expression.ONE).divide(a2.sin());
+      a = prepareTrigonometricArgument(a);
+      return a.cot();
     }),
+
     new Operator("°", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_TWO, function (a) {
       var x = toDegrees(a);
       if (x == null) {
@@ -248,48 +251,36 @@
       return a.sinh();
     }),
     new Operator("tanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return a.exp().subtract(a.negate().exp()).divide(a.exp().add(a.negate().exp()));
+      return a.tanh();
     }),
     new Operator("coth", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return a.exp().add(a.negate().exp()).divide(a.exp().subtract(a.negate().exp()));
+      return a.coth();
     }),
 
     new Operator("arccos", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      //return a.arccos();
-      //return a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot().divide(a).arctan();
-      var arcsin = a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
-      return arcsin.subtract(Expression.PI.divide(Expression.TWO)).negate();
+      return a.arccos();
     }),
     new Operator("arcsin", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      //return a.arcsin();
-      // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
-      return a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
+      return a.arcsin();
     }),
     new Operator("arctan", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.arctan();
     }),
     new Operator("arccot", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      //return a.arccot();
-      //TODO: details ?
-      // see https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#:~:text=Useful%20identities%20if%20one%20only%20has%20a%20fragment%20of%20a%20sine%20table:
-      return a.arctan().subtract(Expression.PI.divide(Expression.TWO)).negate();
+      return a.arccot();
     }),
 
     new Operator("arcosh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
-      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
-      return x.add(x.multiply(x).subtract(Expression.ONE).squareRoot()).logarithm();
+      return x.arcosh();
     }),
     new Operator("arsinh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
-      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_cosine
-      return x.add(x.multiply(x).add(Expression.ONE).squareRoot()).logarithm();
+      return x.arsinh();
     }),
     new Operator("artanh", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
-      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
-      return x.add(Expression.ONE).divide(x.subtract(Expression.ONE).negate()).logarithm().divide(Expression.TWO);
+      return x.artanh();
     }),
     new Operator("arcoth", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (x) {
-      // https://en.wikipedia.org/wiki/Inverse_hyperbolic_functions#Inverse_hyperbolic_tangent
-      return x.add(Expression.ONE).divide(x.subtract(Expression.ONE)).logarithm().divide(Expression.TWO);
+      return x.arcoth();
     }),
 
     new Operator("frac", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a, b) {
@@ -331,13 +322,9 @@
       }
       names.sort(function (a, b) {
         // longest is lesser then shortest when one of strings is a prefix of another
-        return a + '\uFFFF' < b + '\uFFFF' ? -1 : +1;
+        return a < b && b.lastIndexOf(a, 0) !== 0 || a.lastIndexOf(b, 0) === 0 ? -1 : +1;
       });
-      var source = new Array(names.length);
-      for (var i = 0; i < names.length; i += 1) {
-        source[i] = escapeRegExp(names[i]);
-      }
-      this.re = new RegExp('^(?:' + source.join('|') + ')', 'i');
+      this.re = new RegExp('^(?:' + escapeRegExp(names.join('\uFFFF')).replace(/\uFFFF/g, '|') + ')', 'i');
     }
     return this.re;
   };
@@ -359,13 +346,13 @@
 
   var parsePunctuator = function (tokenizer, token, punctuator) {
     if (token.type !== 'punctuator' || token.value !== punctuator) {
-      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.startPosition = tokenizer.previousPosition;
       ExpressionParser.endPosition = tokenizer.position;
       ExpressionParser.input = tokenizer.input;
       if (token.type === 'EOF') {
         throw new RangeError("UserError: unexpected end of input, '" + punctuator + "' expected");
       }
-      throw new RangeError("UserError: unexpected '" + token.value + "', '" + punctuator + "' expected");
+      throw new RangeError("UserError: unexpected '" + tokenizer.input.slice(tokenizer.previousPosition, tokenizer.position) + "', '" + punctuator + "' expected");
     }
     token = nextToken(tokenizer);
     return token;
@@ -464,7 +451,7 @@
       denominator = denominator.multiply(factor);
     }
     if (exponentPart != undefined) {
-      var exponent = 0 + Number.parseInt(exponentPart, 10);
+      var exponent = 0 + Number(exponentPart);
       var factor = Expression.pow(Expression.TEN, exponent < 0 ? -exponent : exponent);
       if (exponent < 0) {
         denominator = denominator.multiply(factor);
@@ -498,7 +485,7 @@
       if (token.type === 'vulgarFraction') {
         var fraction = context.wrap(getVulgarFraction(token.value, context));
         if (result != undefined) {
-          result = ADDITION.i(result, fraction).addPosition(tokenizer.position - token.value.length, ADDITION.name.length, tokenizer.input);
+          result = ADDITION.i(result, fraction).addPosition(tokenizer.previousPosition, tokenizer.previousPosition, tokenizer.input);
         } else {
           result = fraction;
         }
@@ -513,20 +500,21 @@
   var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
   var integerLiteral = /^\d+(?![\d.,eE])/; // for performance
   var integerLiteralWithoutComma = /^\d+(?![\d.eE])/; // for performance
-  var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|,(?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
-  var decimalFractionWithoutComma = /^(?=[.]?\d)\d*(?:[.]\d*(?:\(\d+\))?)?(?:[eE][\+\-]?\d+)?/;
+  var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|,(?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
+  var decimalFractionWithoutComma = /^(?=[.]?\d)\d*(?:[.]\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
-  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|circ|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9])(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
-  var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]+/; // superscript digits 2310456789
+  // + https://en.wikipedia.org/wiki/Modern_Arabic_mathematical_notation#Mathematical_letters
+  var symbols = /^(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|omicron|pi|rho|varsigma|sigma|tau|upsilon|phi|chi|psi|omega|circ|[a-zA-Z\u0430-\u044F\u0410-\u042F\u03B1-\u03C9]|(?:[\u0627\u066E\u062D\u062F\u0633\u0635\u0639\u0637\u06BE\u062A]|\u062d\u0640\u0640\u0640\u0640)(?![\u0600-\u06FF]))(?:\_\d+|\_\([a-z\d]+,[a-z\d]+\)|[\u2080-\u2089]+)?/;
+  var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2071\u2074-\u207F]+/; // superscript digits 2310456789
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
   //var other = /^\S/u;
   var other = /^(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|\S)/; // should not split surrogate pairts (for Tokenizer and other things)
 
-  var decimalFractionWithGroups = /^(\d+)?(?:[.,](\d+)?(?:\((\d+)\))?)?(?:[eE]([\+\-]?\d+))?$/;
+  var decimalFractionWithGroups = /^(\d+)?(?:[.,](\d+)?(?:\((\d+)\))?)?(?:(?:[eEЕ]|اس)([\+\-]?\d+))?$/;
 
   // s.normalize("NFKD").replace(/[\u2044]/g, "/")
   var normalizeSuperscripts = function (s) {
-    return s.replace(/[\u00B2\u00B3\u00B9\u2070\u2074-\u2079]/g, function (c) {
+    return s.replace(/\S/g, function (c) {
       var charCode = c.charCodeAt(0);
       if (charCode === 0x00B2) {
         return "2";
@@ -537,7 +525,8 @@
       if (charCode === 0x00B9) {
         return "1";
       }
-      return (charCode - 0x2074 + 4).toString();
+      var i = charCode - 0x2070;
+      return "0i  456789+-=()n".slice(i, i + 1);
     });
   };
 
@@ -625,7 +614,7 @@
             precedence > op.precedence + (op.rightToLeftAssociative === RIGHT_TO_LEFT ? 0 : -1)) {
           ok = false;
         } else {
-          var operatorPosition = tokenizer.position - token.value.length;
+          var operatorPosition = tokenizer.previousPosition;
           token = nextToken(tokenizer);
           if (op.arity === 1 && op.rightToLeftAssociative !== RIGHT_TO_LEFT) {
             //TODO: fix
@@ -642,7 +631,7 @@
                  op.name === "tg" ||
                  op.name === "cot" ||
                  op.name === "ctg") &&
-                (token.type === 'operator' && token.value === EXPONENTIATION.name || token.type === 'superscript')) {
+                (token.type === 'operator' && token.value === EXPONENTIATION.name || token.type === 'superscript' && /^\d+$/.test(normalizeSuperscripts(token.value)))) {
               // https://en.wikipedia.org/wiki/Exponentiation#Exponential_notation_for_function_names
 
               // cos^2(x)
@@ -653,10 +642,9 @@
               var exponentiationLength = 0;
               var middle = null;
               if (token.type === 'superscript') {
-                var superscript = token.value;
-                exponentiationLength = token.value.length;
+                middle = Expression.Integer.fromString(normalizeSuperscripts(token.value));
+                exponentiationLength = tokenizer.position - tokenizer.previousPosition;
                 token = nextToken(tokenizer);
-                middle = Expression.Integer.fromString(normalizeSuperscripts(superscript));
               } else {
                 exponentiationLength = EXPONENTIATION.name.length;
                 token = nextToken(tokenizer);
@@ -740,24 +728,26 @@
           operand = context.wrap(operand);
           token = nextToken(tokenizer);
         } else if (token.type === 'punctuator' && token.value === "|") {
-          if (left == undefined) {
+          if (left == undefined || !(left.unwrap() instanceof Expression.Matrix) && precedence < COMMA_PRECEDENCE) {//!
             token = parsePunctuator(tokenizer, token, "|");
-            tmp = parseExpression(tokenizer, token, context, 0, undefined);
+            tmp = parseExpression(tokenizer, token, context, COMMA_PRECEDENCE, undefined);
             operand = tmp.result;
             token = tmp.token;
             token = parsePunctuator(tokenizer, token, "|");
             operand = operand.determinant();//!
-          } else {
+          } else if (precedence < COMMA_PRECEDENCE) {
             //TODO: fix
             token = parsePunctuator(tokenizer, token, "|");
             tmp = parseExpression(tokenizer, token, context, 0, undefined);
             operand = tmp.result;
             token = tmp.token;
-            operand = new Expression.Matrix(left.matrix.augment(operand.matrix));//!
+            operand = context.wrap(new Expression.Matrix(left.unwrap().matrix.augment(operand.unwrap().matrix)));//!
             left = undefined;
+          } else {
+            ok = false;
           }
         } else if (token.type === 'punctuator' && token.value === '■') {
-          token = parsePunctuator(tokenizer, token, '■');
+          token = nextToken(tokenizer);
           token = parsePunctuator(tokenizer, token, '(');
           tmp = parseLaTeXMatrix(tokenizer, token, context, '@');
           operand = tmp.result;
@@ -775,8 +765,8 @@
         if (token.type === 'superscript') {
           // implicit exponentiation
           //TODO: check position
-          var superscript = token.value;
-          left = EXPONENTIATION.i(left, Expression.Integer.fromString(normalizeSuperscripts(superscript))).addPosition(tokenizer.position - token.value.length, EXPONENTIATION.name.length, tokenizer.input);
+          var x = ExpressionParser.parse(normalizeSuperscripts(token.value), context);//?
+          left = EXPONENTIATION.i(left, x).addPosition(tokenizer.previousPosition, tokenizer.previousPosition, tokenizer.input);
           token = nextToken(tokenizer);
           ok = true;//!
         }
@@ -803,14 +793,14 @@
     }
 
     if (left == undefined) {
-      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.startPosition = tokenizer.previousPosition;
       ExpressionParser.endPosition = tokenizer.position;
       ExpressionParser.input = tokenizer.input;
       if (token.type === 'EOF') {
         throw new RangeError("UserError: unexpected end of input");//TODO: fix
       }
       //TODO: ?
-      throw new RangeError("UserError: unexpected '" + token.value + "'");//TODO: fix
+      throw new RangeError("UserError: unexpected '" + tokenizer.input.slice(tokenizer.previousPosition, tokenizer.position) + "'");//TODO: fix
     }
     return new ParseResult(left, token);
   };
@@ -831,72 +821,114 @@
     return -1;
   };
 
+  // https://tc39.es/ecma402/#table-numbering-system-digits (June 23, 2020)
+  // without hanidec, latn, fullwide, mathbold, mathdbl, mathmono, mathsanb, mathsans, and NON-BMP
+  var numberingSystemsWithSimpleDigitMappings = [
+    //{name: "hanidec", offset: undefined},
+    //{name: "latn", offset: 0x0030},
+    {name: "arab", offset: 0x0660},
+    {name: "arabext", offset: 0x06F0},
+    {name: "nkoo", offset: 0x07C0},
+    {name: "deva", offset: 0x0966},
+    {name: "beng", offset: 0x09E6},
+    {name: "guru", offset: 0x0A66},
+    {name: "gujr", offset: 0x0AE6},
+    {name: "orya", offset: 0x0B66},
+    {name: "tamldec", offset: 0x0BE6},
+    {name: "telu", offset: 0x0C66},
+    {name: "knda", offset: 0x0CE6},
+    {name: "mlym", offset: 0x0D66},
+    {name: "sinh", offset: 0x0DE6},
+    {name: "thai", offset: 0x0E50},
+    {name: "laoo", offset: 0x0ED0},
+    {name: "tibt", offset: 0x0F20},
+    {name: "mymr", offset: 0x1040},
+    {name: "mymrshan", offset: 0x1090},
+    {name: "khmr", offset: 0x17E0},
+    {name: "mong", offset: 0x1810},
+    {name: "limb", offset: 0x1946},
+    {name: "talu", offset: 0x19D0},
+    {name: "lana", offset: 0x1A80},
+    {name: "lanatham", offset: 0x1A90},
+    {name: "bali", offset: 0x1B50},
+    {name: "sund", offset: 0x1BB0},
+    {name: "lepc", offset: 0x1C40},
+    {name: "olck", offset: 0x1C50},
+    {name: "vaii", offset: 0xA620},
+    {name: "saur", offset: 0xA8D0},
+    {name: "kali", offset: 0xA900},
+    {name: "java", offset: 0xA9D0},
+    {name: "mymrtlng", offset: 0xA9F0},
+    {name: "cham", offset: 0xAA50},
+    {name: "mtei", offset: 0xABF0},
+    //{name: "fullwide", offset: 0xFF10},
+    {name: "osma", offset: 0x104A0},
+    {name: "rohg", offset: 0x10D30},
+    {name: "brah", offset: 0x11066},
+    {name: "sora", offset: 0x110F0},
+    {name: "cakm", offset: 0x11136},
+    {name: "shrd", offset: 0x111D0},
+    {name: "sind", offset: 0x112F0},
+    {name: "newa", offset: 0x11450},
+    {name: "tirh", offset: 0x114D0},
+    {name: "modi", offset: 0x11650},
+    {name: "takr", offset: 0x116C0},
+    {name: "ahom", offset: 0x11730},
+    {name: "wara", offset: 0x118E0},
+    {name: "diak", offset: 0x11950},
+    {name: "bhks", offset: 0x11C50},
+    {name: "gonm", offset: 0x11D50},
+    {name: "gong", offset: 0x11DA0},
+    {name: "mroo", offset: 0x16A60},
+    {name: "hmng", offset: 0x16B50},
+    //{name: "mathbold", offset: 0x1D7CE},
+    //{name: "mathdbl", offset: 0x1D7D8},
+    //{name: "mathsans", offset: 0x1D7E2},
+    //{name: "mathsanb", offset: 0x1D7EC},
+    //{name: "mathmono", offset: 0x1D7F6},
+    {name: "hmnp", offset: 0x1E140},
+    {name: "wcho", offset: 0x1E2F0},
+    {name: "adlm", offset: 0x1E950},
+    {name: "segment", offset: 0x1FBF0}
+  ];
+
+  // https://stackoverflow.com/a/29018745
+  function binarySearch(ar, el, compare_fn) {
+      var m = 0;
+      var n = ar.length - 1;
+      while (m <= n) {
+          var k = (n + m) >> 1;
+          var cmp = compare_fn(el, ar[k]);
+          if (cmp > 0) {
+              m = k + 1;
+          } else if(cmp < 0) {
+              n = k - 1;
+          } else {
+              return k;
+          }
+      }
+      return -m - 1;
+  }
+
   // https://www.ecma-international.org/ecma-402/5.0/index.html#table-numbering-system-digits
   // TODO: remove or add tests
   var replaceSimpleDigit = function (code) {
-    if (code >= 0x0660 && code <= 0x0669) {
-      return {offset: 0x0660, name: "arab"};
-    }
-    if (code >= 0x06F0 && code <= 0x06F9) {
-      return {offset: 0x06F0, name: "arabext"};
-    }
-    if (code >= 0x0966 && code <= 0x096F) {
-      return {offset: 0x0966, name: "deva"};
-    }
-    if (code >= 0x09E6 && code <= 0x09EF) {
-      return {offset: 0x09E6, name: "beng"};
-    }
-    if (code >= 0x0A66 && code <= 0x0A6F) {
-      return {offset: 0x0A66, name: "guru"};
-    }
-    if (code >= 0x0AE6 && code <= 0x0AEF) {
-      return {offset: 0x0AE6, name: "gujr"};
-    }
-    if (code >= 0x0B66 && code <= 0x0B6F) {
-      return {offset: 0x0B66, name: "orya"};
-    }
-    if (code >= 0x0BE6 && code <= 0x0BEF) {
-      return {offset: 0x0BE6, name: "tamldec"};
-    }
-    if (code >= 0x0C66 && code <= 0x0C6F) {
-      return {offset: 0x0C66, name: "telu"};
-    }
-    if (code >= 0x0CE6 && code <= 0x0CEF) {
-      return {offset: 0x0CE6, name: "knda"};
-    }
-    if (code >= 0x0D66 && code <= 0x0D6F) {
-      return {offset: 0x0D66, name: "mlym"};
-    }
-    if (code >= 0x0E50 && code <= 0x0E59) {
-      return {offset: 0x0E50, name: "thai"};
-    }
-    if (code >= 0x0ED0 && code <= 0x0ED9) {
-      return {offset: 0x0ED0, name: "laoo"};
-    }
-    if (code >= 0x0F20 && code <= 0x0F29) {
-      return {offset: 0x0F20, name: "tibt"};
-    }
-    if (code >= 0x1040 && code <= 0x1049) {
-      return {offset: 0x1040, name: "mymr"};
-    }
-    if (code >= 0x17E0 && code <= 0x17E9) {
-      return {offset: 0x17E0, name: "khmr"};
-    }
-    if (code >= 0x1810 && code <= 0x1819) {
-      return {offset: 0x1810, name: "mong"};
-    }
-    if (code >= 0x1946 && code <= 0x194F) {
-      return {offset: 0x1946, name: "limb"};
-    }
-    if (code >= 0x1B50 && code <= 0x1B59) {
-      return {offset: 0x1B50, name: "bali"};
-    }
-    if (code >= 0xFF10 && code <= 0xFF19) {
-      return {offset: 0xFF10, name: "fullwide"};
+    //TODO: optimize
+    var i = binarySearch(numberingSystemsWithSimpleDigitMappings, code, function (code, system) {
+      if (code < system.offset) {
+        return -1;
+      }
+      if (code > system.offset + 9) {
+        return +1;
+      }
+      return 0;
+    });
+    if (i >= 0) {
+      return numberingSystemsWithSimpleDigitMappings[i];
     }
     var digit = replaceHanidec(code);
     if (digit !== -1) {
-      return {offset: code - digit, name: "hanidec"};
+      return {name: "hanidec", offset: code - digit};
     }
     return undefined;
   };
@@ -931,7 +963,7 @@
       return "/";
     }
     if (charCode >= 0xFF01 && charCode <= 0xFF5E) {
-      // normalize full-widht forms:
+      // normalize full-width forms:
       return String.fromCharCode(charCode - 0xFF01 + 0x0021);
     }
     if (charCode === 0x060C || charCode === 0x066B) {
@@ -966,6 +998,10 @@
     if (charCode === 0x2063) {
       return ",";
     }
+    if (charCode === 0x2064) {
+      //return "+"; - priority
+      return " ";
+    }
     if (charCode === "〖".charCodeAt(0)) {
       return "(";
     }
@@ -975,9 +1011,11 @@
     if (charCode === "ˆ".charCodeAt(0)) {
       return "^";
     }
+    // 0x005B
     if (charCode === "[".charCodeAt(0)) {//TODO: ?
       return "(";
     }
+    // 0x005D
     if (charCode === "]".charCodeAt(0)) {//TODO: ?
       return ")";
     }
@@ -1004,8 +1042,24 @@
     //if (/\p{Cf}/u.test(String.fromCharCode(charCode))) {
     //  return ' ';
     //}
+    if (charCode === '│'.charCodeAt(0)) {
+      return '|';
+    }
+    if (charCode === '█'.charCodeAt(0)) {
+      return '■';
+    }
+    if (charCode === '\u200B'.charCodeAt(0)) {
+      return ' ';
+    }
+    if (charCode === '≤'.charCodeAt(0)) {
+      return '⩽';
+    }
+    if (charCode === '≥'.charCodeAt(0)) {
+      return '⩾';
+    }
     return undefined;
   };
+
   //var replaceRegExp = /[...]/g;
   //var replaceFunction = function (c) {
   //  return getCharCodeReplacement(c.charCodeAt(0));
@@ -1014,8 +1068,10 @@
   var replaceSomeChars = function (input) {
     var lastIndex = 0;
     var result = '';
-    for (var i = 0; i < input.length; i += 1) {
-      var charCode = input.charCodeAt(i);
+    var i = 0;
+    while (i < input.length) {
+      var charCode = input.codePointAt(i);
+      var width = charCode <= 0xFFFF ? 1 : 2;
       if (charCode > 0x007F || charCode === 0x003A || charCode === 0x005B || charCode === 0x005D) {
         var x = getCharCodeReplacement(charCode);
         if (x != undefined) {
@@ -1024,9 +1080,10 @@
           }
           result += input.slice(lastIndex, i);
           result += x;
-          lastIndex = i + 1;
+          lastIndex = i + width;
         }
       }
+      i += width;
     }
     result += input.slice(lastIndex);
     return result;
@@ -1052,13 +1109,16 @@
   Token.EOF = new Token('EOF', '', null);
 
   function Tokenizer(input, position, states) {
-    this._preparedInput = replaceSomeChars(input); //TODO: fix ???
+    this._preparedInput = replaceSomeChars(input.slice(position)); //TODO: fix ???
     this.input = input;
+    this._preparedInputPosition = 0;
+    this.previousPosition = position;
     this.position = position;
     this.states = states;
   }
 
   Tokenizer.prototype.next = function () {
+    this.previousPosition = this.position;
     if (this.position >= this.input.length) {
       return Token.EOF;
     }
@@ -1084,7 +1144,7 @@
           re = operationSearchCache.getRegExp();//?TODO:
         }
       }
-      var tmp = re.exec(this._preparedInput.slice(this.position));
+      var tmp = re.exec(this._preparedInput.slice(this._preparedInputPosition));
       if (tmp != null) {
         var value = tmp[0];
         if (type === 'punctuator') {
@@ -1102,7 +1162,10 @@
             }
           }
         }
-        this.position += value.length;
+        for (var j = 0; j < value.length; j += (value.codePointAt(j) <= 0xFFFF ? 1 : 2)) {
+          this.position += this.input.codePointAt(this.position) <= 0xFFFF ? 1 : 2;
+        }
+        this._preparedInputPosition += value.length;
         return new Token(type, value);
       }
     }
@@ -1143,10 +1206,10 @@
     var tmp = parseExpression(tokenizer, token, context, 0, undefined);
     token = tmp.token;
     if (token.type !== 'EOF') {
-      ExpressionParser.startPosition = tokenizer.position - token.value.length;
+      ExpressionParser.startPosition = tokenizer.previousPosition;
       ExpressionParser.endPosition = tokenizer.position;
       ExpressionParser.input = tokenizer.input;
-      throw new RangeError("UserError: unexpected '" + token.value + "'");
+      throw new RangeError("UserError: unexpected '" + tokenizer.input.slice(tokenizer.previousPosition, tokenizer.position) + "'");
     }
 
     return tmp.result;
@@ -1159,13 +1222,13 @@
   ExpressionParser.input = "";
 
   var getConstant = function (symbolName) {
-    if (symbolName === "pi" || symbolName === "\u03C0") {
+    if (symbolName === "pi" || symbolName === "\u03C0" || symbolName === "\u0637") {
       return Expression.PI;
     }
-    if (symbolName === "e") {
+    if (symbolName === "e" || symbolName === "\u06BE") {
       return Expression.E;
     }
-    if (symbolName === "i") {
+    if (symbolName === "i" || symbolName === "\u062A") {
       return Expression.I;
     }
     if (symbolName === "I" || symbolName === "U" || symbolName === "E") {
@@ -1228,5 +1291,6 @@
       }
     }
   };
+  Expression.denotations = {};
 
   export default ExpressionParser;
