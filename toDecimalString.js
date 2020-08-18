@@ -3,7 +3,7 @@ import BigInteger from './BigInteger.js';
 import nthRoot from './nthRoot.compiled.js';
 //import BigDecimal from './BigDecimal.js';
 
-import BigDecimal from './BigDecimal/BigDecimal.compiled.js';
+import BigDecimal from './BigDecimal.compiled.js';
 
 //TODO: ???
 
