@@ -758,8 +758,8 @@
         if ((n === 3 || n === 2) && ac != undefined && ac.divide(a.getDenominator()).multiply(a) instanceof Expression.Integer) {//TODO: ?
           //TODO: a > 0 - ?
           var a = x;
-          var tmp = RPN('x**' + n + ' - ' + '(' + a + ')');
-          var polynomial = Polynomial.toPolynomial(Expression.getConjugate(tmp.getNumerator()).divide(tmp.getDenominator()).multiply(tmp), RPN('x'));
+          var tmp = new Expression.Symbol('x')._pow(n).subtract(a);
+          var polynomial = Polynomial.toPolynomial(Expression.getConjugate(tmp.getNumerator()).divide(tmp.getDenominator()).multiply(tmp), new Expression.Symbol('x'));
           var tmp2 = polynomial.getZeros(1);//TODO: ?
           return tmp2.result[1];//TODO: which one - ?
         }
