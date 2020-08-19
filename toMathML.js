@@ -53,21 +53,13 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
 
 
 var decimalToMathML = function (parts) {
-  var formatNumber = function (s) {
-    var locale = undefined;//TODO: ?
-    var numberFormat = getNumberFormat(locale);
-    if (numberFormat == undefined) {
-      return s;
-    }
-    return numberFormat.format(s + '1').slice(0, -numberFormat.format('1').length);
-  };
   return (parts.exponentInteger !== "" ? "<mrow>" : "") +
          (parts.plusSign !== "" || parts.minusSign !== "" ? "<mrow>" : "") +
          (parts.plusSign !== "" ? "<mo>+</mo>" : "") +
          (parts.minusSign !== "" ? "<mo>&minus;</mo>" : "") +
-         "<mn>" + formatNumber(parts.number) + "</mn>" +
+         "<mn>" + Expression.numberFormat.format(parts.number) + "</mn>" +
          (parts.plusSign !== "" || parts.minusSign !== "" ? "</mrow>" : "") +
-         (parts.exponentInteger !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo><msup>" + "<mn>" + formatNumber('10') + "</mn>" + decimalToMathML({plusSign: "", minusSign: parts.exponentMinusSign, number: parts.exponentInteger, exponentMinusSign: "", exponentInteger: ""}) + "</msup>" : "") +
+         (parts.exponentInteger !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo><msup>" + "<mn>" + Expression.numberFormat.format('10') + "</mn>" + decimalToMathML({plusSign: "", minusSign: parts.exponentMinusSign, number: parts.exponentInteger, exponentMinusSign: "", exponentInteger: ""}) + "</msup>" : "") +
          (parts.exponentInteger !== "" ? "</mrow>" : "");
 };
 
@@ -443,20 +435,10 @@ Expression.Division.prototype.toMathML = function (options) {
          "</mfrac>";
 };
 
-Expression.locale = undefined;
-var cacheLocale = '';
-var cachedNumberFormat = null;
-//TODO: remove !!!
-globalThis.addEventListener('languagechange', function (event) {
-  cacheLocale = '';
-});
-var getNumberFormat = function () {
-  var locale = Expression.locale;
-  if (cacheLocale !== locale) {
-    cacheLocale = locale;
-    cachedNumberFormat = new Intl.NumberFormat(locale, {maximumFractionDigits: 1/0, minimumFractionDigits: 0, useGrouping: false});
+Expression.numberFormat = {
+  format: function (string) {
+    return string;
   }
-  return cachedNumberFormat;
 };
 
 Expression.Integer.prototype.toMathML = function (options) {
@@ -468,7 +450,7 @@ Expression.Integer.prototype.toMathML = function (options) {
   var sign = x.compareTo(Expression.ZERO) < 0 ? '-' : '';
   var abs = x.compareTo(Expression.ZERO) < 0 ? x.negate() : x;
   var s = abs.value.toString();
-  var tmp = getNumberFormat().format(s);
+  var tmp = Expression.numberFormat.format(s);
   return sign === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
 };
 Expression.BinaryOperation.prototype.toMathML = function (options) {
