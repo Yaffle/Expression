@@ -1,6 +1,5 @@
 // https://en.wikipedia.org/wiki/Quadratic_integer
 // https://en.wikipedia.org/wiki/Factorization#Unique_factorization_domains
-/*global Expression*/
 
 
 // It is possible to use the comparision operators if a is a safe integer or BigIntegerInternal or BigInt and n is a safe integer:
@@ -12,6 +11,7 @@
 // a != n
 
 
+import Expression from './Expression.js';
 import nthRoot from './nthRoot.compiled.js';
 import BigInteger from './BigInteger.js';
 
