@@ -1,21 +1,8 @@
 import Expression from './Expression.js';
 import Polynomial from './Polynomial.js';
 
-function deepFreeze(x) {
-  if (Object.freeze != null) {
-    if (typeof x !== "object") {
-      Object.freeze(x);
-      for (var key in x) {
-        if (Object.prototype.hasOwnProperty.call(x, key)) {
-          deepFreeze(x[key]);
-        }
-      }
-    }
-  }
-}
-
 function Condition(array) {
-  deepFreeze(this);
+  Object.freeze(array);
   this.array = array;
 }
 
@@ -127,7 +114,7 @@ Condition.prototype._and = function (operator, e) {
   //!
 
     //!new
-    if (e.isNegative()) {
+    if (e.isNegative() && (y.operator === Condition.EQZ || y.operator === Condition.NEZ)) {
       return add(oldArray, {expression: e.negate(), operator: y.operator});
     }
 
@@ -136,7 +123,9 @@ Condition.prototype._and = function (operator, e) {
         //e.b.getNumerator() instanceof Expression.Integer &&
         //!e.b.getDenominator().equals(Expression.ONE)
         ) {
-      return add(oldArray, {expression: e.a, operator: y.operator});
+      if (y.operator === Condition.EQZ || y.operator === Condition.NEZ) {
+        return add(oldArray, {expression: e.a, operator: y.operator});
+      }
     }
 
     // (4*k+1)^(1/2)+1
@@ -176,6 +165,12 @@ Condition.prototype._and = function (operator, e) {
     if (y.expression instanceof Expression.Integer || y.expression instanceof Expression.Complex) {
       if (y.operator === Condition.NEZ && y.expression.equals(Expression.ZERO) ||
           y.operator === Condition.EQZ && !y.expression.equals(Expression.ZERO)) {
+        return null;
+      }
+      if (y.operator === Condition.GTZ && y.expression.equals(Expression.ZERO)) {//TODO: fix
+        return null;
+      }
+      if (y.operator === Condition.GTZ && y.expression instanceof Expression.Integer && y.expression.compareTo(Expression.ZERO) < 0) {//TODO: fix
         return null;
       }
       return oldArray;
@@ -271,7 +266,9 @@ Condition.prototype._and = function (operator, e) {
     if (p != null && p.p.getDegree() > 1) {
       var sf = p.p.getSquareFreePolynomial();
       if (sf.getDegree() !== p.p.getDegree()) {//TODO: test, fix
-        return add(oldArray, {expression: sf.calcAt(p.v), operator: y.operator});
+        if (y.operator === Condition.EQZ || y.operator === Condition.NEZ) {
+          return add(oldArray, {expression: sf.calcAt(p.v), operator: y.operator});
+        }
       }
     }
     //!
@@ -808,6 +805,16 @@ Condition.prototype.andZero = function (e) {
 Condition.prototype.andGreaterZero = function (e) {
   return this._and(Condition.GTZ, e);
 };
+Condition.prototype.and = function (b) {
+  if (!(b instanceof Condition)) {
+    throw new TypeError();
+  }
+  var c = this;
+  for (var i = 0; i < b.array.length; i += 1) {
+    c = c._and(b.array[i].operator, b.array[i].expression);
+  }
+  return c;
+};
 Condition.prototype.isFalse = function () {
   return this === Condition.FALSE;
 };
@@ -825,7 +832,7 @@ Condition.prototype.toString = function (options) {
   }
   var s = '';
   for (var i = 0; i < this.array.length; i += 1) {
-    s += (i !== 0 ? ', ' : '') + this.array[i].expression.toString(options) + (this.array[i].operator === Condition.NEZ ? ' != 0' : '') + (this.array[i].operator === Condition.EQZ ? ' == 0' : (this.array[i].operator === Condition.GTZ ? ' > 0' : ''));
+    s += (i !== 0 ? ', ' : '') + this.array[i].expression.toString(options) + this.array[i].operator;
   }
   return s;
 };

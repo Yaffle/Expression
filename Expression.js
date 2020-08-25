@@ -289,11 +289,33 @@
     if (x instanceof Expression.Symbol) {
       return false;
     }
+    if (x instanceof Expression.Complex) {
+      return false;
+    }
+    if (Expression.has(x, Expression.Complex)) {//???
+      return false;
+    }
     if (x instanceof Addition && isPositive(x.a) && isPositive(x.b)) { // 1+sqrt(2)
       return true;
     }
     if (x instanceof Addition && !isPositive(x.a) && !isPositive(x.b)) { // -1-sqrt(2)
       return false;
+    }
+    if (x instanceof Addition && isPositive(x.a) && isPositive(x.b.negate()) && isConstant(x.b)) { // sqrt(2)-2
+      //var c = Expression.getNthRootConjugate(x);
+      //if (!isPositive(c)) {
+      //  c = c.negate();
+      //}
+      var c = x.a.add(x.b.negate());
+      return isPositive(x.multiply(c));
+    }
+    if (x instanceof Addition && isPositive(x.a.negate()) && isConstant(x.a) && isPositive(x.b)) { // -9*2^0.5+45*3^0.5
+      //var c = Expression.getNthRootConjugate(x);
+      //if (!isPositive(c)) {
+      //  c = c.negate();
+      //}
+      var c = x.a.negate().add(x.b);
+      return isPositive(x.multiply(c));
     }
     if (x instanceof Expression.ExponentiationOfMinusOne) {
       return false;
@@ -307,6 +329,8 @@
     //TODO: tests, fix for algebraic numbers (?)
     throw new TypeError("!" + x);
   };
+
+  Expression._isPositive = isPositive;
 
   var isIntegerOrN = function (e) {
     if (e instanceof Integer) {
@@ -1377,6 +1401,9 @@
   };
 
   Expression.getCoefficients = function (e, v) {
+    if (e.equals(Expression.ZERO)) {
+      return [];
+    }
     var result = [];
     for (var x of e.summands()) {
       var d = Expression.ZERO;
@@ -1605,18 +1632,27 @@
     return x;
   };
 
+  var nthRootCommonFactor = function (a, b) {
+    if (a instanceof Expression.NthRoot && b instanceof Expression.NthRoot) {//TODO: ?
+      // gcd(a**(1/n), b**(1/k)) = gcd(a**(lcm(n,k)/n/lcm(n,k)), b**(lcm(n,k)/k/lcm(n,k))) = gcd(a**(lcm(n,k)/n), b**(lcm(n,k)/k))**(1/lcm(n,k))
+      var lcm = a.n / numberGCD(a.n, b.n) * b.n;
+      // gcd(a**n, b**k) = gcd((gcd(a, b)*a/gcd(a, b))**n, (gcd(a, b)*b/gcd(a, b))**k) = gcd(a, b)**min(n, k)
+      var radicandsGCD = a.radicand.gcd(b.radicand);
+      var min = Math.min(lcm / a.n, lcm / b.n);
+      var g = numberGCD(lcm, min);
+      return radicandsGCD._pow(min / g)._nthRoot(lcm / g);
+    }
+    return null;
+  };
+
   // http://www-troja.fjfi.cvut.cz/~liska/ca/node33.html
   var gcd = function (a, b, v) {
     if (v == undefined) {
       //!TODO: (2020-06-13)
       if (a instanceof Expression.NthRoot && b instanceof Expression.NthRoot) {//TODO: ?
-        // gcd(a**(1/n), b**(1/k)) = gcd(a**(lcm(n,k)/n/lcm(n,k)), b**(lcm(n,k)/k/lcm(n,k))) = gcd(a**(lcm(n,k)/n), b**(lcm(n,k)/k))**(1/lcm(n,k))
-        var lcm = a.n / numberGCD(a.n, b.n) * b.n;
-        // gcd(a**n, b**k) = gcd((gcd(a, b)*a/gcd(a, b))**n, (gcd(a, b)*b/gcd(a, b))**k) = gcd(a, b)**min(n, k)
-        var radicandsGCD = a.radicand.gcd(b.radicand);
-        var min = Math.min(lcm / a.n, lcm / b.n);
-        var g = numberGCD(lcm, min);
-        return radicandsGCD._pow(min / g)._nthRoot(lcm / g);
+        debugger;
+        console.error('unreachable code?');
+        return nthRootCommonFactor(a, b);
       }
       if (getTerm(a) instanceof Expression.NthRoot && getTerm(b) instanceof Expression.NthRoot) {//TODO: remove (?)
         return gcd(getConstant(a), getConstant(b)).multiply(gcd(a.divide(getConstant(a)), b.divide(getConstant(b))));
@@ -2088,7 +2124,7 @@ if (simplifyIdentityMatrixPower) {
       if (c != undefined) {
         var a = x.add(c).divide(Expression.TWO);
         var b = x.subtract(c).multiply(Expression.I.negate()).divide(Expression.TWO);
-        var g = (a.equals(Expression.ZERO) ? y : a.gcd(y)).gcd(b.equals(Expression.ZERO) ? y : b.gcd(y));
+        var g = (a.equals(Expression.ZERO) ? y : a.gcd(y)).gcd(b)._abs();
         if (!g.equals(Expression.ONE)) {
           x = a.divide(g).add(b.divide(g).multiply(Expression.I));
           y = y.divide(g);
@@ -2590,7 +2626,9 @@ if (simplifyIdentityMatrixPower) {
     return this.value.toString();
   };
   Integer.prototype.valueOf = function () {
-    throw new TypeError("");
+    console.error("!");
+    //throw new TypeError("");
+    return this;
   };
 
   Integer.fromNumber = function (n) {
@@ -3812,6 +3850,23 @@ if (simplifyIdentityMatrixPower) {
       return getBase(x).pow(getExponent(x).divide(Expression.Integer.fromNumber(n)));
     }
 
+    var sd = simpleDivisor(x);
+    if (!sd.equals(x)) {//TODO: FIX
+      //debugger;
+      //console.log(sd + '');
+      //console.log(isPositive(sd));
+      console.log(sd + '');
+      if (isPositive(sd)) {
+        return sd._nthRoot(n).multiply(x.divide(sd)._nthRoot(n));
+      }
+    }
+    if (x instanceof Addition && x.b instanceof NthRoot && x.a instanceof NthRoot) {//TODO: ? multiple operands - ?
+      var g = nthRootCommonFactor(x.a, x.b);
+      if (!g.equals(Expression.ONE)) {
+        return g._nthRoot(n).multiply(x.divide(g)._nthRoot(n));
+      }
+    }
+
     throw new RangeError("NotSupportedError");
   };
 
@@ -4616,7 +4671,7 @@ if (simplifyIdentityMatrixPower) {
 
   Expression.prototype.transformInequality = function (b, sign) {//TODO: ?
     var a = this;
-    var c = Condition.TRUE;
+    /*var c = Condition.TRUE;
     if (sign === '>') {
       c = c.andGreaterZero(a.subtract(b));
     } else if (sign === '<') {
@@ -4630,7 +4685,9 @@ if (simplifyIdentityMatrixPower) {
     } else {
       throw new TypeError();
     }
-    return new ExpressionWithCondition(Expression.ZERO, c);//TODO: ?
+    */
+    //return new ExpressionWithCondition(Expression.ZERO, c);//TODO: ?
+    return new Expression.Inequality(a, b, sign);
   };
 
   Expression.simplifications = [];
@@ -4930,6 +4987,16 @@ Expression.prototype.multiplyExpressionWithCondition = function (x) {
   return new ExpressionWithCondition(x.e.multiply(this), x.condition);
 };
 
+ExpressionWithCondition.prototype.add = function (y) {
+  return y.addExpressionWithCondition(this);
+};
+ExpressionWithCondition.prototype.addExpressionWithCondition = function (x) {
+  throw new TypeError("TODO:");
+};
+Expression.prototype.addExpressionWithCondition = function (x) {
+  //TODO: apply condition - ?
+  return new ExpressionWithCondition(x.e.add(this), x.condition);
+};
 
 Expression.ExpressionWithCondition = ExpressionWithCondition;
 
@@ -4952,11 +5019,29 @@ function Cases(cases) {
 
 Cases.prototype = Object.create(Expression.prototype);
 
+Cases.prototype._cross = function (x, f) {
+  var y = this;
+  var result = [];
+  for (var i = 0; i < x.cases.length; i += 1) {
+    for (var j = 0; j < y.cases.length; j += 1) {
+      var condition = x.cases[i].condition.and(y.cases[j].condition);
+      //TODO: check
+      if (!condition.isFalse()) {
+        var e = f(x.cases[i].e, y.cases[j].e);
+        result.push(new ExpressionWithCondition(e, condition));
+      }
+    }
+  }
+  return new Expression.Cases(result);
+};
+
 Cases.prototype.multiply = function (y) {
   return y.multiplyCases(this);
 };
-Cases.prototype.multiplyCases = function () {
-  throw new TypeError("TODO: ");
+Cases.prototype.multiplyCases = function (x) {
+  return this._cross(x, function (a, b) {
+    return a.multiply(b);
+  });
 };
 Cases.prototype.toString = function () {//TODO: ?
   var s = '';
@@ -4979,11 +5064,21 @@ Cases.prototype.multiplyMatrix = function (x) {
   }));
 };
 
-//Cases.prototype.add = function () {
-//};
+Cases.prototype.add = function (y) {
+  return y.addCases(this);
+};
+Cases.prototype.addCases = function (x) {
+  return this._cross(x, function (a, b) {
+    return a.add(b);
+  });
+};
+Expression.prototype.addCases = function (x) {
+  var y = this;
+  return new Cases(x.cases.map(function (c) {
+    return c.add(y);
+  }));
+};
 
-//Cases.prototype.toString = function () {
-//};
 Cases.prototype.toMathML = function (printOptions) {
   // https://www.w3.org/TR/2006/NOTE-arabic-math-20060131/#Moroccan
   var s = '';
@@ -5074,6 +5169,9 @@ Expression.prototype._abs = function () {
     if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.NoAnswerExpression && b.name === 'system-of-equations') {
       return Expression.SystemOfEquations.from(a.second.equations.concat(b.second.equations));
     }
+    if (a instanceof Expression.Inequality && b instanceof Expression.Inequality) {
+      return Expression.SystemOfEquations.from([{left: a.a, right: a.b, sign: a.sign}, {left: b.a, right: b.b, sign: b.sign}]);
+    }
     throw new TypeError("NotSupportedError");
   };
 
@@ -5127,6 +5225,9 @@ Expression.prototype.logarithm = function () {
     var a = arg.a;
     var n = arg.n;
     if (a instanceof Expression.Integer && a.compareTo(Expression.ONE) > 0) {
+      return a.logarithm().divide(Expression.Integer.fromNumber(n));
+    }
+    if (isPositive(a)) {
       return a.logarithm().divide(Expression.Integer.fromNumber(n));
     }
   }
@@ -5228,6 +5329,12 @@ Expression.prototype.logarithm = function () {
         xc = xc.negate();
       }
       return arg.multiply(xc).logarithm().subtract(xc.logarithm());
+    }
+  }
+  if (arg instanceof Addition && arg.b instanceof NthRoot && arg.a instanceof NthRoot) {//TODO: ? multiple operands - ?
+    var g = nthRootCommonFactor(arg.a, arg.b);
+    if (!g.equals(Expression.ONE) && isPositive(g)) {
+      return g.logarithm().add(arg.divide(g).logarithm());
     }
   }
   throw new TypeError("NotSupportedError");

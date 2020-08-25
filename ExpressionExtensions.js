@@ -17,7 +17,7 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
     }
     var r = polynomial.divideAndRemainder(p).quotient;
     var precision = Math.max(fractionDigits || 0, 5);
-    zeros = r.getZeros(precision);
+    zeros = r.getZeros(precision, true);
   }
   //!
 

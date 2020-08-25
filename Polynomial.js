@@ -1255,6 +1255,45 @@
       }
     }
 
+    /*if (np.getDegree() === 4) {
+      // https://en.wikipedia.org/wiki/Quartic_function
+      // 1. coverting to a depressed quartic:
+      var a_4 = np.getCoefficient(4);
+      var p = np.scale(a_4.inverse());
+      var b = p.getCoefficient(3);
+      var y = new Expression.Symbol('$y');
+      var e = Polynomial.p.calcAt(y.subtract(b.divide(new Expression.Integer(4))));
+      var sp = Polynomial.toPolynomial(e, y);
+      var p = sp.getCoefficient(2);
+      var q = sp.getCoefficient(3);
+      var r = sp.getCoefficient(0);
+      var Q = nthRootInternal(3, );
+
+      var root = y0.subtract(b.divide(new Expression.Integer(4)));
+    }*/
+
+    if (!np.hasIntegerCoefficients()) {
+      //?new
+      var variable = new Expression.Symbol('$$')
+      var e = np.calcAt(variable);
+      var c = Expression.getConjugate(e);
+      if (c != null) {
+        var result = [];
+        var ceRoots = Polynomial.toPolynomial(c.multiply(e), variable).getroots();//TODO: details - ?
+        for (var i = 0; i < ceRoots.length; i += 1) {
+          var root = ceRoots[i];
+          if (np.calcAt(root).equals(Expression.ZERO)) {
+            roots.push(root);
+            //TODO: this also filters out duplicate roots (?)
+            np = np.divideAndRemainder(Polynomial.of(root.negate(), Expression.ONE)).quotient;//TODO: optimize somehow - ?
+          } else {
+            //TODO:?
+            console.debug(root);
+          }
+        }
+      }
+    }
+
     if (np.getDegree() >= 4) {
       //TODO: fix
       if (typeof hit === "function") {

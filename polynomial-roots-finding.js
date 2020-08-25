@@ -207,6 +207,7 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
       //!
       //!?2020-01-17
       if (!(v instanceof Expression.Integer)) {
+        //TODO: move to Expression._isPositive - ?
         if (v instanceof Expression.Addition && v.a instanceof Expression.Multiplication && v.b instanceof Expression.Integer) {
           if (v.a.isNegative() !== v.b.isNegative()) {
             var c = Expression.getConjugate(v);
@@ -219,6 +220,15 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
               throw new TypeError();
             }
             v = v.a.isNegative() ? Expression.ONE.negate() : Expression.ONE;//TODO: FIX
+          }
+        }
+        if (!(v instanceof Expression.Integer)) {
+          var isPositive = Expression._isPositive(v);
+          if (isPositive === true) {
+            v = Expression.ONE;
+          }
+          if (isPositive === false) {
+            v = Expression.ONE.negate();
           }
         }
       }
@@ -421,8 +431,23 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
   */
 
   // Polynomial.toPolynomial(RPN("x^3-8x^2+21x-18"), RPN("x")).getZeros(3).result.toString()
-  Polynomial.prototype.getZeros = function (precision) {
+  Polynomial.prototype.getZeros = function (precision, complex) {
     precision = precision || 1;
+    complex = complex || false;
+    if (this.getCoefficient(0).equals(Expression.ZERO)) {
+      if (this.getLeadingCoefficient().equals(Expression.ZERO)) {
+        throw new TypeError();
+      }
+      var i = 0;
+      while (this.getCoefficient(i).equals(Expression.ZERO)) {
+        i += 1;
+      }
+      var tmp = this.divideAndRemainder(Polynomial.of(Expression.ONE).shift(i)).quotient.getZeros(precision, complex);
+      return {
+        result: tmp.result.concat([Expression.ZERO]),
+        multiplicities: tmp.multiplicities.concat([i])
+      };
+    }
     //TODO: test
     var content = this.getContent();
     var f = this.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
@@ -434,8 +459,8 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
 
     if (a0.getDegree() !== 0) {
       p = p.divideAndRemainder(gcd(p, a0)).quotient; // roots with multiplicity = 1 (?)
-      var tmp1 = p.getZeros(precision);
-      var tmp2 = a0.getZeros(precision);
+      var tmp1 = p.getZeros(precision, complex);
+      var tmp2 = a0.getZeros(precision, complex);
       return {
         result: tmp1.result.concat(tmp2.result),
         multiplicities: tmp1.multiplicities.concat(tmp2.multiplicities.map(function (m) {
@@ -462,9 +487,9 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
       var c = Expression.getConjugate(e);
       if (c != null) {
         var result = [];
-        var tmp = Polynomial.toPolynomial(c.multiply(e), variable).getZeros(precision);
+        var tmp = Polynomial.toPolynomial(c.multiply(e), variable).getZeros(precision, complex);
         for (var i = 0; i < tmp.result.length; i += 1) {
-          if (this.hasRoot(tmp.result[i].root)) {
+          if (tmp.result[i] instanceof ExpressionWithPolynomialRoot ? this.hasRoot(tmp.result[i].root) : this.calcAt(tmp.result[i]).equals(Expression.ZERO)) {
             result.push(tmp.result[i]);
           } else {
             //TODO:?
@@ -502,6 +527,91 @@ ExpressionWithPolynomialRoot.prototype._nthRoot = function (n) {//?
       }
     }
     //return result;
+
+    //!new
+    //var p = np;
+    if (intervals.length !== p.getDegree() && true && complex) {
+      //var p = stringToPolynomial("x^5+2*x^2+2*x+3");
+
+      var e = p.calcAt(RPN("a+b*i"));
+      var ce = Expression.getComplexConjugate(e);
+      var pa = ce.add(e);//TODO: ?
+      var pb = ce.subtract(e).multiply(Expression.I).divide(RPN('b'));
+      pa = Polynomial.toPolynomial(pa, RPN('a'));
+      pb = Polynomial.toPolynomial(pb, RPN('a'));
+
+      while (pb.getDegree() !== 0) {
+        //console.log(pa + '', pb + '');
+        var tmp = pa.divideAndRemainder(pb).remainder;
+        pa = pb;
+        pb = tmp;
+        if (false && pa.getDegree() < 3 && (pa.getDegree() === 1 || pa.getCoefficient(1).equals(Expression.ZERO))) {
+        var candidates = Polynomial.toPolynomial(pb.getLeadingCoefficient().getNumerator(), RPN('b')).getZeros(undefined, false).result;
+        if (candidates.length > 1) {//?
+          /*
+          var pb2 = pb.subtract(Polynomial.of(pb.getLeadingCoefficient()).shift(pb.getDegree()));
+          var pa2 = pa;
+          while (pb2.getDegree() > 0) {
+            var tmp = pa2.divideAndRemainder(pb2).remainder;
+            pa2 = pb2;
+            pb2 = tmp;
+          }
+          */
+          //if (pb2.getDegree() > 0) {
+            //var bs = Polynomial.toPolynomial(pb2.calcAt(RPN('0')).getNumerator(), RPN('b')).getZeros(undefined, false).result;
+            var pa2 = pa;
+            pa2 = pa2.scale(pa2.getContent().inverse());
+            var bs = candidates;
+            for (var i = 0; i < bs.length; i += 1) {
+              var b = bs[i];
+              //var e = pa2.getCoefficient(0).negate().divide(pa2.getCoefficient(1));
+              //var a = Polynomial.toPolynomial(e.getNumerator(), RPN('b')).calcAt(b).divide(Polynomial.toPolynomial(e.getDenominator(), RPN('b')).calcAt(b));
+              var pp = pa2.map(function (coefficient) { return Polynomial.toPolynomial(coefficient, RPN('b')).calcAt(b); });
+              //var pp = pa2;
+              var roots = pp.getDegree() === 1 ? [pp.getCoefficient(0).negate().divide(pp.getCoefficient(1))] : pp.getroots();
+              for (var j = 0; j < roots.length; j += 1) {
+                var a = roots[j];
+                //a = Polynomial.toPolynomial(a.getNumerator(), RPN('b')).calcAt(b).divide(Polynomial.toPolynomial(a.getDenominator(), RPN('b')).calcAt(b));
+                var root = a.add(b.multiply(Expression.I));
+                if (p.calcAt(root).equals(Expression.ZERO)) {
+                  //console.log(a.toString({fractionDigits: 10}), b.toString({fractionDigits: 10}));
+                  //console.log(root + '', a);
+                  result.push(root);
+                }
+              }
+            }
+          //}
+        }
+        }
+      }
+      //console.log(pa + '', pb + '');
+
+      pa = pa.scale(pa.getContent().inverse());
+      var bs = Polynomial.toPolynomial(pb.calcAt(RPN('0')).getNumerator(), RPN('b')).getZeros(undefined, false).result;
+      for (var i = 0; i < bs.length; i += 1) {
+        var b = bs[i];
+        var e = pa.getCoefficient(0).negate().divide(pa.getCoefficient(1));
+        var a = Polynomial.toPolynomial(e.getNumerator(), RPN('b')).calcAt(b).divide(Polynomial.toPolynomial(e.getDenominator(), RPN('b')).calcAt(b));
+        var root = a.add(b.multiply(Expression.I));
+        if (p.calcAt(root).equals(Expression.ZERO)) {
+          //console.log(a.toString({fractionDigits: 10}), b.toString({fractionDigits: 10}));
+          //console.log(root + '', a);
+          result.push(root);
+        }
+      }
+    }
+    //!
+
+    if (false) {
+    result = result.filter(function (x, index) {
+      for (var j = index + 1; j < result.length; j += 1) {
+        if (result[j].toString() === x.toString()) {
+          return false;
+        }
+      }
+      return true;
+    });
+    }
 
     //?
     var multiplicities = new Array(result.length).fill(1);
