@@ -1779,7 +1779,7 @@
         }
       }
     }
-    //!new 2020-12-16 - RPN('1/(x+cbrt(18)+cbrt(12))')
+    //!new 2020-12-16 - ExpressionParser.parse('1/(x+cbrt(18)+cbrt(12))')
     if (p != undefined) {
       if (p instanceof Integer) {//TODO: ?
       p = p.primeFactor();
@@ -3615,7 +3615,7 @@ if (simplifyIdentityMatrixPower) {
             // (9t+(v-t))**2*(v-t) = 27*t*u**2
 
             var t = new Expression.Symbol('t');
-            //var eq = ExpressionParser.parse('(9t+(v-t))**2*(v-t) - 27*t*u**2', new RPN.Context(function (id) {
+            //var eq = ExpressionParser.parse('(9t+(v-t))**2*(v-t) - 27*t*u**2', new ExpressionParser.Context(function (id) {
             //  return id === 'v' ? v : (id === 'u' ? u : (id === 't' ? t : undefined));
             //})).simplify();
             var NINE = Expression.Integer.fromNumber(9);

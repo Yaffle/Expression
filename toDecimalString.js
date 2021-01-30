@@ -39,7 +39,7 @@ BigDecimalMath.min = function (a, b) {
 };
 BigDecimalMath.nthRoot = function (x, n, rounding) {
   if ((true || n > 100) && !BigDecimal.lessThan(x, BigDecimal.BigDecimal(2)) && rounding.maximumSignificantDigits != undefined && 2 + rounding.maximumSignificantDigits < n) {//?
-    // RPN('2**(1/10000)').toMathML({fractionDigits: 10});
+    // ExpressionParser.parse('2**(1/10000)').toMathML({fractionDigits: 10});
     var roundingToInteger = {
       maximumFractionDigits: 0,
       roundingMode: 'half-even'
@@ -179,7 +179,14 @@ Interval.Context.prototype.unaryMinus = function (x) {
 };
 Interval.Context.prototype._add = function (x, y, which) {
   if (USE_DIRECTED_ROUNDING_MODES) {
-    return BigDecimal.add(x, y, Object.assign({}, this.anyRounding, {roundingMode: which}));
+    if (which === 'floor') {
+      var floorRounding = this.floorRounding;
+      return BigDecimal.add(x, y, floorRounding);
+    }
+    if (which === 'floor') {
+      var ceilRounding = this.ceilRounding;
+      return BigDecimal.add(x, y, ceilRounding);
+    }
   }
   if (BigDecimal.lessThan(BigDecimalMath.abs(x), BigDecimalMath.abs(y))) {
     return this._add(y, x, which);

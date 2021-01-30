@@ -390,7 +390,7 @@ Expression.SVDDecomposition = function (matrix) {
   //  Sigma = Sigma.augment(Matrix.Zero(matrix.rows(), matrix.cols() - matrix.rows()));
   //}
   //var Sigma = Matrix.Zero(matrix.rows(), matrix.cols()).map((e, i, j) => (i === j ? eigenvalues[i].squareRoot() : Expression.ZERO));
-  //var Vstar = RPN(matrix.toString()).transformEquality(RPN(U.multiply(Sigma).toString() + '*' + 'X', RPN.c).simplify());
+  //var Vstar = ExpressionParser.parse(matrix.toString()).transformEquality(ExpressionParser.parse(U.multiply(Sigma).toString() + '*' + 'X', ExpressionParser.parse.c).simplify());
   
   //var s = Matrix.Zero(matrix.rows(), matrix.rows()).map((e, i, j) => (i === j ? (i < eigenvalues.length && !eigenvalues[i].equals(Expression.ZERO) ? eigenvalues[i].squareRoot().inverse() : Expression.ONE) : Expression.ZERO));
   var MstarM = matrix.conjugateTranspose().multiply(matrix);

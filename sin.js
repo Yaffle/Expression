@@ -435,12 +435,12 @@ var simplifyConstantValueInternal = function (d, fraction) {
 
   //if (d === 24) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#24°:_sum_12°_+_12°
-    //return RPN('(sqrt(6*(5-sqrt(5)))+sqrt(5)+1)/8');
+    //return ExpressionParser.parse('(sqrt(6*(5-sqrt(5)))+sqrt(5)+1)/8');
     //return cosapb(60, -36);
   //}
   //if (d === 42) {
     // cos(42) = sin(48) = 2*sin(24)*cos(24)
-    //return RPN('2*sin(24)*cos(24)');
+    //return ExpressionParser.parse('2*sin(24)*cos(24)');
   //}
 
   // 0, 15, 30, 36, 45, 60, 72, 75, 90 - more simple
@@ -567,7 +567,7 @@ if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
     polynomial = polynomial.scale(polynomial.getContent().inverse());
     //TODO: ?
     var approximate = Math.cos((d + fraction.getNumerator().toNumber() / fraction.getDenominator().toNumber()) / 180 * Math.PI);
-    var interval = new Expression.PolynomialRoot1.SimpleInterval(RPN((approximate - 10**-7).toString()), RPN((approximate + 10**-7).toString()));
+    var interval = new Expression.PolynomialRoot1.SimpleInterval(ExpressionParser.parse((approximate - 10**-7).toString()), ExpressionParser.parse((approximate + 10**-7).toString()));
     return new Expression.PolynomialRoot1(polynomial, interval);
   }
   

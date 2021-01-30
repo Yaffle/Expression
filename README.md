@@ -44,7 +44,7 @@ example.js:
   //var y = Expression.getFormaDeJordan(...);
 
   // Compute the first 100 digits of the square root of 2:
-  console.log(RPN('sqrt(2)').toMathML({fractionDigits: 100})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
+  console.log(ExpressionParser.parse('sqrt(2)').toMathML({fractionDigits: 100})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
 
   // simplify an expression:
   console.log(simplify('x * y * -x / (x ^ 2)').toString()) // '-y'
@@ -91,21 +91,6 @@ node --experimental-modules --loader @yaffle/expression/js-loader.mjs example.js
 Types
 =====
 ```
-  BigInteger
-    BigInteger.BigInt(number)
-    BigInteger.BigInt(string)
-    BigInteger.toNumber(a)
-    a.toString(radix)
-    BigInteger.add(a, b)
-    BigInteger.subtract(a, b)
-    BigInteger.multiply(a, b)
-    BigInteger.divide(a, b)
-    BigInteger.remainder(a, b)
-    BigInteger.exponentiate(a, n)
-    BigInteger.unaryMinus(a)
-    BigInteger.equal(a, b)
-    BigInteger.lessThan(a, b)
-    BigInteger.greaterThan(a, b)
   nthRoot(a, n)
   primeFactor(a)
   Matrix

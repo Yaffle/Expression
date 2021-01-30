@@ -1987,7 +1987,7 @@ Polynomial.prototype._factorByUsingZeros = function (maxDegree = 1/0, tryComplex
         c2 += 1;
         var guess = Polynomial.of(a);
         for (var zero of combination) {
-          //guess = guess.multiply(Polynomial.of(RPN(zero.toString()).negate(), Expression.ONE));
+          //guess = guess.multiply(Polynomial.of(ExpressionParser.parse(zero.toString()).negate(), Expression.ONE));
           guess = guess.multiply(Polynomial.of(zero.e != null ? zero.e.negate() : zero.negate(), Expression.ONE));
         }
         var tmp2 = guess;

@@ -533,7 +533,7 @@ Condition.prototype._and = function (operator, e) {
           }
         }
         if (newMethodEnabled && true) {
-          // Condition.TRUE.andNotZero(RPN('b*c-a*d')).andZero(RPN('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
+          // Condition.TRUE.andNotZero(ExpressionParser.parse('b*c-a*d')).andZero(ExpressionParser.parse('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
           if (x.operator === Condition.NEZ && y.operator === Condition.EQZ) {
             // consider y = x * q + r, where q is not zero (? and x is not zero)
             // then y != r
@@ -733,7 +733,7 @@ Condition.prototype._and = function (operator, e) {
           for (var j = 0; j < array.length; j += 1) {
             var x = array[j];
             if (x.operator === Condition.NEZ) {
-              // Condition.TRUE.andNotZero(RPN('b*c-a*d')).andZero(RPN('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
+              // Condition.TRUE.andNotZero(ExpressionParser.parse('b*c-a*d')).andZero(ExpressionParser.parse('2*b*c-2*a*d+b*c*d+c*d-a*d^2')) + ''
               // consider y = x * q + r, where q is not zero
               // then y != r
 
