@@ -1,7 +1,6 @@
   import Expression from './Expression.js';
   import QuadraticInteger from './QuadraticInteger.js';
-  import BigInteger from './BigInteger.js';
-  import nthRoot from './nthRoot.compiled.js';
+  import nthRoot from './nthRoot.js';
 
   var Integer = Expression.Integer;
 
@@ -79,9 +78,12 @@
       //TODO: fix
       //throw new RangeError("NotSupportedError");//TODO:
     }
+    return y.compare4MultiplicationComplex(this);
+  };
+  Expression.prototype.compare4MultiplicationComplex = function (x) {
     return -1;//?
   };
-  Complex.prototype.compare4MultiplicationSymbol = function (y) {
+  Complex.prototype.compare4MultiplicationSymbol = function (x) {
     return +1;
   };
   Complex.prototype.multiply = function (y) {
@@ -174,7 +176,7 @@
     return c;
   };
 
-  Complex.prototype.compare4MultiplicationInteger = function (y) {
+  Complex.prototype.compare4MultiplicationInteger = function (x) {
     return +1;
   };
 
@@ -209,62 +211,14 @@
   };
 
   Complex.prototype.primeFactor = function () {
-
-    function canBeSquare(n) {
-      if (typeof n === "object") {
-        return true;//TODO:
-      }
-      // https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/#comment-15700
-      //var bitset = 0;
-      //for (var i = 0; i < 32; i += 1) {
-      //  bitset |= 1 << ((i * i) % 32);
-      //}
-      var bitset = 33751571;
-      var result = (bitset >> Number(n & n.constructor(31))) & 1;
-      return result === 1;
-    }
-    function norm(a, b) {
-      return BigInteger.add(BigInteger.multiply(a, a), BigInteger.multiply(b, b));
-    }
-    function hasDivisor(r, i, a, b) {
-      var d = BigInteger.add(BigInteger.multiply(a, a), BigInteger.multiply(b, b));
-      var x = BigInteger.add(BigInteger.multiply(r, a), BigInteger.multiply(i, b));
-      var y = BigInteger.subtract(BigInteger.multiply(i, a), BigInteger.multiply(r, b));
-      return BigInteger.equal(BigInteger.remainder(x, d), 0) && BigInteger.equal(BigInteger.remainder(y, d), 0);
-    }
-
-    var r = this.real.toBigInt();
-    var i = this.imaginary.toBigInt();
-    var n = norm(r, i);
-    //if (n > (9007199254740991 + 1) / 2) {
-      //TODO: should not throw (see a call from Polynomial#getroots)
-      //throw new RangeError("NotSupportedError");
-    //}
-
-    for (var fs = QuadraticInteger._factors(n), p = fs.next().value; p != null; p = fs.next().value) {
-      var b = BigInteger.BigInt(0);
-      var c = p;
-      while (c > 0) {
-        if (canBeSquare(c)) {
-          var a = nthRoot(c, 2);
-          if (BigInteger.equal(BigInteger.exponentiate(a, BigInteger.BigInt(2)), c)) {
-            if (norm(a, b) > 1 && hasDivisor(r, i, a, b)) {
-              return BigInteger.equal(b, 0) ? new Expression.Complex(Expression.ZERO, new Expression.Integer(a)) : new Complex(new Expression.Integer(a), new Expression.Integer(b));
-            }
-          }
-        }
-        b = BigInteger.add(b, BigInteger.BigInt(1));
-        c = BigInteger.subtract(p, BigInteger.multiply(b, b));
-      }
-    }
-
-    if (n > 1) {
-      throw new TypeError();
-    }
-    return this;
+    return QuadraticInteger._complexIntegerPrimeFactor(this.real.toBigInt(), this.imaginary.toBigInt());
   };
 
   Expression.Complex = Complex;
+
+Expression.Complex.prototype.complexConjugate = function () {
+  return this.conjugate();
+};
 
 /*
 //!

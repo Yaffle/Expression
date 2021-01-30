@@ -9,7 +9,7 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
   //!2018-05-28
   //!2018-07-11
   // experimental code
-  var zeros = {result: [], multiplicities: []};
+  var zeros = [];
   if (typeof polynomial.getZeros === "function" && roots.length !== polynomial.getDegree()) {
     var p = Polynomial.of(Expression.ONE);
     for (var i = 0; i < roots.length; i += 1) {
@@ -40,8 +40,17 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
     }
   }
 
-  uniqueRoots = uniqueRoots.concat(zeros.result);
-  multiplicities = multiplicities.concat(zeros.multiplicities);
+  var m = 0;
+  for (var i = 0; i < zeros.length; i += 1) {
+    m += 1;
+    var zero = zeros[i];
+    var next = i + 1 < zeros.length ? zeros[i + 1] : undefined;
+    if (next !== zero) {
+      uniqueRoots.push(zero);
+      multiplicities.push(m);
+      m = 0;
+    }
+  }
 
   return {
     uniqueRoots: uniqueRoots,
@@ -225,7 +234,7 @@ Expression.LUDecomposition = function (matrix) {
   };
 };
 
-Expression.isRealMatrix = function (A, n) {
+Expression.isReal = function (e) {
   var isReal = function (e) {
     if (e instanceof Expression.Integer) {
       return true;
@@ -236,18 +245,29 @@ Expression.isRealMatrix = function (A, n) {
     if (e instanceof Expression.BinaryOperation) {
       return isReal(e.a) && isReal(e.b);
     }
+    if (e === Expression.E || e === Expression.PI) {
+      return true;
+    }
+    if (e instanceof Expression.Function) {
+      return isReal(e.a);
+    }
+    if (e instanceof Expression.PolynomialRoot || e instanceof Expression.ExpressionWithPolynomialRoot) {
+      return true;//TODO: ?
+    }
     return false;
   };
-  for (var i = 0; i < n; i += 1) {
-    for (var j = 0; j < n; j += 1) {
-      if (!isReal(A.e(i, j))) {
+  return isReal(e);
+};
+Expression.isRealMatrix = function (A) {
+  for (var i = 0; i < A.rows(); i += 1) {
+    for (var j = 0; j < A.cols(); j += 1) {
+      if (!Expression.isReal(A.e(i, j))) {
         return false;
       }
     }
   }
   return true;
 };
-
 Expression.CholeskyDecomposition = function (matrix) {
   var A = matrix;
 
@@ -259,15 +279,17 @@ Expression.CholeskyDecomposition = function (matrix) {
   var n = A.rows();
 
   // check if A from R
-  if (!Expression.isRealMatrix(A, n)) {
-    throw new RangeError("NonRealMatrixException");
-  }
+  var isReal = Expression.isRealMatrix(A);
 
   // check if A is symmetric
   for (var i = 0; i < n; i += 1)  {
-    for (var j = i + 1; j < n; j += 1) {
-      if (!A.e(i, j).equals(A.e(j, i))) {
-        throw new RangeError("NonSymmetricMatrixException");
+    for (var j = i; j < n; j += 1) {
+      if (!A.e(i, j).equals(A.e(j, i).complexConjugate())) {
+        if (isReal) {
+          throw new RangeError("NonSymmetricMatrixException");
+        } else {
+          throw new RangeError("NonHermitianMatrixException");
+        }
       }
     }
   }
@@ -286,19 +308,19 @@ Expression.CholeskyDecomposition = function (matrix) {
       if (j === i) {
         var sum = null;
         for (var k = 0; k < j; k += 1) {
-          var s = L[j][k].pow(Expression.TWO);
+          var s = L[j][k].multiply(L[j][k].complexConjugate());
           sum = sum == null ? s : sum.add(s);
         }
         var x = sum == null ? A.e(j, j) : A.e(j, j).subtract(sum);
         //TODO: fix
-        //if (x instanceof Expression.Integer && x.compareTo(Expression.ZERO) < 0) {
-        //  throw new RangeError("NonPositiveDefiniteMatrix");
-        //}
+        if (!Expression._isPositive(x)) {
+          throw new RangeError("NonPositiveDefiniteMatrix");
+        }
         e = x.squareRoot();
       } else {
         var sum = null;
         for (var k = 0; k < j; k += 1) {
-          var x = L[i][k].multiply(L[j][k]);
+          var x = L[i][k].multiply(L[j][k].complexConjugate());
           sum = sum == null ? x : sum.add(x);
         }
         e = (sum == null ? A.e(i, j) : A.e(i, j).subtract(sum)).divide(L[j][j]);
@@ -313,3 +335,72 @@ Expression.CholeskyDecomposition = function (matrix) {
 };
 
 
+Matrix.prototype.conjugateTranspose = function () {
+  return this.transpose().map(e => e.complexConjugate());
+};
+
+// SVD-decomposition
+Expression.SVDDecomposition = function (matrix) {
+  // TODO: see email 
+  // https://en.wikipedia.org/wiki/Singular_value_decomposition#Calculating_the_SVD
+  // TODO: see https://web.mit.edu/be.400/www/SVD/Singular_Value_Decomposition.htm
+  // The left-singular vectors of M are a set of orthonormal eigenvectors of MM*.
+  var helper = function (matrix, eigenvalues, multiplicities) {
+    var tmp = Expression.getEigenvectors(matrix, eigenvalues);
+    var eigenvectors = tmp.eigenvectors;
+    //TODO: orthogonalization - ?
+    if (multiplicities.length !== matrix.rows()) {//TODO: https://math.stackexchange.com/questions/82467/eigenvectors-of-real-symmetric-matrices-are-orthogonal#answer-82471
+      eigenvectors = GramSchmidtOrthogonalization(eigenvectors);
+    }
+    var norm = function (vector) {
+      return vector.dot(vector).squareRoot();
+    };
+    //TODO: rewrite (use array of vectors - ?)
+    var normInverses = new Array(eigenvectors.length).fill(null).map((e, j) => Expression.ONE.divide(norm(eigenvectors[j])));
+    var eigenvectorMatrix = Matrix.Zero(eigenvectors[0].dimensions(), eigenvectors.length).map((e, i, j) => eigenvectors[j].e(i).multiply(normInverses[j]));
+    return eigenvectorMatrix;
+  };
+  var MMstar = matrix.multiply(matrix.conjugateTranspose());
+  var tmp = Expression.getEigenvalues(MMstar);
+  var eigenvalues = tmp.eigenvalues;
+  //!
+  eigenvalues = eigenvalues.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
+  //!
+  eigenvalues.sort((a, b) => a._pow(2).subtract(b._pow(2)).compareTo(Expression.ZERO) > 0 ? -1 : 1);
+  var multiplicities = tmp.multiplicities;
+  var U = helper(MMstar, eigenvalues, multiplicities);
+  var diagonal = [];
+  for (var i = 0; i < eigenvalues.length && diagonal.length < Math.min(matrix.rows(), matrix.cols()); i += 1) {
+    var eigenvalue = eigenvalues[i];
+    var entry = eigenvalue.squareRoot();
+    var eigenvalue = eigenvalues[i];
+    // https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors#Eigenspaces,_geometric_multiplicity,_and_the_eigenbasis_for_matrices
+    //TODO: optimize - ?
+    var geometricMultiplicity = multiplicities[i] === 1 ? 1 : MMstar.cols() - MMstar.subtract(Matrix.I(MMstar.cols()).scale(eigenvalue)).rank();//?
+    for (var j = 0; j < geometricMultiplicity; j += 1) {
+      diagonal.push(entry);
+    }
+  }
+  while (diagonal.length < Math.min(matrix.rows(), matrix.cols())) {//?TODO: ?
+    diagonal.push(Expression.ZERO);
+  }
+  var Sigma = Matrix.Zero(matrix.rows(), matrix.cols()).map((e, i, j) => (i === j ? diagonal[i] : Expression.ZERO));
+  //var Sigma = Matrix.Diagonal(diagonal);
+  //if (matrix.cols() > matrix.rows()) {//TODO: ?
+  //  Sigma = Sigma.augment(Matrix.Zero(matrix.rows(), matrix.cols() - matrix.rows()));
+  //}
+  //var Sigma = Matrix.Zero(matrix.rows(), matrix.cols()).map((e, i, j) => (i === j ? eigenvalues[i].squareRoot() : Expression.ZERO));
+  //var Vstar = RPN(matrix.toString()).transformEquality(RPN(U.multiply(Sigma).toString() + '*' + 'X', RPN.c).simplify());
+  
+  //var s = Matrix.Zero(matrix.rows(), matrix.rows()).map((e, i, j) => (i === j ? (i < eigenvalues.length && !eigenvalues[i].equals(Expression.ZERO) ? eigenvalues[i].squareRoot().inverse() : Expression.ONE) : Expression.ZERO));
+  var MstarM = matrix.conjugateTranspose().multiply(matrix);
+  //var tmp = Expression.getEigenvalues(MstarM);
+  //var eigenvalues = tmp.eigenvalues;
+  //var multiplicities = tmp.multiplicities;
+  var Vstar = helper(MstarM, eigenvalues, multiplicities).conjugateTranspose();
+  //var Vstar = s.multiply(U.inverse().multiply(matrix));
+  //var Vstar = U.conjugateTranspose().multiply(matrix);
+  //console.log(U.multiply(U.conjugateTranspose()).toString());
+  //console.log(Vstar.multiply(Vstar.conjugateTranspose()).toString());
+  return {U: U, Sigma: Sigma, Vstar: Vstar};
+};

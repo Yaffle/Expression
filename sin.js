@@ -1,4 +1,5 @@
   import Expression from './Expression.js';
+  import toDecimalStringInternal from './toDecimalString.js';
 
   var Integer = Expression.Integer;
   var Addition = Expression.Addition;
@@ -387,21 +388,23 @@ function Sin(x) {
 Sin.prototype = Object.create(Expression.Function.prototype);
 
 //TODO: new 2017-04-26
-var simplifyConstantValueInternal = function (d) {
+var simplifyConstantValueInternal = function (d, fraction) {
+  fraction = fraction || Expression.ZERO;
   if (d >= +360 || d <= -360) {
     throw new RangeError();
   }
   if (d < 0) {
     d = 0 - d;
+    fraction = fraction.negate();
   }
   if (d >= 180) {
     d = d - 180;
-    var tmp = simplifyConstantValueInternal(d);
+    var tmp = simplifyConstantValueInternal(d, fraction);
     return tmp == null ? null : tmp.negate();
   }
   if (d > 90) {
     d = 180 - d;
-    var tmp = simplifyConstantValueInternal(d);
+    var tmp = simplifyConstantValueInternal(d, fraction);
     return tmp == null ? null : tmp.negate();
   }
 
@@ -417,6 +420,10 @@ var simplifyConstantValueInternal = function (d) {
     var sina = simplifyConstantValueInternal(90 - a);
     var sinb = simplifyConstantValueInternal(90 - b);
     return cosa.multiply(cosb).subtract(sina.multiply(sinb));
+  }
+
+  function phi() {
+    return Expression.ONE.add(Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot()).divide(Expression.TWO);
   }
 
   //function cos2x(d) { // cos(d) = cos(a + b)
@@ -438,6 +445,7 @@ var simplifyConstantValueInternal = function (d) {
 
   // 0, 15, 30, 36, 45, 60, 72, 75, 90 - more simple
 
+if (fraction.equals(Expression.ZERO)) {
   if (d === 0) {
     return Expression.ONE;
   }
@@ -461,10 +469,6 @@ var simplifyConstantValueInternal = function (d) {
     return f(d);
   }
 
-  function phi() {
-    return Expression.ONE.add(Expression.TWO.add(Expression.TWO).add(Expression.ONE).squareRoot()).divide(Expression.TWO);
-  }
-
   if (d === 36) {
     return phi().divide(Expression.TWO);
   }
@@ -482,39 +486,20 @@ var simplifyConstantValueInternal = function (d) {
     return Expression.TWO.add(Expression.ONE).subtract(phi()).squareRoot().divide(Expression.TWO);
   }
 
-  if (d === 7.5) {
-    return cosapb(30, -22.5);
-  }
-  if (d === 22.5) {
-    return f(d);
-  }
-  if (d === 37.5) {
-    return cosapb(60, -22.5);
-  }
-  if (d === 52.5) {
-    return cosapb(30, +22.5);
-  }
-  if (d === 67.5) {
-    return f(d);
-  }
-  if (d === 82.5) {
-    return cosapb(60, +22.5);
-  }
-
   // https://en.wikipedia.org/wiki/Sine
 
-/*
-  for (var d = 3; d <= 90; d += 3) {
-    if (d % 15 !== 0 && d % 18 !== 0) {
-      for (var a = 75; a > 0; a -= 15) {
-        var b = -(a - d);
-        if (b % 18 === 0) {
-          console.log(`cos(${d})=cos(${a}+${b})`);
-        }
-      }
-    }
-  }
-*/
+
+  //for (var d = 3; d <= 90; d += 3) {
+  //  if (d % 15 !== 0 && d % 18 !== 0) {
+  //    for (var a = 75; a > 0; a -= 15) {
+  //      var b = -(a - d);
+  //      if (b % 18 === 0) {
+  //        console.log(`cos(${d})=cos(${a}+${b})`);
+  //      }
+  //    }
+  //  }
+  //}
+
 
   //if (d === 3) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#3°:_regular_hexacontagon_(60-sided_polygon)
@@ -526,8 +511,66 @@ var simplifyConstantValueInternal = function (d) {
     var b = -(a - d);
     return cosapb(a, b);
   }
+}
+
+if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
+  var dd = d + fraction.multiply(Expression.TWO).toNumber() / 2;
+  if (dd === 7.5) {
+    return cosapb(30, -22.5);
+  }
+  if (dd === 22.5) {
+    return f(dd);
+  }
+  if (dd === 37.5) {
+    return cosapb(60, -22.5);
+  }
+  if (dd === 52.5) {
+    return cosapb(30, +22.5);
+  }
+  if (dd === 67.5) {
+    return f(dd);
+  }
+  if (dd === 82.5) {
+    return cosapb(60, +22.5);
+  }
+}
 
   //TODO: sin(1.5)
+  
+  // https://math.stackexchange.com/questions/125774/how-to-expand-cos-nx-with-cos-x#answer-125826
+  if (d % 1 === 0) {//TODO: !!!
+    var rational = Integer.fromNumber(d).add(fraction).divide(Integer.fromNumber(60));
+    //var gcd = function (a, b) {
+    //  return b === 0 ? a : gcd(b, a % b);
+    //};
+    //var n = 360 / gcd(360, d);
+    var n = rational.getDenominator().toNumber();
+    var a = rational.getNumerator().toNumber();
+    if (n > Number.MAX_SAFE_INTEGER || a > Number.MAX_SAFE_INTEGER) {
+      return undefined;
+    }
+    var T = function (n) {
+      // https://en.wikipedia.org/wiki/Chebyshev_polynomials#Definition
+      const x = Polynomial.of(Expression.ZERO, Expression.ONE);
+      let Tprevious = Polynomial.of(Expression.ONE);
+      let Tcurrent = x;
+      let i = 1;
+      while (i < n) {
+        let Tnext = Polynomial.of(Expression.TWO).multiply(x).multiply(Tcurrent).subtract(Tprevious);
+        Tprevious = Tcurrent;
+        Tcurrent = Tnext;
+        i += 1;
+      }
+      return Tcurrent;
+    };
+    var polynomial = T(n).subtract(Polynomial.of(simplifyConstantValueInternal(60 * (a % 6), Expression.ZERO)));
+    polynomial = polynomial.scale(polynomial.getContent().inverse());
+    //TODO: ?
+    var approximate = Math.cos((d + fraction.getNumerator().toNumber() / fraction.getDenominator().toNumber()) / 180 * Math.PI);
+    var interval = new Expression.PolynomialRoot1.SimpleInterval(RPN((approximate - 10**-7).toString()), RPN((approximate + 10**-7).toString()));
+    return new Expression.PolynomialRoot1(polynomial, interval);
+  }
+  
   return undefined;
 };
 
@@ -551,24 +594,35 @@ var simplifyConstantValue = function (x, type) {
     b = x.b;
   } else if (x instanceof Expression.Degrees) {
     var t = x.value.simplify();
-    return simplifyConstantValue(t.multiply(Expression.PI).divide(Integer.fromNumber(180)), type);
+    t = t.multiply(Expression.PI).divide(Integer.fromNumber(180));
+    if (type === 'sin') {
+      return t.sin();
+    }
+    if (type === 'cos') {
+      return t.cos();
+    }
   }
   if (a != undefined && b != undefined) {
-    b = b.toNumber();
-    var k = 2;
-    if (b >= 1 && b <= 180 && (180 * k) % b === 0) {
-      var d = a.multiply(Integer.fromNumber(Math.floor((180 * k) / b))).remainder(Integer.fromNumber(360 * k)).toNumber();
-      d /= k;
+    //b = b.toNumber();
+    //var k = Math.pow(2, 44);
+    //if (b >= 1 && b <= 180 && (180 * k) % b === 0) {
+      //var d = a.multiply(Integer.fromNumber(Math.floor((180 * k) / b))).remainder(Integer.fromNumber(360 * k)).toNumber();
+      //d /= k;
+      var integer = a.multiply(Integer.fromNumber(180)).truncatingDivide(b);
+      var fraction = a.multiply(Integer.fromNumber(180)).subtract(integer.multiply(b)).divide(b);
+      //var degrees = integer.remainder(Integer.fromNumber(360)).add(fraction);
+      var d = integer.remainder(Integer.fromNumber(360)).toNumber();
       if (type === "sin") {
         d = 90 - d;
+        fraction = fraction.negate();
         if (d >= 360 - 90) {
           d -= 360;
         }
       } else if (type !== "cos") {
         throw new TypeError();
       }
-      return simplifyConstantValueInternal(d);
-    }
+      return simplifyConstantValueInternal(d, fraction);
+    //}
   }
   if (x instanceof Expression.Radians && x.value.equals(Expression.ZERO)) {
     return simplifyConstantValue(x.value, type);
@@ -990,7 +1044,7 @@ Expression.prototype.arctan = function () {
     return x.negate().arctan().negate();
   }
   if (Expression.isConstant(x)) {
-    var value = Number(Expression.toDecimalString(x, {fractionDigits: 2}).replace(/<\/?[^>]+>/g, ''));
+    var value = Number(toDecimalStringInternal(x, {fractionDigits: 2}));
     console.assert(!Number.isNaN(value));
     var guess = Integer.fromNumber(Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 3).divide(Integer.fromNumber(360)).multiply(Expression.PI);
     if (guess.tan().equals(x)) {

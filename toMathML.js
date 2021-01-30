@@ -52,15 +52,25 @@ var printPartOfAddition = function (isLast, isFirst, coefficient, variable, opti
 };
 
 
-var decimalToMathML = function (parts) {
-  return (parts.exponentInteger !== "" ? "<mrow>" : "") +
-         (parts.plusSign !== "" || parts.minusSign !== "" ? "<mrow>" : "") +
-         (parts.plusSign !== "" ? "<mo>+</mo>" : "") +
-         (parts.minusSign !== "" ? "<mo>&minus;</mo>" : "") +
-         "<mn>" + Expression.numberFormat.format(parts.number) + "</mn>" +
-         (parts.plusSign !== "" || parts.minusSign !== "" ? "</mrow>" : "") +
-         (parts.exponentInteger !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo><msup>" + "<mn>" + Expression.numberFormat.format('10') + "</mn>" + decimalToMathML({plusSign: "", minusSign: parts.exponentMinusSign, number: parts.exponentInteger, exponentMinusSign: "", exponentInteger: ""}) + "</msup>" : "") +
-         (parts.exponentInteger !== "" ? "</mrow>" : "");
+var decimalToMathML = function (decimal) {
+  const match = /^([+\-])?(\d+\.?\d*(?:\(\d+\)\d*)?)(?:[eE]\+?(\-?\d+))?$/.exec(decimal);
+  const groups = {
+    sign: match[1] || "",
+    significand: match[2] || "",
+    exponent: match[3] || ""
+  };
+  return (groups.exponent !== "" ? "<mrow>" : "") +
+         (groups.sign !== "" ? "<mrow>" : "") +
+         (groups.sign === "+" ? "<mo>+</mo>" : "") +
+         (groups.sign === "-" ? "<mo>&minus;</mo>" : "") +
+         "<mn>" + Expression.numberFormat.format(groups.significand.replace(/[\(\)]/g, '')).replace(/^[\s\S]+$/g, function (p) {
+           var i = groups.significand.indexOf('(');
+           var j = groups.significand.lastIndexOf(')');
+           return i === -1 || j === -1 ? p : p.slice(0, i) + '<span style="text-decoration:overline;">' + p.slice(i, j - 1) + '</span>' + p.slice(j - 1);
+         }) + "</mn>" +
+         (groups.sign !== "" ? "</mrow>" : "") +
+         (groups.exponent !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo>" + "<msup>" + "<mn>" + Expression.numberFormat.format('10') + "</mn>" + decimalToMathML(groups.exponent) + "</msup>" : "") +
+         (groups.exponent !== "" ? "</mrow>" : "");
 };
 
 var complexToMathML = function (real, imaginary) {
@@ -84,6 +94,9 @@ Expression._decimalToMathML = decimalToMathML;
 Expression._complexToMathML = complexToMathML;
 
   function isConstant(e) {
+    if (e instanceof Expression.PolynomialRoot) {
+      return true;
+    }
     if (e instanceof Expression.Symbol) {
       //return false;
       return e === Expression.E || e === Expression.PI;
@@ -117,7 +130,10 @@ var groupByTerm = function (e) {
   if (e instanceof Expression.Division || e instanceof Expression.Addition) {
     var numerator = e.getNumerator();
     var denominator = e.getDenominator();
-    if (denominator instanceof Expression.Integer) {
+    //TODO: fix
+    var denominatorContent = denominator instanceof Expression.Integer ? denominator : (Expression.getMultivariatePolynomial(denominator) || {p: {getContent: function () {return Expression.ONE}}}).p.getContent();
+    var denominatorRest = denominator.divide(denominatorContent);
+    if (isConstant(denominatorContent)) {//TODO: fix when the content has multiple variables
       var summands = [];
       for (var summand of numerator.summands()) {
         summands.push(summand);
@@ -139,7 +155,7 @@ var groupByTerm = function (e) {
           constant: Expression.ZERO,
           term: term
         };
-        map[key].constant = map[key].constant.add(constant.divide(denominator));
+        map[key].constant = map[key].constant.add(constant.divide(denominatorContent));
       }
       var result = null;
       for (var key in map) {
@@ -154,6 +170,9 @@ var groupByTerm = function (e) {
           var x = new NonSimplifiedExpression(term.equals(Expression.ONE) ? constant : (constant.equals(Expression.ONE) ? map[key].term : new Expression.Multiplication(constant, map[key].term)));
           result = result == null ? x : new Expression.Addition(result, s ? new Expression.Multiplication(Expression.ONE.negate(), x) : x);
         }
+      }
+      if (!denominatorRest.equals(Expression.ONE)) {
+        result = new Expression.Division(result, denominatorRest);
       }
       return new NonSimplifiedExpression(result);
     }
@@ -369,6 +388,14 @@ Expression.Transpose.prototype.toMathML = function (options) {
          "<mi>T</mi>" +
          "</msup>";
 };
+Expression.ComplexConjugate.prototype.toMathML = function (options) {
+  var x = this;
+  // https://w3c.github.io/mathml/chapter4-d.html#contm.conjugate
+  return "<mover accent=\"true\">" +
+         x.a.toMathML(options) +
+         "<mo>¯</mo>" +
+         "</mover>";
+};
 Expression.SquareRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
@@ -398,6 +425,7 @@ Expression.NthRoot.prototype.toMathML = function (options) {
          "<mi>" + this.n + "</mi>" +
          "</mroot>";
 };
+Expression.denotations = {};
 Expression.Function.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
@@ -461,6 +489,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       this.unwrap().a.unwrap() instanceof Expression.Symbol &&
       this.unwrap().a.unwrap() !== Expression.E &&
       this.unwrap().a.unwrap() !== Expression.PI &&
+      !(this.unwrap().a.unwrap() instanceof Expression.PolynomialRoot) &&
       (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
     options = Object.assign({}, options, {rounding: null});
   }
@@ -515,6 +544,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   fb = fb || b.isUnaryPlusMinus();
   fb = fb || (this.unwrap() instanceof Expression.Exponentiation && b.unwrap() instanceof Expression.Exponentiation);// 2^3^4
   fa = fa || (this.unwrap() instanceof Expression.Exponentiation && a.unwrap() instanceof Expression.Function); // cos(x)^(2+3)
+  fa = fa || (options.rounding != null && isConstant(a) && Expression.has(a, Expression.Complex)); // sqrt(2)*(1+i)*x
   var s = isSubtraction ? "-" : this.getS();
 
   if (this instanceof Expression.Exponentiation) {
@@ -588,12 +618,14 @@ Expression.Symbol.prototype.toMathML = function (options) {
     if (indexes.length > 1) {
       indexesMathML = "<mrow>" + indexesMathML + "</mrow>";
     }
+    var isVector = this instanceof Expression.MatrixSymbol && /^[a-z]$/.test(s.slice(0, i));
     return "<msub>" +
-           "<mi>" + s.slice(0, i) + "</mi>" +
+           "<mi" + (isVector ? " mathvariant=\"bold-italic\"" : "") + ">" + s.slice(0, i) + "</mi>" +
            indexesMathML +
            "</msub>";
   }
-  return "<mi>" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="' + i18n.identityMatrix + '" aria-label="' + i18n.identityMatrix + '">' + s + '</span>' : s) + "</mi>";
+  var isVector = this instanceof Expression.MatrixSymbol && /^[a-z]$/.test(s);
+  return "<mi" + (isVector ? " mathvariant=\"bold-italic\"" : "") + ">" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="' + i18n.identityMatrix + '" aria-label="' + i18n.identityMatrix + '">' + s + '</span>' : s) + "</mi>";
 };
 Expression.Negation.prototype.toMathML = function (options) {
   var b = this.b;
@@ -666,3 +698,7 @@ NonSimplifiedExpression.prototype.toMathML = function (options) {
 Expression.prototype.toMathML = function (options) {
   throw new TypeError();
 };
+
+  Expression.DecimalFraction.prototype.toMathML = function (options) {
+    return decimalToMathML(this.toString());
+  };

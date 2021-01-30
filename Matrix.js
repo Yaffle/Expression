@@ -34,6 +34,13 @@
     });
   };
 
+  //Matrix.Diagonal = function (elements) {
+  //  var n = elements.length;
+  //  return Matrix.Zero(n, n).map(function (element, i, j) {
+  //    return i === j ? elements[i] : Expression.ZERO;
+  //  });
+  //};
+
   Matrix.prototype.rows = function () {
     return this.a.length;
   };
@@ -119,9 +126,6 @@
   };
 
   Matrix.prototype.rowReduce = function (targetRow, pivotRow, pivotColumn, currentOrPreviousPivot) {
-    if (currentOrPreviousPivot == undefined) {
-      currentOrPreviousPivot = this.e(pivotRow, pivotColumn);
-    }
     var rows = this.rows();
     var cols = this.cols();
     var c = new Array(rows);
@@ -130,10 +134,16 @@
       var x = this.a[i];
       if (targetRow === i) {
         x = new Array(cols);
+        var f = currentOrPreviousPivot == undefined ? this.e(targetRow, pivotColumn).divide(this.e(pivotRow, pivotColumn)) : undefined;
         var j = -1;
         while (++j < cols) {
           // (e_ij - e_ic * e_rj / e_rc) * (e_rc / cpp)
-          var e = this.e(pivotRow, pivotColumn).multiply(this.e(targetRow, j)).subtract(this.e(targetRow, pivotColumn).multiply(this.e(pivotRow, j))).divide(currentOrPreviousPivot);
+          var e = undefined;
+          if (currentOrPreviousPivot == undefined) {
+            e = this.e(targetRow, j).subtract(f.multiply(this.e(pivotRow, j)));
+          } else {
+            e = this.e(pivotRow, pivotColumn).multiply(this.e(targetRow, j)).subtract(this.e(targetRow, pivotColumn).multiply(this.e(pivotRow, j))).divide(currentOrPreviousPivot);
+          }
           x[j] = e.simplifyExpression();
         }
         c[i] = x;
@@ -456,7 +466,7 @@
     if (!this.isSquare() || n === 0) {
       throw new RangeError("NonSquareMatrixException");
     }
-    if (false) {
+    if (false && !Expression.has(this.e(0, 0), Expression.Polynomial)) {
       var tmp = this.toRowEchelon(Matrix.Gauss, "determinant", undefined);
       var stoppedAtRow = tmp.stoppedAtRow;
       var rowEchelonMatrix = tmp.matrix;
@@ -615,7 +625,7 @@
   };
 
   Matrix.prototype.pow = function (n) {
-    if (!(n >= 0 && n <= 9007199254740991)) {
+    if (!(n >= 0 && n <= Number.MAX_SAFE_INTEGER)) {
       throw new RangeError();
     }
     var pow = function (x, count, accumulator) {
@@ -647,6 +657,7 @@
 
   // string -> array of array of strings, find `extraPositionOffset`
   Matrix.split = function (input) {
+    input = input.replace(/\b(sin|cos)\x20/g, '$1\u200B');
     var result = [];
     var m = input;
     if (/^\s*\[[^\[\]]*\]\s*$/.exec(m) != undefined) {//!
@@ -766,9 +777,7 @@
           var i = Matrix.getPivotRow(m, j); // a solution row for j-th variable, -1 if it is a free variable
           bx[j] = i !== -1 ? m.e(i, k).negate() : (j === k ? Expression.ONE : Expression.ZERO);
         }
-        var matrixData = new Array(1);
-        matrixData[0] = bx;
-        var basisVector = new Matrix(matrixData).transpose();
+        var basisVector = new Vector(bx);
         result.basisVectors.push(basisVector);
         result.variables.push(k);
       }
@@ -821,6 +830,67 @@
   };
   Matrix.prototype.isZero = function () {
     return this.eql(Matrix.Zero(this.rows(), this.cols()));
+  };
+
+  function Vector(elements) {
+    this.elements = elements;
+  }
+
+  Vector.prototype.e = function (index) {
+    return this.elements[index];
+  };
+
+  Vector.prototype.dimensions = function () {
+    return this.elements.length;
+  };
+
+  //TODO: ?
+  Vector.prototype.rows = function () {
+    return this.dimensions();
+  };
+  Vector.prototype.cols = function () {
+    return 1;
+  };
+  Vector.prototype.isExact = function () {
+    for (var i = 0; i < this.dimensions(); i += 1) {
+      if (!this.e(i).isExact()) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  Vector.prototype.toString = function (options) {
+    return Matrix.prototype.toString.call(this, options);
+  };
+
+  Vector.prototype.dot = function (other) {
+    let result = Expression.ZERO;
+    for (let i = 0; i < Math.max(this.dimensions(), other.dimensions()); i += 1) {
+      var s = this.e(i).multiply(other.e(i).getNumerator() instanceof Expression.Complex ? other.e(i).getNumerator().conjugate().divide(other.e(i).getDenominator()) : other.e(i));
+      result = result === Expression.ZERO ? s : result.add(s);
+    }
+    return result;
+  };
+
+  Vector.prototype.scale = function (s) {
+    return new Vector(this.elements.map(e => s.multiply(e)));
+  };
+  Vector.prototype.subtract = function (other) {
+    if (this.dimensions() !== other.dimensions()) {
+      throw new RangeError("MatrixDimensionMismatchException");
+    }
+    return new Vector(this.elements.map((e, i) => e.subtract(other.e(i))));
+  };
+
+  Matrix.Vector = Vector;
+
+  Matrix.prototype.row = function (i) {
+    const elements = new Array(this.cols());
+    for (let j = 0; j < this.cols(); j += 1) {
+      elements[j] = this.e(i, j);
+    }
+    return new Vector(elements);
   };
 
   export default Matrix;

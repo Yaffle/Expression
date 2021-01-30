@@ -90,7 +90,7 @@ Condition.prototype._and = function (operator, e) {
                 } else if (x instanceof Expression.Logarithm) {
                   return yy.logarithm();
                 } else {
-                  yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) ? new Expression.Radians(yy) : yy;
+                  yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) && !Expression.has(yy, Expression.Symbol) ? new Expression.Radians(yy) : yy;
                   if (x instanceof Expression.Sin) {
                     return yy.sin();
                   } else if (x instanceof Expression.Cos) {
@@ -176,12 +176,22 @@ Condition.prototype._and = function (operator, e) {
       return oldArray;
     }
     //TODO: check code coverage, remove extra branches
-    if (Expression.isConstant(y.expression) && !y.expression.equals(Expression.ZERO)) {
+    if (Expression.isConstant(y.expression instanceof Expression.ExpressionWithPolynomialRoot ? y.expression.e : y.expression) && !y.expression.equals(Expression.ZERO)) {
       if (y.operator === Condition.NEZ) {
         return oldArray;
       }
       if (y.operator === Condition.EQZ) {
         return null;
+      }
+    }
+    if (y.expression instanceof Expression.Matrix) {
+      if (y.expression.matrix.isZero()) {
+        if (y.operator === Condition.EQZ) {
+          return oldArray;
+        }
+        if (y.operator === Condition.NEZ) {
+          return null;
+        }
       }
     }
     if (y.expression instanceof Expression.NthRoot) {
@@ -213,7 +223,7 @@ Condition.prototype._and = function (operator, e) {
     if (p != null) {
       //!new 2018-12-24
       //TODO: fix (?Polynomial#getContent()?)
-        var t = Expression.getNthRootConjugate(p.p.getCoefficient(p.p.getDegree()));
+        var t = Expression.getNthRootConjugate(p.p.getLeadingCoefficient());
         if (t != undefined && Expression.isConstant(t)) {//TODO: fix
           return add(oldArray, {expression: t.multiply(y.expression), operator: y.operator});
         }
@@ -317,6 +327,9 @@ Condition.prototype._and = function (operator, e) {
           var tmp = add(tmp1, yy);
           if (tmp == null) {
             return null;
+          }
+          if (tmp.length === 0) {
+            return [];//TODO: remove
           }
           if (tmp.length === 1) {
             return addRest(newArray, oldArray, i, {operator: tmp[0].operator, expression: Expression._replaceBySinCos(tmp[0].expression)});
@@ -569,6 +582,16 @@ Condition.prototype._and = function (operator, e) {
         var py = Expression.getMultivariatePolynomial(y.expression);
         //var xy = Expression.getMultivariatePolynomial(x.expression.multiply(y.expression));
 
+        if (y.operator === Condition.EQZ && py != null && py.p.getDegree() !== 1) {
+          var tmp = Expression.getMultivariatePolynomial(py.p.getCoefficient(0));
+          if (tmp != null) {
+            var v = tmp.v;
+            if (v instanceof Expression.Symbol && tmp.p.getDegree() === 1) {
+              py = {p: Polynomial.toPolynomial(y.expression, v), v: v};
+            }
+          }
+        }
+
         //console.assert(px != null && py != null);
 
         if (//xy != null &&
@@ -578,6 +601,8 @@ Condition.prototype._and = function (operator, e) {
 
 
           //!new 2019-24-12
+          /*
+          //TODO: remove - buggy - ?
           if (!newMethodEnabled && px != null && py != null && px.v.equals(py.v) && px.p.getDegree() !== 1 && py.p.getDegree() !== 1 && x.operator === Condition.EQZ && y.operator === Condition.EQZ) {
             //TODO: test, fix
             var tmp1 = py.p.getDegree() >= px.p.getDegree() ? Polynomial.pseudoRemainder(py.p, px.p) : py.p;
@@ -589,6 +614,7 @@ Condition.prototype._and = function (operator, e) {
             }
             return addRest(newArray, oldArray, i, x);
           }
+          */
           //!?
 
           //if (px != null && px.p.getDegree() !== 1 && py == null) {
@@ -612,10 +638,10 @@ Condition.prototype._and = function (operator, e) {
               x.operator === Condition.EQZ && px != null && px.p.getDegree() === 1) {
             //TODO: fix !!!
             //TODO: test linear systems
-            if (Polynomial.toPolynomial(y.expression, px.v).getDegree() === 0) {
+            if (Expression._getReplacement(y.expression, px.v).equals(px.v) && Polynomial.toPolynomial(y.expression, px.v).getDegree() === 0) {
               px = null;
             }
-            if (Polynomial.toPolynomial(x.expression, py.v).getDegree() === 0) {
+            if (Expression._getReplacement(x.expression, py.v).equals(py.v) && Polynomial.toPolynomial(x.expression, py.v).getDegree() === 0) {
               py = null;
             }
 
@@ -653,11 +679,22 @@ Condition.prototype._and = function (operator, e) {
           }
         }
         if (pp != null) {
-          var polynomial = Polynomial.toPolynomial(p, pp.v);
-          if ((pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined || (!pp.p.getCoefficient(0).equals(Expression.ZERO) && Expression.isConstant(pp.p.getCoefficient(0)))) &&
-              (!newMethodEnabled || Expression.isConstant(pp.p.getCoefficient(0))) && //!? new 2020-06-18
-              !(p instanceof Expression.Symbol)) {//TODO: replace only if the result is more simple (?): a*v != 0 or b != 0
-            var a = polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)));
+          var ok = false;
+          // x = -b / a if a !== 0
+          ok = ok || pp.p.getDegree() === 1 && Expression.isConstant(pp.p.getCoefficient(1)) && Expression.isConstant(pp.p.getCoefficient(0));
+          // a * x + 1 = 0 => a !== 0 && x !== 0 => x = -1 / a
+          ok = ok || pp.p.getDegree() === 1 && Expression.isConstant(pp.p.getCoefficient(0)) && !pp.p.getCoefficient(0).equals(Expression.ZERO) && Expression.has(p, Expression.Exponentiation);
+          //if (Expression.isSingleVariablePolynomial(p) && pp.v instanceof Expression.Symbol && Expression.getVariable(pp.p.getCoefficient(0)) != null && Expression.getVariable(pp.p.getCoefficient(0)).compare4Multiplication(pp.v) > 0) {
+          //  ok = ok || pp.p.getDegree() === 1 && Expression.isConstant(pp.p.getCoefficient(1));
+          //}
+          //if ((pp.p.getCoefficient(1) instanceof Expression.Integer || polynomial.divideAndRemainder(pp.p, "undefined") != undefined || (!pp.p.getCoefficient(0).equals(Expression.ZERO) && Expression.isConstant(pp.p.getCoefficient(0)))) &&
+          //    (!newMethodEnabled || Expression.isConstant(pp.p.getCoefficient(0)) || (pp.p.getCoefficient(1) instanceof Expression.Integer && Expression.isSingleVariablePolynomial(polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1)))))) && //!? new 2020-06-18
+          //    !(p instanceof Expression.Symbol) || (polynomial.calcAt(pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1))) instanceof Expression.Integer)) {//TODO: replace only if the result is more simple (?): a*v != 0 or b != 0
+          if (ok) {
+            var alpha = pp.p.getCoefficient(0).negate().divide(pp.p.getCoefficient(1));
+            //var polynomial = Polynomial.toPolynomial(p, pp.v);
+            //var a = polynomial.calcAt(alpha);
+            var a = Expression._substitute(p, pp.v, alpha, {uniqueObject: 1});
             if (!a.equals(p)) {
               var tmp = {
                 operator: pOperator,
@@ -839,5 +876,23 @@ Condition.prototype.toString = function (options) {
 
 Condition.TRUE = new Condition(new Array(0));
 Condition.FALSE = new Condition(undefined);
+
+
+Condition.prototype.getSolutionFor = function (variable) {
+  var condition = this;
+  if (condition.array == null) {
+    return null;
+  }
+  for (var i = 0; i < condition.array.length; i += 1) {
+    var c = condition.array[i];
+    if (c.operator === Condition.EQZ) {
+      var p = Polynomial.toPolynomial(c.expression, variable);
+      if (p.getDegree() === 1) {
+        return p.getroots()[0];
+      }
+    }
+  }
+  return null;
+};
 
 export default Condition;

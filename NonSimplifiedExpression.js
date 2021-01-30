@@ -158,6 +158,9 @@
   NonSimplifiedExpression.prototype.transpose = function () {
     return new NonSimplifiedExpression(new Expression.Transpose(this));
   };
+  NonSimplifiedExpression.prototype.complexConjugate = function () {
+    return new NonSimplifiedExpression(new Expression.ComplexConjugate(this));
+  };
   NonSimplifiedExpression.prototype.adjugate = function () {
     return new NonSimplifiedExpression(new Expression.Adjugate(this));
   };
@@ -232,6 +235,9 @@
   };
   Expression.Transpose.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).transpose();
+  };
+  Expression.ComplexConjugate.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).complexConjugate();
   };
   Expression.Adjugate.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).adjugate();
@@ -331,6 +337,24 @@
 
   NonSimplifiedExpression.prototype.isExact = function () {
     return this.e.isExact();
+  };
+
+  Expression.DecimalFraction = function (integer, transient, repetend, exponent) {
+    this.integer = integer;
+    this.transient = transient;
+    this.repetend = repetend;
+    this.exponent = exponent;
+  };
+  Expression.DecimalFraction.prototype = Object.create(Expression.prototype);
+  Expression.DecimalFraction.prototype.getPrecedence = function () {
+    //TODO: comma may affect precedence - ?
+    return 1000;//TODO: ?
+  };
+  Expression.DecimalFraction.prototype.simplifyInternal = function () {
+    return ExpressionParser._getDecimalFraction(this.integer, this.transient, this.repetend, this.exponent);
+  };
+  Expression.DecimalFraction.prototype.toString = function () {
+    return (this.integer || '0') + '.' + (this.transient || '') + (this.repetend != undefined ? '(' + this.repetend + ')' : '') + (this.exponent != undefined ? 'E' + this.exponent : '')
   };
 
   Expression.NonSimplifiedExpression = NonSimplifiedExpression;
