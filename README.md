@@ -5,9 +5,9 @@ or calculate real roots of polynomials with integer coefficients for a specified
 
 Installation
 ============
-npm install @yaffle/expression
+`npm install @yaffle/expression`
 or
-npm install Yaffle/Expression
+`npm install Yaffle/Expression`
 
 Usage example
 =============
