@@ -600,6 +600,14 @@
     }
     return true;
   };
+  Polynomial.prototype.hasComplexCoefficients = function () {
+    for (var i = 0; i < this.a.length; i += 1) {
+      if (!(this.a.coefficient(i) instanceof Expression.Complex) && !(this.a.coefficient(i) instanceof Expression.Integer)) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   Polynomial.prototype._hasIntegerLikeCoefficients = function () {
     var isIntegerLike = function (c) {

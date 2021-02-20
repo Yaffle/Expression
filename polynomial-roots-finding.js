@@ -1068,6 +1068,11 @@ ExpressionWithPolynomialRoot.prototype.complexConjugate = function () {
     if (f.getDegree() === -1) {
       return false;
     }
+    //!new 2021-02-20 (TODO: CHECK)
+    if (!f.hasIntegerCoefficients() && f.hasComplexCoefficients()) {
+      return f.map(c => c instanceof Expression.Integer ? c : c.real).hasRoot(polynomialRoot) && f.map(c => c instanceof Expression.Integer ? Expression.ZERO : c.imaginary).hasRoot(polynomialRoot);
+    }
+    //!
     var p = polynomialRoot.polynomial;
     var g = Polynomial.polynomialGCD(f, p);
     if (g.getDegree() < 1) {
