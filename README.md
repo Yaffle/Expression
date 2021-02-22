@@ -127,11 +127,12 @@ Types
     #getLeadingCoefficient() - same as p.getCoefficient(p.getDegree())
     #shift(n)
     #getroots()
-    #getZeros()
+    #getZeros([precision, complex])
     #calcAt(point)
     #scale(coefficient)
     #divideAndRemainder(other)
     #getContent()
+    #factorize() - find some factor of a polynomial with integer coefficients
   ExpressionParser
     parse(string, context)
   Expression

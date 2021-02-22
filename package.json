@@ -21,6 +21,7 @@
     "expression",
     "matrix",
     "polynomial",
+    "factorization",
     "symbolic-computation",
     "cas",
     "complex",
@@ -41,5 +42,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
-  "version": "0.0.26"
+  "version": "0.0.27"
 }
