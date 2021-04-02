@@ -3,7 +3,7 @@
   }
   //const BigIntWrapper = typeof BigInt !== 'undefined' ? BigInt : function () {};
   BigIntWrapper.BigInt = function (x) {
-    if (typeof x === "number" && Math.abs(x) >= 2**53) {
+    if (typeof x === "number" && Math.abs(x) > Number.MAX_SAFE_INTEGER) {
       throw new RangeError();
     }
     if (typeof x === "number" && Math.abs(x) <= 16) {

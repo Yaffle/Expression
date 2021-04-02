@@ -70,6 +70,11 @@
     return data.length;
   };
 
+  Heap.prototype.replace = function (newItem) {
+    this.data.push(newItem);
+    return this.pop();
+  };
+
   //exports.Heap = Heap;
 
 //}(this));

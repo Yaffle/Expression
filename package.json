@@ -9,7 +9,8 @@
   "dependencies": {
     "js-big-integer": "^3.0.0",
     "@yaffle/bigdecimal": "^1.0.2",
-    "bigint-gcd": "^1.0.0"
+    "bigint-gcd": "^1.0.0",
+    "seedrandom": "*"
   },
   "deprecated": false,
   "description": "A library to parse expressions, solve and simplify systems of linear equations, find eigenvalues and eigenvectors",
@@ -42,5 +43,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
-  "version": "0.0.27"
+  "version": "0.0.28"
 }

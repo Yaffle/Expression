@@ -19,8 +19,11 @@ import './ExpressionExtensions.js';
 import Condition from './Condition.js';
 import './toMathML.js';
 
+const isPrime = primeFactor._isPrime;
+
 export {
   primeFactor,
+  isPrime,
   nthRoot,
   Expression,
   toDecimalStringInternal,

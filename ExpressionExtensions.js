@@ -185,6 +185,7 @@ Expression.diagonalize = function (matrix, eigenvalues, multiplicities, eigenvec
 };
 
 Expression.LUDecomposition = function (matrix) {
+  //https://en.wikipedia.org/wiki/LU_decomposition#Code_examples
   //TODO: remove(?) - matrix.toRowEchelon(...)
   var N = matrix.rows();
   var a = matrix;
@@ -208,7 +209,7 @@ Expression.LUDecomposition = function (matrix) {
           });
           a = S.multiply(a);
           Lower = S.multiply(Lower.subtract(Matrix.I(N))).add(Matrix.I(N));
-          P = P.multiply(S);
+          P = S.multiply(P);
           swapFlag = true;
         }
       }

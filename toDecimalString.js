@@ -630,22 +630,25 @@ var evaluateExpression = function (e, context) {
     }
     return context.nthRoot(y, n);
   } else if (e instanceof Expression.BinaryOperation) {
+    // slow for some cases:
     if (e instanceof Expression.Addition && Expression.has(e, Expression.PolynomialRoot)) {
       var root = Expression.getVariable(e);//?
       var p = Polynomial.toPolynomial(e, root);
-      //TODO: https://en.wikipedia.org/wiki/Horner%27s_method - ?
-      var zero = evaluateExpression(root, context);
-      //return evaluateExpression(p.calcAt(), context);
-      var result = context.fromInteger(Expression.ZERO.value);
-      for (var i = p.getDegree(); i >= 0; i--) {
-        result = context.multiply(result, zero);
-        var tmp = evaluateExpression(p.getCoefficient(i), context);
-        if (tmp === "CANNOT_DIVIDE" || tmp == undefined) {
-          return tmp;
+      if (p.hasIntegerCoefficients()) {// trying to avoid slow cases (?)
+        //TODO: https://en.wikipedia.org/wiki/Horner%27s_method - ?
+        var zero = evaluateExpression(root, context);
+        //return evaluateExpression(p.calcAt(), context);
+        var result = context.fromInteger(Expression.ZERO.value);
+        for (var i = p.getDegree(); i >= 0; i--) {
+          result = context.multiply(result, zero);
+          var tmp = evaluateExpression(p.getCoefficient(i), context);
+          if (tmp === "CANNOT_DIVIDE" || tmp == undefined) {
+            return tmp;
+          }
+          result = context.add(result, tmp);
         }
-        result = context.add(result, tmp);
+        return result;
       }
-      return result;
     }
     if (e.a === Expression.E && e.getS() === "^") {
       var b = evaluateExpression(e.b, context);

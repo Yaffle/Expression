@@ -7,15 +7,14 @@ import bitLength from './bitLength.js';
 
 function modPow(base, exponent, modulus) {
   // exponent can be huge, use non-recursive variant
-  var accumulator = 1n;
+  let accumulator = 1n;
   while (exponent !== 0n) {
-    if (exponent % 2n === 0n) {
-      exponent /= 2n;
-      base = (base * base) % modulus;
-    } else {
+    if (exponent % 2n !== 0n) {
       exponent -= 1n;
       accumulator = (accumulator * base) % modulus;
     }
+    exponent /= 2n;
+    base = (base * base) % modulus;
   }
   return accumulator;
 }
@@ -38,6 +37,10 @@ function range(start, end) {
 // https://github.com/peterolson/BigInteger.js
 // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Deterministic_variants
 function isPrime(n) {
+  const number = Number(n);
+  if (number <= Number.MAX_SAFE_INTEGER) {
+    return primeFactorUsingWheel(number) === number;
+  }
   if (n < 2n) {
     throw new RangeError();
   }
@@ -47,19 +50,28 @@ function isPrime(n) {
   if (n % 2n === 0n) {
     return false;
   }
-  var r = 0;
-  var d = n - 1n;
+  let r = 0;
+  let d = n - 1n;
   while (d % 2n === 0n) {
     d /= 2n;
     r += 1;
   }
   // https://en.wikipedia.org/wiki/Miller–Rabin_primality_test#Testing_against_small_sets_of_bases
-  var lnN = bitLength(n) * Math.log(2);
-  var bases = n < 3317044064679887385961981n ? [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41] : range(2, Math.min(Number(n - 2n), 2 * lnN * Math.log(lnN)));
-  for (var a of bases) {
-    var adn = modPow(BigInt(a), d, n);
+  const getRange = function (n) {
+    const lnN = bitLength(n) * Math.log(2);
+    const max = Math.min(Number(n - 2n), Math.floor(2 * lnN * Math.log(lnN)));
+    return range(2, max);
+  };
+  let bases = null;
+  if (n < 3317044064679887385961981n) {
+    bases = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41].filter(x => x < n);
+  } else {
+    bases = getRange(n);
+  }
+  for (const a of bases) {
+    const adn = modPow(BigInt(a), d, n);
     if (adn !== 1n) {
-      for (var i = 0, x = adn; x !== n - 1n; i += 1, x = (x * x) % n) {
+      for (let i = 0, x = adn; x !== n - 1n; i += 1, x = (x * x) % n) {
         if (i === r - 1) {
           return false;
         }
@@ -421,8 +433,123 @@ function primeFactor(n) {
   return a;
 }
 
+// from https://github.com/juanelas/bigint-mod-arith/blob/master/lib/index.browser.mod.js :
+/**
+ * @typedef {Object} egcdReturn A triple (g, x, y), such that ax + by = g = gcd(a, b).
+ * @property {bigint} g
+ * @property {bigint} x
+ * @property {bigint} y
+ */
+/**
+ * An iterative implementation of the extended euclidean algorithm or extended greatest common divisor algorithm.
+ * Take positive integers a, b as input, and return a triple (g, x, y), such that ax + by = g = gcd(a, b).
+ *
+ * @param {number|bigint} a
+ * @param {number|bigint} b
+ *
+ * @returns {egcdReturn} A triple (g, x, y), such that ax + by = g = gcd(a, b).
+ */
+function eGcd (a, b) {
+  if (Number(a) <= Number.MAX_SAFE_INTEGER && Number(b) <= Number.MAX_SAFE_INTEGER) {
+    return eGcdSmall(a, b);
+  }
+  a = BigInt(a)
+  b = BigInt(b)
+  if (a <= 0n || b <= 0n) throw new RangeError('a and b MUST be > 0') // a and b MUST be positive
+
+  let x = 0n
+  let y = 1n
+  let u = 1n
+  let v = 0n
+
+  while (a !== 0n) {
+    const q = b / a
+    const r = b % a
+    const m = x - (u * q)
+    const n = y - (v * q)
+    b = a
+    a = r
+    x = u
+    y = v
+    u = m
+    v = n
+  }
+  return {
+    g: b,
+    x: x,
+    y: y
+  }
+}
+
+function eGcdSmall (a, b) {
+  a = Number(a)
+  b = Number(b)
+  if (a <= 0 || b <= 0) throw new RangeError('a and b MUST be > 0') // a and b MUST be positive
+
+  let x = 0
+  let y = 1
+  let u = 1
+  let v = 0
+
+  while (a !== 0) {
+    const q = Math.floor(b / a)
+    const r = b % a
+    const m = x - (u * q)
+    const n = y - (v * q)
+    b = a
+    a = r
+    x = u
+    y = v
+    u = m
+    v = n
+  }
+  return {
+    g: b,
+    x: x,
+    y: y
+  }
+}
+
+function modInverse(a, m) {
+  a = BigInt(a);
+  m = BigInt(m);
+  console.assert(a >= 0n);
+  console.assert(m > 0n);
+  if (a > m) {
+    a = a % m;
+  }
+  let inv = BigInt(eGcd(a, m).x);
+  inv = inv < 0n ? BigInt(inv) + m : inv;
+  console.assert(inv >= 0n && inv < m);
+  return inv;
+}
+
+function nextPrime(n) {
+  if (n < Number.MAX_SAFE_INTEGER) {
+    n = Number(n);
+    n += 1;
+    while (primeFactorUsingWheel(n) !== n) {
+      n += 1;
+    }
+    return n;
+  }
+  n = BigInt(n);
+  if (n < 2n) {
+    return 2n;
+  }
+  n += 1n;
+  if (n % 2n === 0n) {
+    n += 1n;
+  }
+  while (!isPrime(n)) {
+    n += 2n;
+  }
+  return n;
+}
+
 primeFactor._isPrime = isPrime;
 primeFactor._countTrailingZeros = countTrailingZeros;
 primeFactor._someFactor = someFactor;
-globalThis.isPrime = isPrime;//!!!
+primeFactor._modInverse = modInverse;
+primeFactor._nextPrime = nextPrime;
 export default primeFactor;

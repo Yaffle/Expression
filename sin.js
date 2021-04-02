@@ -1012,7 +1012,8 @@ Expression.Matrix.prototype.cos = function () {
     return Expression._map(function (x) {
       if (x instanceof Expression.Exponentiation && x.a === Expression.E) {
         var b = x.b;
-        var p = Polynomial.toPolynomial(b, i);
+        //var p = Polynomial.toPolynomial(b, i);
+        var p = Polynomial.toPolynomial(b.getNumerator(), i).scale(b.getDenominator().inverse()); // as denominator may be not equal 1 and Polynomial.toPolynomial throws in that case
         if (p.getDegree() === 1) {
           var q = p.getCoefficient(0);
           var w = p.getCoefficient(1);
@@ -1038,16 +1039,43 @@ function Arctan(x) {
 Arctan.prototype = Object.create(Expression.Function.prototype);
 Expression.Arctan = Arctan;
 
+// https://en.wikipedia.org/wiki/Continued_fraction#Infinite_continued_fractions_and_convergents
+// https://stackoverflow.com/a/14011299/839199
+function getlowestfraction(x0) {
+    var eps = 1.0E-15;
+    var h, h1, h2, k, k1, k2, a, x;
+
+    x = x0;
+    a = Math.floor(x);
+    h1 = 1;
+    k1 = 0;
+    h = a;
+    k = 1;
+
+    while (x-a > eps*k*k) {
+        x = 1/(x-a);
+        a = Math.floor(x);
+        h2 = h1; h1 = h;
+        k2 = k1; k1 = k;
+        h = h2 + a*h1;
+        k = k2 + a*k1;
+    }
+
+    return h + "/" + k;
+}
+
 Expression.prototype.arctan = function () {
   var x = this;
   if (x.isNegative()) {
     return x.negate().arctan().negate();
   }
-  if (Expression.isConstant(x)) {
-    var value = Number(toDecimalStringInternal(x, {fractionDigits: 2}));
+  if (Expression.isConstant(x instanceof Expression.ExpressionWithPolynomialRoot ? x.e : x)) {
+    var value = Number(toDecimalStringInternal(x instanceof Expression.ExpressionWithPolynomialRoot ? x.e : x, {fractionDigits: 15}));
     console.assert(!Number.isNaN(value));
-    var guess = Integer.fromNumber(Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 3).divide(Integer.fromNumber(360)).multiply(Expression.PI);
-    if (guess.tan().equals(x)) {
+    var guess2 = Integer.fromNumber(Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 3).divide(Integer.fromNumber(360)).multiply(Expression.PI);
+    var guess = ExpressionParser.parse(getlowestfraction(Math.atan(value) / Math.PI)).multiply(Expression.PI);
+    console.assert(guess.toString() === guess2.toString(), guess.toString(), guess2.toString());
+    if (guess.getDenominator().toNumber() < 10000 && guess.tan().equals(x)) {
       return guess;
     }
     throw new RangeError("NotSupportedError");
@@ -1129,4 +1157,24 @@ Expression.prototype.cot = function () {
   //return a.cos().divide(a.sin());
   var a2 = a.multiply(Expression.TWO);
   return a2.cos().add(Expression.ONE).divide(a2.sin());
+};
+
+
+Expression.Sin.prototype.complexConjugate = function () {
+  var a = this.a;
+  if (a instanceof Expression.Radians) {
+    a = a.value; //TODO: !!!
+  }
+  var i = Expression.I;
+  // Euler's formula + complex conjugation
+  return i.multiply(a).complexConjugate().exp().subtract(i.multiply(a).negate().complexConjugate().exp()).divide(Expression.TWO.multiply(i).complexConjugate());
+};
+Expression.Cos.prototype.complexConjugate = function () {
+  var a = this.a;
+  if (a instanceof Expression.Radians) {
+    a = a.value; //TODO: !!!
+  }
+  var i = Expression.I;
+  // Euler's formula + complex conjugation
+  return i.multiply(a).complexConjugate().exp().add(i.multiply(a).negate().complexConjugate().exp()).divide(Expression.TWO);
 };

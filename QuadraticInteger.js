@@ -264,16 +264,6 @@ function LegendreSymbol(a, p) {
 }
 
 QuadraticInteger.prototype.primeFactor = function () {
-  function canBePerfectSquare(n) {
-    // https://www.johndcook.com/blog/2008/11/17/fast-way-to-test-whether-a-number-is-a-square/#comment-15700
-    //var bitset = 0;
-    //for (var i = 0; i < 32; i += 1) {
-    //  bitset |= 1 << ((i * i) % 32);
-    //}
-    var bitset = 33751571;
-    var result = (bitset >> Number(n % 32n)) % 2;
-    return result === 1;
-  }
 
   var a = this.a;
   var b = this.b;
@@ -299,20 +289,22 @@ QuadraticInteger.prototype.primeFactor = function () {
   function quadraticIntegers(norm, D, b) {
     while (true) {
       var bbD = b * b * D;
+      var guess1 = norm + bbD;
+      var guess2 = -norm + bbD;
       //if (typeof norm === "number") {//TODO:
-      if (Number(-norm + bbD) > Number.MAX_SAFE_INTEGER || Number(norm + bbD) > Number.MAX_SAFE_INTEGER) {
+      if (Number(guess2) > Number.MAX_SAFE_INTEGER || Number(guess1) > Number.MAX_SAFE_INTEGER) {
         throw new RangeError(norm);
       }
       //}
-      var guess = norm + bbD;
-      if (guess >= 0n && canBePerfectSquare(guess)) {
+      var guess = guess1;
+      if (guess >= 0n) {
         var a = BigInt(nthRoot(guess, 2));
         if (guess === a**2n) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D);
         }
       }
-      var guess = -norm + bbD;
-      if (guess >= 0n && canBePerfectSquare(guess)) {
+      var guess = guess2;
+      if (guess >= 0n) {
         var a = BigInt(nthRoot(guess, 2));
         if (guess === a**2n) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D);
@@ -486,8 +478,20 @@ QuadraticInteger.prototype.abs = function () {
 
 //TODO: merge with the QuadraticInteger.toQuadraticInteger
 QuadraticInteger.prototype.isValid = function () {
-  if (this.D === 41) {
-    //return false;//!!!
+  if (true) {
+    //return false;
+  }
+  if (this.D === 5) {
+    return true;//TODO:!!!
+  }
+  if (this.D === 37) {//TODO: ?
+    return true;
+  }
+  if (this.D === 6) {//TODO: ?
+    return false;
+  }
+  if (this.D % 4 === 1) {//TODO: ?
+    return false;
   }
   if ([2, 3, 5, 6, 7, 11, 13, 17, 19, 21, 29, 33, 37, 41, 57, 73].indexOf(this.D) === -1) { // https://oeis.org/A048981
     return false;
