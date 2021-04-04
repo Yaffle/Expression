@@ -838,7 +838,6 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
     if (x !== "CANNOT_DIVIDE" && result == undefined && rounding.fractionDigits != undefined && guessedPrecision === 1) {//TODO: ?
       var tmp = Number(BigDecimalMath.max(BigDecimalMath.abs(x.a), BigDecimalMath.abs(x.b)).toFixed(0));
       guessedPrecision = Math.ceil(Math.log2(Math.min(Math.max(tmp, 2), Number.MAX_VALUE)) / 2 + Math.log2(10) * rounding.fractionDigits / 2 * 2);
-
     }
     guessedPrecision *= 2;
   }

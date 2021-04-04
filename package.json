@@ -30,7 +30,8 @@
     "eigenvalues",
     "equation solver",
     "linear algebra",
-    "symbolic math"
+    "symbolic math",
+    "resultant"
   ],
   "license": "ISC",
   "main": "index.js",
@@ -43,5 +44,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
-  "version": "0.0.28"
+  "version": "0.0.29"
 }

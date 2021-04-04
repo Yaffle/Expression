@@ -3653,6 +3653,7 @@ if (simplifyIdentityMatrixPower) {
   var makeRoot = function (i, n) {
     return n === 1 ? i : (n === 2 ? new SquareRoot(i) : (n === 3 ? new CubeRoot(i) : new NthRoot(n + "-root", i, n)));
   };
+  NthRoot.makeRoot = makeRoot;
 
   Expression.prototype._nthRoot = function (n) {
     if (typeof n === "number") {
@@ -4499,6 +4500,10 @@ if (simplifyIdentityMatrixPower) {
       if (t != null) {
         return t;
       }
+      var c = getConstant(np.getLeadingCoefficient());
+      if (c instanceof Expression.Complex && c.real.equals(Expression.ZERO)) {
+        return Expression.I;//!?
+      }
 
       //?
       if (np.getCoefficient(0).equals(Expression.ZERO)) {
@@ -4523,6 +4528,14 @@ if (simplifyIdentityMatrixPower) {
         }
       }
 
+      if (np.getDegree() >= 2 && !np._hasIntegerLikeCoefficients()) {
+        //TODO: TEST COVERAGE (!)
+        var t = np.squareFreeFactors();
+        if (t.a0.getDegree() !== 0) {
+          //TODO: write a test case
+          return t.a0.scale(t.a0.getLeadingCoefficient().inverse()).calcAt(v);
+        }
+      }
       /*
       if (np.getDegree() >= 2) {
         var roots = np.getroots();

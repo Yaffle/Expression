@@ -1,7 +1,7 @@
 import primeFactor from './primeFactor.js';
 import Polynomial from './Polynomial.js';
 import Expression from './Expression.js';
-//import seedrandom from './seedrandom.js';
+import './node_modules/seedrandom/seedrandom.js';
 
 // Books:
 // Henri Cohen "A Course in Computational Algebraic Number Theory"
@@ -15,16 +15,8 @@ import Expression from './Expression.js';
 const modInverse = primeFactor._modInverse;
 const nextPrime = primeFactor._nextPrime;
 
-  
-  
-  //TODO:
-  // https://www.npmjs.com/package/seedrandom
-  // https://cdnjs.cloudflare.com/ajax/libs/seedrandom/3.0.5/seedrandom.min.js
-  !function(f,a,c){var s,l=256,p="random",d=c.pow(l,6),g=c.pow(2,52),y=2*g,h=l-1;function n(n,t,r){function e(){for(var n=u.g(6),t=d,r=0;n<g;)n=(n+r)*l,t*=l,r=u.g(1);for(;y<=n;)n/=2,t/=2,r>>>=1;return(n+r)/t}var o=[],i=j(function n(t,r){var e,o=[],i=typeof t;if(r&&"object"==i)for(e in t)try{o.push(n(t[e],r-1))}catch(n){}return o.length?o:"string"==i?t:t+"\0"}((t=1==t?{entropy:!0}:t||{}).entropy?[n,S(a)]:null==n?function(){try{var n;return s&&(n=s.randomBytes)?n=n(l):(n=new Uint8Array(l),(f.crypto||f.msCrypto).getRandomValues(n)),S(n)}catch(n){var t=f.navigator,r=t&&t.plugins;return[+new Date,f,r,f.screen,S(a)]}}():n,3),o),u=new m(o);return e.int32=function(){return 0|u.g(4)},e.quick=function(){return u.g(4)/4294967296},e.double=e,j(S(u.S),a),(t.pass||r||function(n,t,r,e){return e&&(e.S&&v(e,u),n.state=function(){return v(u,{})}),r?(c[p]=n,t):n})(e,i,"global"in t?t.global:this==c,t.state)}function m(n){var t,r=n.length,u=this,e=0,o=u.i=u.j=0,i=u.S=[];for(r||(n=[r++]);e<l;)i[e]=e++;for(e=0;e<l;e++)i[e]=i[o=h&o+n[e%r]+(t=i[e])],i[o]=t;(u.g=function(n){for(var t,r=0,e=u.i,o=u.j,i=u.S;n--;)t=i[e=h&e+1],r=r*l+i[h&(i[e]=i[o=h&o+t])+(i[o]=t)];return u.i=e,u.j=o,r})(l)}function v(n,t){return t.i=n.i,t.j=n.j,t.S=n.S.slice(),t}function j(n,t){for(var r,e=n+"",o=0;o<e.length;)t[h&o]=h&(r^=19*t[h&o])+e.charCodeAt(o++);return S(t)}function S(n){return String.fromCharCode.apply(0,n)}if(j(c.random(),a),"object"==typeof module&&module.exports){module.exports=n;try{s=require("crypto")}catch(n){}}else"function"==typeof define&&define.amd?define(function(){return n}):c["seed"+p]=n}("undefined"!=typeof self?self:this,[],Math);
-
-
 function ExtendedEuclideanAlgorithm(A, B, p) {
-  // U * A + V * B = 1 (mod p)
+  // U * A + V * B = gcd(A, B) (mod p)
   p = Expression.Integer.fromBigInt(p);
   A = A.mod(p);
   B = B.mod(p);
@@ -40,10 +32,10 @@ function ExtendedEuclideanAlgorithm(A, B, p) {
     [old_s, s] = [s, old_s.subtract(quotient.multiply(s)).mod(p)];
     [old_t, t] = [t, old_t.subtract(quotient.multiply(t)).mod(p)];
   }
-  const gcd = old_r;
-  console.assert(gcd.getDegree() === 0);//TODO: move out of the function - ?
-  const U = old_s.scale(gcd.getLeadingCoefficient().modInverse(p)).mod(p);
-  const V = old_t.scale(gcd.getLeadingCoefficient().modInverse(p)).mod(p);
+  const k = old_r.getLeadingCoefficient().modInverse(p);
+  const gcd = old_r.scale(k).mod(p);
+  const U = old_s.scale(k).mod(p);
+  const V = old_t.scale(k).mod(p);
   return {
     U: U,
     V: V,
@@ -105,13 +97,16 @@ function distinctDegreeFactorization(f, p) {
   return S;
 }
 
-// TODO: replace random with seedable one and create a seed and pass it to the algorithm
-// or just "increment" the coefficients of the previous random polynomial - ?
 function randomBigInt(max, random) {
-  if (Number(max) >= 2**53) {
-    //throw new RangeError();
-    //TODO: ?
-    return BigInt(Math.floor(random() * 2**53)) * BigInt(max) / BigInt(2**53);
+  if (Number(max) > 2**53) {
+    let result = BigInt(0);
+    let i = BigInt(1);
+    while (i <= BigInt(max)) {
+      result *= BigInt(2**53);
+      result += BigInt(Math.floor(random() * 2**53));
+      i *= BigInt(2**53);
+    }
+    return result * BigInt(max) / i;
   }
   return Math.floor(random() * Number(max));
 }
@@ -125,7 +120,7 @@ function randomPolynomial(maxCoefficient, maxDegree, random) {
 Polynomial.random = randomPolynomial;//TODO: remove - ?
 
 function CantorZassenhausAlgorithm(f, p, factorsDegree) {
-  p = Expression.Integer.fromBigInt(p);//TODO: remove - ?
+  p = Expression.Integer.fromBigInt(p);
   f = f.mod(p);
   f = toMonic(f, p);//TODO: is it needed here, test - ?
   // copy-paste of pseudo code from Wikipedia - https://en.wikipedia.org/wiki/Factorization_of_polynomials_over_finite_fields#Cantor–Zassenhaus_algorithm
@@ -189,24 +184,23 @@ function toMonic(f, p) {
   return f.map(c => c.multiply(scale).modulo(p));
 }
 
-// TODO: use everywhere (!!!)
 //@private
 Polynomial.prototype.divideAndRemainderModP = function (divisor, w, p) {
   if (w !== "throw") {
     throw new RangeError();
   }
-  //var tmp = this.divideAndRemainder(divisor, "throw");
+  //const tmp = this.divideAndRemainder(divisor, "throw");
   //return {quotient: tmp.quotient.mod(p), remainder: tmp.remainder.mod(p)};
   const dividend = this;
   const divisorLeadingCoefficient = divisor.getLeadingCoefficient();
   if (!divisorLeadingCoefficient.equals(Expression.ONE)) {
     throw new RangeError();
   }
-  const minusDivisor = divisor.negate();
+  const minusDivisor = divisor.negate().mod(p);
   const divisorDegree = divisor.getDegree();
   //let remainder = dividend;
   let remainder = new Array(dividend.getDegree() + 1).fill(Expression.ZERO);
-  for (var i = 0; i < dividend.a.size; i += 1) {
+  for (let i = 0; i < dividend.a.size; i += 1) {
     remainder[dividend.a.degree(i)] = dividend.a.coefficient(i);
   }
   //let remainderDegree = remainder.getDegree();
@@ -219,9 +213,9 @@ Polynomial.prototype.divideAndRemainderModP = function (divisor, w, p) {
     quotient[n] = q;
     //TODO: optimize
     //remainder = remainder.add(minusDivisor.shift(n).scale(q)).mod(p);
-    for (var j = 0; j < minusDivisor.a.size; j += 1) {
-      var degree = minusDivisor.a.degree(j);
-      var coefficient = minusDivisor.a.coefficient(j);
+    for (let j = 0; j < minusDivisor.a.size; j += 1) {
+      const degree = minusDivisor.a.degree(j);
+      const coefficient = minusDivisor.a.coefficient(j);
       remainder[degree + n] = remainder[degree + n].add(q.multiply(coefficient)).modulo(p);
     }
     while (remainderDegree >= 0 && remainder[remainderDegree].equals(Expression.ZERO)) {
@@ -381,6 +375,7 @@ function HenselLiftingOfTwoFactors(C, A, B, p, k) {
     //TODO: ???
     let q = p;
     const tmp1 = ExtendedEuclideanAlgorithm(A, B, p);
+    console.assert(tmp1.gcd.getDegree() === 0);
     let U = tmp1.U;
     let V = tmp1.V;
     for (let i = 1; i < k / 2; i *= 2) {
@@ -401,6 +396,7 @@ function HenselLiftingOfTwoFactors(C, A, B, p, k) {
   let q = p;
   for (let i = 1; i < k; i += 1) {
     const tmp1 = ExtendedEuclideanAlgorithm(A, B, p);
+    console.assert(tmp1.gcd.getDegree() === 0);
     const tmp = HenselLift(C, A, B, tmp1.U, tmp1.V, q, p);
     A = tmp.A1;
     B = tmp.B1;
@@ -464,5 +460,6 @@ factorizeOverTheIntegers.testables = {
   factorizeOverTheFiniteField: factorizeOverTheFiniteField,
   ExtendedEuclideanAlgorithm: ExtendedEuclideanAlgorithm,
   HenselLift: HenselLift,
-  HenselLifting: HenselLifting
+  HenselLifting: HenselLifting,
+  randomBigInt: randomBigInt
 };

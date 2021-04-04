@@ -1,10 +1,8 @@
 /*global hit*/
 
   import Expression from './Expression.js';
-  import ExpressionParser from './ExpressionParser.js';
   import Matrix from './Matrix.js';
   import Heap from './Heap.js';
-  import {BigFloat} from './BigDecimal/BigDecimal.js';
   import primeFactor from './primeFactor.js';
 
   const nextPrime = primeFactor._nextPrime;
@@ -485,18 +483,20 @@
     const maxGCDDegree = Math.min(a.getDegree(), b.getDegree());
     //TODO: it can be more accurate as it is gcd of two polynomials (?)
     const bound = function (a, b, maxGCDDegree) {
-      return 2 * Math.ceil(Math.pow(2, Math.min(a._log2OfBoundForCoefficientsOfFactor(maxGCDDegree), b._log2OfBoundForCoefficientsOfFactor(maxGCDDegree))));
+      //TODO: not necessary to use power of two
+      const logarithmOfCoefficientBound = Math.min(a._log2OfBoundForCoefficientsOfFactor(maxGCDDegree), b._log2OfBoundForCoefficientsOfFactor(maxGCDDegree));
+      return Expression.TWO._pow(1 + Math.ceil(logarithmOfCoefficientBound));
     };
     let M = bound(a, b, maxGCDDegree);
-    if (M === 1 / 0) {
-      return gcdUsingPrimitivePseudoRemainderSequence(a, b);//TODO: !!!
-    }
-    let p = Expression.Integer.fromBigInt(Math.min(M, 2**26));
+    //if (M === 1 / 0) {
+    //  return gcdUsingPrimitivePseudoRemainderSequence(a, b);//TODO: !!!
+    //}
+    let p = Expression.Integer.fromBigInt(Math.min(M.toNumber(), Math.sqrt((Number.MAX_SAFE_INTEGER + 1) / 2))); // TODO: should we divide on n - ?
     let counter = 0;
     let g = null;
     while (g == null) {
       let P = Expression.Integer.fromNumber(0);
-      while (P.toNumber() < M) {
+      while (P.compareTo(M) < 0) {
         if (++counter > 50) {
           throw new TypeError("!!!");
         }
@@ -1303,7 +1303,7 @@
               }
             }
             var quotient = np.divideAndRemainder(d).quotient;
-            console.assert(np.subtract(quotient.multiply(d)).getDegree() < 0);
+            console.assert(np.subtract(quotient.multiply(d)).map(c => c.simplifyExpression()).getDegree() < 0);
             np = quotient;
           }
           //ok = ok || Expression.has(qRoot, Expression.Complex);//?
@@ -1970,7 +1970,9 @@
         if (Expression.isConstant(a0.getLeadingCoefficient())) {//TODO: ?
           a0 = a0.scale(a0.getLeadingCoefficient().inverse());//TODO: ?
         }
-        a0 = a0.scale(a0.getContent().inverse());//?
+        if (f.hasIntegerCoefficients()) {//?
+          a0 = a0.scale(a0.getContent().inverse());//?
+        }
         var b1 = f.divideAndRemainder(a0, "throw").quotient;
         var g1 = Polynomial.polynomialGCD(b1, a0);
         var a1 = b1.divideAndRemainder(g1, "throw").quotient;
