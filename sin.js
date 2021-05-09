@@ -403,10 +403,14 @@ var simplifyConstantValueInternal = function (d, fraction) {
     return tmp == null ? null : tmp.negate();
   }
   if (d > 90) {
-    d = 180 - d;
+    d = 0 - d;
+    fraction = fraction.negate();
+    d = d + 180;
     var tmp = simplifyConstantValueInternal(d, fraction);
     return tmp == null ? null : tmp.negate();
   }
+  console.assert(d >= 0 && d <= 90);
+  console.assert(fraction.getNumerator().abs().compareTo(fraction.getDenominator()) < 0);
 
   function f(x) {
     // https://en.wikipedia.org/wiki/Trigonometric_constants_expressed_in_real_radicals#Calculated_trigonometric_values_for_sine_and_cosine
@@ -567,8 +571,10 @@ if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
     polynomial = polynomial.scale(polynomial.getContent().inverse());
     //TODO: ?
     var approximate = Math.cos((d + fraction.getNumerator().toNumber() / fraction.getDenominator().toNumber()) / 180 * Math.PI);
-    var interval = new Expression.PolynomialRoot1.SimpleInterval(ExpressionParser.parse((approximate - 10**-7).toString()), ExpressionParser.parse((approximate + 10**-7).toString()));
-    return new Expression.PolynomialRoot1(polynomial, interval);
+    var tmp = Math.round(approximate * 2**24);
+    var scale = Expression.Integer.fromNumber(2**24);
+    var interval = new Expression.ExpressionPolynomialRoot.SimpleInterval(Expression.Integer.fromNumber(tmp - 1).divide(scale), Expression.Integer.fromNumber(tmp + 1).divide(scale));
+    return Expression.ExpressionPolynomialRoot._create(polynomial, interval);
   }
   
   return undefined;
@@ -680,8 +686,7 @@ Expression.prototype.coth = function () {
 Expression.prototype.arccos = function () {
   var a = this;
   //return a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot().divide(a).arctan();
-  var arcsin = a.divide(a.pow(Expression.TWO).subtract(Expression.ONE).negate().squareRoot()).arctan();
-  return arcsin.subtract(Expression.PI.divide(Expression.TWO)).negate();
+  return a.arcsin().subtract(Expression.PI.divide(Expression.TWO)).negate();
 };
 
 Expression.prototype.arcsin = function () {
@@ -902,74 +907,79 @@ Expression.Addition.compare4Addition = function (x, y) {
 //!!!
 
 
-//!new 2017-04-26
-Expression.Degrees = function (value) {
+// unit of measurement
+Expression.Unit = function (value) {
   this.value = value;
 };
-Expression.Degrees.prototype = Object.create(Expression.prototype);
-Expression.Degrees.prototype.toString = function (options) {
-  return this.value.toString(options) + "\u00B0";
+Expression.Unit.prototype = Object.create(Expression.prototype);
+Expression.Unit.prototype.toString = function (options) {
+  var b = this.value;
+  var fb = b instanceof Expression.Integer ? false : true;
+  return (fb ? "(" : "") + b.toString(options) + (fb ? ")" : "") + this.unitSymbol();
 };
-Expression.Degrees.prototype.equals = function (y) {
-  return y instanceof Expression.Degrees && this.value.equals(y.value);
+Expression.Unit.prototype.equals = function (y) {
+  return y instanceof Expression.Unit && this.unitSymbol() === y.unitSymbol() && this.value.equals(y.value);
 };
-Expression.Degrees.prototype.compare4AdditionSymbol = function (x) {
-  return -1;
+Expression.Unit.prototype.compare4AdditionSymbol = function (x) {
+  //return -1;
+  return x.compare4Addition(this.value);
 };
-Expression.Degrees.prototype.negate = function () {
-  return new Expression.Degrees(this.value.negate());
+Expression.Unit.prototype.compare4Addition = function (y) {
+  return this.value.compare4Addition(y instanceof Expression.Unit && this.unitSymbol() === y.unitSymbol() ? y.value : y);
+};
+Expression.Unit.prototype.compare4Multiplication = function (y) {
+  return this.value.compare4Multiplication(y instanceof Expression.Unit && this.unitSymbol() === y.unitSymbol() ? y.value : y);
+};
+Expression.Unit.prototype.compare4MultiplicationSymbol = function (x) {
+  return x.compare4Multiplication(this.value);
+};
+Expression.Unit.prototype.compare4MultiplicationInteger = function (x) {
+  return +1;
+};
+Expression.Unit.prototype.negate = function () {
+  return this.create(this.value.negate());
+};
+Expression.Unit.prototype.multiply = function (y) {
+  return this.create(this.value.multiply(y));
+};
+Expression.Unit.prototype.multiplyInteger = function (x) {
+  return this.create(x.multiply(this.value));
 };
 
-Expression.Degrees.prototype.multiply = function (y) {
-  return new Expression.Degrees(this.value.multiply(y));
+Expression.Unit.prototype.add = function (y) {
+  if (y instanceof Expression.Unit && this.unitSymbol() === y.unitSymbol()) {
+    var x = this.value.add(y.value);
+    if (x.equals(Expression.ZERO)) {
+      return x;//!?
+    }
+    return this.create(x);//!?
+  }
+  return Expression.prototype.add.call(this, y);
+};
+
+
+//!new 2017-04-26
+Expression.Degrees = function (value) {
+  Expression.Unit.call(this, value);
+};
+Expression.Degrees.prototype = Object.create(Expression.Unit.prototype);
+Expression.Degrees.prototype.unitSymbol = function () {
+  return "\u00B0";
+};
+Expression.Degrees.prototype.create = function (value) {
+  return new Expression.Degrees(value);
 };
 
 //!new 2019-12-27
 Expression.Radians = function (value) {
   this.value = value;
 };
-Expression.Radians.prototype = Object.create(Expression.prototype);
-Expression.Radians.prototype.toString = function (options) {
-  var b = this.value;
-  var fb = b instanceof Expression.Integer ? false : true;
-  return (fb ? "(" : "") + b.toString(options) + (fb ? ")" : "") + " rad";
+Expression.Radians.prototype = Object.create(Expression.Unit.prototype);
+Expression.Radians.prototype.unitSymbol = function () {
+  return " rad";
 };
-Expression.Radians.prototype.equals = function (y) {
-  return y instanceof Expression.Radians && this.value.equals(y.value);
-};
-Expression.Radians.prototype.compare4AdditionSymbol = function (x) {
-  return x.compare4Addition(this.value);
-};
-Expression.Radians.prototype.compare4Addition = function (y) {
-  return this.value.compare4Addition(y instanceof Expression.Radians ? y.value : y);
-};
-Expression.Radians.prototype.compare4Multiplication = function (y) {
-  return this.value.compare4Multiplication(y instanceof Expression.Radians ? y.value : y);
-};
-Expression.Radians.prototype.compare4MultiplicationSymbol = function (x) {
-  return x.compare4Multiplication(this.value);
-};
-Expression.Radians.prototype.compare4MultiplicationInteger = function (x) {
-  return +1;
-};
-Expression.Radians.prototype.multiplyInteger = function (x) {
-  return new Expression.Radians(x.multiply(this.value));
-};
-
-
-Expression.Radians.prototype.negate = function () {
-  return new Expression.Radians(this.value.negate());
-};
-
-Expression.Radians.prototype.add = function (y) {
-  if (y instanceof Expression.Radians) {
-    var x = this.value.add(y.value);
-    if (x.equals(Expression.ZERO)) {
-      return x;
-    }
-    return new Expression.Radians(x);//!?
-  }
-  return Expression.prototype.add.call(this, y);
+Expression.Radians.prototype.create = function (value) {
+  return new Expression.Radians(value);
 };
 
 
@@ -1069,13 +1079,11 @@ Expression.prototype.arctan = function () {
   if (x.isNegative()) {
     return x.negate().arctan().negate();
   }
-  if (Expression.isConstant(x instanceof Expression.ExpressionWithPolynomialRoot ? x.e : x)) {
-    var value = Number(toDecimalStringInternal(x instanceof Expression.ExpressionWithPolynomialRoot ? x.e : x, {fractionDigits: 15}));
+  if (Expression.isConstant(x)) {
+    var value = Number(toDecimalStringInternal(x, {fractionDigits: 15}));
     console.assert(!Number.isNaN(value));
-    var guess2 = Integer.fromNumber(Math.floor(Math.atan(value) / Math.PI * 180 / 1.5 + 0.5) * 3).divide(Integer.fromNumber(360)).multiply(Expression.PI);
     var guess = ExpressionParser.parse(getlowestfraction(Math.atan(value) / Math.PI)).multiply(Expression.PI);
-    console.assert(guess.toString() === guess2.toString(), guess.toString(), guess2.toString());
-    if (guess.getDenominator().toNumber() < 10000 && guess.tan().equals(x)) {
+    if (guess.getDenominator().toNumber() < 10000 && guess.tan().subtract(x).equals(Expression.ZERO)) {
       return guess;
     }
     throw new RangeError("NotSupportedError");

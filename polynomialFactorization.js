@@ -169,7 +169,7 @@ Polynomial.prototype.mod = function (m) {
   return this.map(c => c.modulo(m));
 };
 Polynomial.prototype.mod2 = function (m) {
-  return this.mod(m).map(c => c.compareTo(m.subtract(c)) < 0 ? c : c.subtract(m));
+  return this.mod(m).map(c => c.subtract(m).add(c).compareTo(Expression.ZERO) < 0 ? c : c.subtract(m));
 };
 
 Expression.Integer.prototype.modInverse = function (p) {
@@ -177,7 +177,7 @@ Expression.Integer.prototype.modInverse = function (p) {
 };
 
 function toMonic(f, p) {
-  if (f.getLeadingCoefficient().equals(Expression.ZERO)) {
+  if (f.getLeadingCoefficient().compareTo(Expression.ZERO) === 0) {
     return f;
   }
   const scale = f.getLeadingCoefficient().modInverse(p);
@@ -193,7 +193,7 @@ Polynomial.prototype.divideAndRemainderModP = function (divisor, w, p) {
   //return {quotient: tmp.quotient.mod(p), remainder: tmp.remainder.mod(p)};
   const dividend = this;
   const divisorLeadingCoefficient = divisor.getLeadingCoefficient();
-  if (!divisorLeadingCoefficient.equals(Expression.ONE)) {
+  if (divisorLeadingCoefficient.compareTo(Expression.ONE) !== 0) {
     throw new RangeError();
   }
   const minusDivisor = divisor.negate().mod(p);
@@ -218,7 +218,7 @@ Polynomial.prototype.divideAndRemainderModP = function (divisor, w, p) {
       const coefficient = minusDivisor.a.coefficient(j);
       remainder[degree + n] = remainder[degree + n].add(q.multiply(coefficient)).modulo(p);
     }
-    while (remainderDegree >= 0 && remainder[remainderDegree].equals(Expression.ZERO)) {
+    while (remainderDegree >= 0 && remainder[remainderDegree].compareTo(Expression.ZERO) === 0) {
       remainderDegree -= 1;
     }
   }
@@ -255,7 +255,7 @@ function factorizeOverTheIntegers(u) {
     prime = nextPrime(BigInt(2) * BigInt(Math.pow(2, Math.ceil(B))));
   } else {
     prime = 3;
-    while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(prime)).equals(Expression.ZERO) || !isFactorizationOverZpSquareFree(u, prime)) {
+    while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(prime)).compareTo(Expression.ZERO) === 0 || !isFactorizationOverZpSquareFree(u, prime)) {
       prime = Number(nextPrime(prime));
     }
   }
@@ -273,7 +273,7 @@ function factorizeOverTheIntegers(u) {
         bestFactorsNumber = factorsNumber;
       }
       prime = nextPrime(prime);
-      while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(prime)).equals(Expression.ZERO) || !isFactorizationOverZpSquareFree(u, prime)) {
+      while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(prime)).compareTo(Expression.ZERO) === 0 || !isFactorizationOverZpSquareFree(u, prime)) {
         prime = Number(nextPrime(prime));
       }
     }
@@ -288,7 +288,7 @@ function factorizeOverTheIntegers(u) {
       e = Math.pow(2, Math.ceil(Math.log2(e)));
     }
     factors = HenselLifting(u, factors, prime, e);
-    q = Expression.Integer.fromBigInt(prime).pow(Expression.Integer.fromNumber(e)).toBigInt();
+    q = Expression.Integer.fromBigInt(prime)._pow(e).toBigInt();
   }
   //!!! (number of factors depends on the choise of prime numbers)
   //TODO: how to reduce number of iterations (?) (see Donald Knuth's book)
@@ -299,7 +299,7 @@ for (let countOfFactors = 1; countOfFactors <= Math.floor(factors.length / 2); c
   while ((combination = combinations.next().value) != null) {
     c += 1;
     let v = product(combination);
-    console.assert(v.getLeadingCoefficient().equals(Expression.ONE));
+    console.assert(v.getLeadingCoefficient().compareTo(Expression.ONE) === 0);
     v = v.scale(u.getLeadingCoefficient());
     v = v.mod2(Expression.Integer.fromBigInt(q));
     if (v.getDegree() <= u.getDegree() / 2 || v.getDegree() < u.getDegree()) {
@@ -318,7 +318,7 @@ for (let countOfFactors = 1; countOfFactors <= Math.floor(factors.length / 2); c
 if (c > 16) {
   console.debug(c);
 }
-  if (!polynomial.equals(u)) {
+  if (!polynomial.subtract(u).equals(Polynomial.ZERO)) {
     u = u.primitivePart();//?
     return u;
   }
@@ -414,7 +414,7 @@ function HenselLifting(f, factors, p, e) {
   let C = f;
   let newFactors = [];
   const c = C.getLeadingCoefficient().modulo(Expression.Integer.fromBigInt(p));
-  if (!c.equals(Expression.ONE)) {
+  if (c.compareTo(Expression.ONE) !== 0) {
     factors = factors.concat([Polynomial.of(c)]);
   }
   if (true && factors.length > 1) {
@@ -423,7 +423,7 @@ function HenselLifting(f, factors, p, e) {
     let A = factors.slice(0, Math.ceil(factors.length / 2));
     let B = factors.slice(Math.ceil(factors.length / 2));
     const tmp = HenselLiftingOfTwoFactors(C, product(A), product(B), p, e);
-    if (!c.equals(Expression.ONE)) {
+    if (c.compareTo(Expression.ONE) !== 0) {
       B = B.slice(0, -1);
     }
     return HenselLifting(tmp.A1, A, p, e).concat(HenselLifting(tmp.B1, B, p, e));
@@ -437,9 +437,9 @@ function HenselLifting(f, factors, p, e) {
   if (C.getDegree() > 0) {
     newFactors.push(C);
   } else {
-    console.assert(!c.equals(Expression.ONE));
+    console.assert(c.compareTo(Expression.ONE) !== 0);
   }
-  const pInE = Expression.Integer.fromBigInt(p).pow(Expression.Integer.fromBigInt(e));
+  const pInE = Expression.Integer.fromBigInt(p)._pow(e);
   newFactors = newFactors.map(factor => toMonic(factor.mod(pInE), pInE));//TODO: ?
   return newFactors;
 }

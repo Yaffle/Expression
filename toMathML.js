@@ -94,7 +94,10 @@ Expression._decimalToMathML = decimalToMathML;
 Expression._complexToMathML = complexToMathML;
 
   function isConstant(e) {
-    if (e instanceof Expression.PolynomialRoot) {
+    if (e instanceof Expression.PolynomialRootSymbol) {
+      return true;
+    }
+    if (e instanceof Expression.ExpressionPolynomialRoot) {
       return true;
     }
     if (e instanceof Expression.Symbol) {
@@ -406,23 +409,17 @@ Expression.SquareRoot.prototype.toMathML = function (options) {
          "</msqrt>";
 };
 Expression.CubeRoot.prototype.toMathML = function (options) {
-  var d = Expression.toDecimalString(this, options);
-  if (d != undefined) {
-    return d;
-  }
-  return "<mroot>" +
-         this.a.toMathML(Expression.setTopLevel(true, options)) +
-         "<mi>" + 3 + "</mi>" +
-         "</mroot>";
+  return Expression.NthRoot.prototype.toMathML.call(this, options);
 };
 Expression.NthRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
     return d;
   }
+  console.assert(typeof this.n === "number");
   return "<mroot>" +
          this.a.toMathML(Expression.setTopLevel(true, options)) +
-         "<mi>" + this.n + "</mi>" +
+         "<mn>" + Expression.numberFormat.format(this.n.toString()) + "</mn>" +
          "</mroot>";
 };
 Expression.denotations = {};
@@ -489,7 +486,8 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       this.unwrap().a.unwrap() instanceof Expression.Symbol &&
       this.unwrap().a.unwrap() !== Expression.E &&
       this.unwrap().a.unwrap() !== Expression.PI &&
-      !(this.unwrap().a.unwrap() instanceof Expression.PolynomialRoot) &&
+      !(this.unwrap().a.unwrap() instanceof Expression.PolynomialRootSymbol) &&
+      !(this.unwrap().a.unwrap() instanceof Expression.ExpressionPolynomialRoot) &&
       (this.unwrap().b.unwrap() instanceof Expression.Integer || this.unwrap().b.unwrap() instanceof Expression.Negation && this.unwrap().b.unwrap().b.unwrap() instanceof Expression.Integer)) {
     options = Object.assign({}, options, {rounding: null});
   }
@@ -500,9 +498,19 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
 
   //!2019-05-16
   if (this instanceof Expression.Addition && options.printId == undefined) {
+    var summands = function (e) {
+      //if (true) { return e.summands(); }
+      var result = [];
+      while (e.unwrap() instanceof Expression.Addition) {
+        result.push(e.unwrap().b);
+        e = e.unwrap().a;
+      }
+      result.push(e);
+      return result;
+    };
     var s = [];
     var b = null;
-    for (var x of this.summands()) {
+    for (var x of summands(this)) {
       if (b != null) {
         var n = false;
         if (b.isNegative()) {

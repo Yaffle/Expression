@@ -14,15 +14,13 @@
   }
 
   Matrix.Zero = function (rows, cols) {
+    var row = new Array(cols);
+    for (var j = 0; j < cols; j += 1) {
+      row[j] = Expression.ZERO;
+    }
     var a = new Array(rows);
-    var i = -1;
-    while (++i < rows) {
-      var j = -1;
-      var x = new Array(cols);
-      while (++j < cols) {
-        x[j] = Expression.ZERO;
-      }
-      a[i] = x;
+    for (var i = 0; i < rows; i += 1) {
+      a[i] = row;
     }
     return new Matrix(a);
   };
@@ -131,9 +129,8 @@
     var c = new Array(rows);
     var i = -1;
     while (++i < rows) {
-      var x = this.a[i];
       if (targetRow === i) {
-        x = new Array(cols);
+        var x = new Array(cols);
         var f = currentOrPreviousPivot == undefined ? this.e(targetRow, pivotColumn).divide(this.e(pivotRow, pivotColumn)) : undefined;
         var j = -1;
         while (++j < cols) {
@@ -147,8 +144,9 @@
           x[j] = e.simplifyExpression();
         }
         c[i] = x;
+      } else {
+        c[i] = this.a[i];
       }
-      c[i] = x;
     }
     return new Matrix(c);
   };
@@ -688,11 +686,8 @@
   Matrix.padRows = function (array, convertFunction) {
     var rows = array.length;
     var cols = 0;
-    for (var k = 0; k < rows; k += 1) {
-      var length = array[k].length;
-      if (cols < length) {
-        cols = length;
-      }
+    for (var k = 0; k < array.length; k += 1) {
+      cols = Math.max(cols, array[k].length);
     }
     var data = new Array(rows);
     for (var i = 0; i < rows; i += 1) {

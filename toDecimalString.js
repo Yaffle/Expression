@@ -2,166 +2,114 @@ import Expression from './Expression.js';
 //import BigInteger from './BigInteger.js';
 import nthRoot from './nthRoot.js';
 //import bitLength from './bitLength.js';
-//import BigDecimal from './BigDecimal.js';
 import primeFactor from './primeFactor.js';
+import {BigDecimal, BigFloat} from './BigDecimal/BigDecimal.js';
 
-import {BigFloat} from './BigDecimal/BigDecimal.js';
-//import BigDecimal from './BigDecimal/BigDecimalByDecimal.js.js';
-//import BigDecimal from './BigDecimal/BigFloat.js';
-//BigDecimal.BigDecimal = BigDecimal.BigFloat;
-
-const BigDecimal = BigFloat;
 const BASE = 2;
+//const BASE = 10;
 
-//TODO: ???
-
-//TODO: rename BigDecimal to BigFloat, BigDecimalMath to BigFloatMath
-
-// BigFloat requirements:
-// only uses roundingMode 'half-even'
-// and rounding to maximumSignificantDigits
-
-function BigDecimalMath() {
-}
-BigDecimalMath.ZERO = BigDecimal.BigDecimal(0);
-BigDecimalMath.BASE = BigDecimal.round(BigDecimal.BigDecimal(BASE), {maximumSignificantDigits: 1, roundingMode: 'half-even'});
-BigDecimalMath.sign = function (a) { // returns -1, 0, or +1
-  return BigDecimal.lessThan(a, BigDecimalMath.ZERO) ? -1 : (BigDecimal.greaterThan(a, BigDecimalMath.ZERO) ? +1 : 0);
-};
-BigDecimalMath.abs = function (a) {
-  return BigDecimal.lessThan(a, BigDecimalMath.ZERO) ? BigDecimal.unaryMinus(a) : (BigDecimal.greaterThan(a, BigDecimalMath.ZERO) ? a : BigDecimalMath.ZERO);
-};
-BigDecimalMath.max = function (a, b) {
-  return BigDecimal.lessThan(a, b) ? b : a;
-};
-BigDecimalMath.min = function (a, b) {
-  return BigDecimal.greaterThan(a, b) ? b : a;
-};
-BigDecimalMath.nthRoot = function (x, n, rounding) {
-  if ((true || n > 100) && !BigDecimal.lessThan(x, BigDecimal.BigDecimal(2)) && rounding.maximumSignificantDigits != undefined && 2 + rounding.maximumSignificantDigits < n) {//?
-    // ExpressionParser.parse('2**(1/10000)').toMathML({fractionDigits: 10});
-    var roundingToInteger = {
-      maximumFractionDigits: 0,
-      roundingMode: 'half-even'
-    };
-    var internalRounding = {
-      maximumSignificantDigits: rounding.maximumSignificantDigits + 1 + Math.max(Math.ceil(Math.log2(Number(BigDecimal.toBigInt(BigDecimal.round(BigDecimal.log(BigDecimal.round(x, {maximumSignificantDigits: 1, roundingMode: 'half-even'}), {maximumSignificantDigits: 1, roundingMode: 'half-even'}), roundingToInteger)).toString()) / n) / Math.log2(BASE)), 0),
-      roundingMode: "half-even"
-    };
-    return BigDecimal.exp(BigDecimal.divide(BigDecimal.log(x, internalRounding), BigDecimal.BigDecimal(n), internalRounding), internalRounding);
+function MakeMath(BigDecimal, BASE) {
+  function BigDecimalMath() {
   }
-  // (f * 10**e)**(1/n) = (f * 10**(e - round(e / n) * n))**(1/n) * 10**round(e / n)
-  var fractionDigits = 2;
-  while (!BigDecimal.equal(BigDecimal.round(x, {maximumFractionDigits: fractionDigits, roundingMode: 'half-even'}), x)) {
-    fractionDigits *= 2;
-  }
-  var scaling = Math.max(rounding.maximumSignificantDigits || rounding.maximumFractionDigits, fractionDigits / 2);
-  var scalingCoefficient = BigDecimalMath.exponentiate(BigDecimalMath.BASE, scaling);
-  var sx = BigDecimal.toBigInt(BigDecimal.multiply(x, BigDecimalMath.exponentiate(BigDecimalMath.BASE, scaling * n)));
-  var x0 = nthRoot(sx, n);
-  //var x1 = BigInteger.lessThan(BigInteger.exponentiate(x1, BigInteger.BigInt(n)), sA) ? BigInteger.add(x1, BigInteger.BigInt(1)) : x1;
-  return BigDecimal.divide(BigDecimal.BigDecimal(x0), BigDecimal.BigDecimal(scalingCoefficient));
-};
-BigDecimalMath.pi = function (rounding) {
-  return BigDecimal.multiply(BigDecimal.BigDecimal(4), BigDecimal.atan(BigDecimal.BigDecimal(1), rounding));
-};
-BigDecimalMath._nextToward = function (a, rounding, which) {
-  // rounding.roundingMode is ignored
-  console.assert(rounding != undefined);
-  console.assert(which === 'floor' || which === 'ceil');
-  if (BigDecimal.lessThan(a, BigDecimal.BigDecimal(0))) {
-    return BigDecimal.unaryMinus(BigDecimalMath._nextToward(BigDecimal.unaryMinus(a), rounding, which === 'floor' ? 'ceil' : 'floor'));
-  }
-  if (rounding.maximumFractionDigits != undefined) {
-    var scalingCoefficient = BigDecimal.BigDecimal(BigDecimalMath.exponentiate(BigDecimalMath.BASE, rounding.maximumFractionDigits));
-    var small = BigDecimal.divide(BigDecimal.BigDecimal(which === 'floor' ? -1 : 1), scalingCoefficient);
-    return BigDecimal.add(a, small, {maximumFractionDigits: rounding.maximumFractionDigits, roundingMode: which === 'floor' ? 'ceil' : 'floor'});
-  }
-  if (BigDecimal.equal(a, BigDecimal.BigDecimal(0))) {
-    return a;
-  }
-  var t = BigDecimal.round(a, {maximumSignificantDigits: rounding.maximumSignificantDigits, roundingMode: 'half-even'});
-  if (!BigDecimal.equal(a, t)) {
-    if (which === 'floor' && BigDecimal.lessThan(t, a) || which === 'ceil' && BigDecimal.greaterThan(t, a)) {
+  BigDecimalMath.BASE = BigDecimal.round(BigDecimal.BigDecimal(BASE), {maximumSignificantDigits: 1, roundingMode: 'half-even'});
+  BigDecimalMath.nthRoot = function (x, n, rounding) {
+    if (!BigDecimal.lessThan(x, BigDecimal.BigDecimal(2)) &&
+        rounding.maximumSignificantDigits != undefined &&
+        rounding.maximumSignificantDigits < n - 2) {//?
+      // ExpressionParser.parse('2**(1/10000)').toMathML({fractionDigits: 10});
+      var roundingToInteger = {
+        maximumFractionDigits: 0,
+        roundingMode: 'half-even'
+      };
+      var roundingToSingleDigit = {
+        maximumSignificantDigits: 1,
+        roundingMode: 'half-even'
+      };
+      var internalRounding = {
+        maximumSignificantDigits: rounding.maximumSignificantDigits + 1 + Math.max(Math.ceil(Math.log2(Number(BigDecimal.toBigInt(BigDecimal.round(BigDecimal.log(BigDecimal.round(x, roundingToSingleDigit), roundingToSingleDigit), roundingToInteger)).toString()) / n) / Math.log2(BASE)), 0),
+        roundingMode: 'half-even'
+      };
+      return BigDecimal.exp(BigDecimal.divide(BigDecimal.log(x, internalRounding), BigDecimal.BigDecimal(n), internalRounding), internalRounding);
+    }
+    // (f * 10**e)**(1/n) = (f * 10**(e - round(e / n) * n))**(1/n) * 10**round(e / n)
+    var fractionDigits = 2;
+    while (!BigDecimal.equal(BigDecimal.round(x, {maximumFractionDigits: fractionDigits, roundingMode: 'half-even'}), x)) {
+      fractionDigits *= 2;
+    }
+    var scaling = rounding.maximumSignificantDigits != null ? rounding.maximumSignificantDigits + Math.ceil(fractionDigits / n) : Math.max(rounding.maximumFractionDigits, fractionDigits / 2);
+    var sx = BigDecimal.toBigInt(BigDecimal.multiply(x, BigDecimalMath.exponentiate(BigDecimalMath.BASE, scaling * n)));
+    var x0 = nthRoot(sx, n);
+    //var x1 = BigInteger.lessThan(BigInteger.exponentiate(x1, BigInteger.BigInt(n)), sA) ? BigInteger.add(x1, BigInteger.BigInt(1)) : x1;
+    return BigDecimal.multiply(BigDecimal.BigDecimal(x0), BigDecimalMath.exponentiate(BigDecimalMath.BASE, -scaling));
+  };
+  BigDecimalMath.nextAfter = function (a, rounding) {
+    if (rounding == undefined) {
+      throw new RangeError();
+    }
+    if (rounding.roundingMode !== 'floor' && rounding.roundingMode !== 'ceil') {
+      throw new RangeError();
+    }
+    var t = BigDecimal.round(a, rounding);
+    if (!BigDecimal.equal(a, t)) {
       return t;
     }
-    return BigDecimalMath._nextToward(t, rounding, which);
-  }
-  var k = 1;
-  while (true) {
-    var m = BigDecimalMath.exponentiate(BigDecimalMath.BASE, rounding.maximumSignificantDigits);
-    var c = BigDecimal.add(BigDecimal.BigDecimal(1), BigDecimal.divide(BigDecimal.BigDecimal(which === 'floor' ? -k : k), m));
-    var guess = BigDecimal.multiply(a, c, {maximumSignificantDigits: rounding.maximumSignificantDigits, roundingMode: 'half-even'});
-    if (!BigDecimal.equal(a, guess)) {
-      return guess;
+    var _nextAfter = function (a, k, v, rounding) {
+      var small = BigDecimal.multiply(BigDecimal.BigDecimal(rounding.roundingMode === 'floor' ? -1 : 1), BigDecimalMath.exponentiate(BigDecimalMath.BASE, -k));
+      var aim = BigDecimal.multiply(BigDecimal.abs(v), small);
+      return BigDecimal.add(a, aim, rounding);
+    };
+    if (rounding.maximumFractionDigits != undefined) {
+      return _nextAfter(a, rounding.maximumFractionDigits, BigDecimal.BigDecimal(1), rounding);
     }
-    ++k;
-  }
-};
-BigDecimalMath.nextFloor = function (a, rounding) {
-  return BigDecimalMath._nextToward(a, rounding, 'floor');
-};
-BigDecimalMath.nextCeil = function (a, rounding) {
-  return BigDecimalMath._nextToward(a, rounding, 'ceil');
-};
-//TODO: remove
-BigDecimalMath.fma = function (a, b, c, rounding) { // a * b + c
-  return BigDecimal.round(BigDecimal.add(BigDecimal.multiply(a, b), c), rounding);
-};
-BigDecimalMath.exponentiate = function (a, n) {
-  //console.assert(a == 2);
-  if (n < 0) {
-    return BigDecimal.divide(BigDecimal.BigDecimal(1), BigDecimalMath.exponentiate(a, -n));
-  }
-  var y = BigDecimal.BigDecimal(1);
-  while (n >= 1) {
-    if (0 === n % 2) {
-      a = BigDecimal.multiply(a, a);
-      n = n / 2;
-    } else {
-      y = y == undefined ? a : BigDecimal.multiply(a, y);
-      n = n - 1;
+    if (rounding.maximumSignificantDigits != undefined) {
+      // a * (1 + 1 / 2**maximumSignificantDigits)
+      return _nextAfter(a, rounding.maximumSignificantDigits, a, rounding);
     }
-  }
-  return y;
+    throw new RangeError();
+  };
+  //TODO: remove
+  //BigDecimalMath.fma = function (a, b, c, rounding) { // a * b + c
+  //  return BigDecimal.round(BigDecimal.add(BigDecimal.multiply(a, b), c), rounding);
+  //};
+  BigDecimalMath.exponentiate = function (a, n) {
+    //console.assert(a == 2);
+    if (n < 0) {
+      return BigDecimal.divide(BigDecimal.BigDecimal(1), BigDecimalMath.exponentiate(a, -n), null);
+    }
+    var y = BigDecimal.BigDecimal(1);
+    while (n >= 1) {
+      if (0 === n % 2) {
+        a = BigDecimal.multiply(a, a);
+        n = n / 2;
+      } else {
+        y = y == undefined ? a : BigDecimal.multiply(a, y);
+        n = n - 1;
+      }
+    }
+    return y;
+  };
+  return BigDecimalMath;
 };
+
+const BigDecimalMath = MakeMath(BigDecimal, 10);
+const BigFloatMath = MakeMath(BigFloat, 2);
 
 //BigDecimalMath.nthRoot(BigDecimal.BigDecimal(2), 2, 3);
 
-if (false) {
-  console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumSignificantDigits: 4}).toString() === '0.9951');
-  console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumSignificantDigits: 3}).toString() === '0.996');
-  console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumSignificantDigits: 2}).toString() === '1');
-  console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0'), {maximumSignificantDigits: 1}).toString() === '0');
-  console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('1'), {maximumSignificantDigits: 1}).toString() === '2');
-  //console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumFractionDigits: 4}).toString() === '0.9951');
-  //console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumFractionDigits: 3}).toString() === '0.996');
-  //console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0.995'), {maximumFractionDigits: 2}).toString() === '1');
-  //console.assert(BigDecimalMath.nextCeil(BigDecimal.BigDecimal('0'), {maximumFractionDigits: 1}).toString() === '0.1');
-  //console.assert(BigDecimalMath.nextFloor(BigDecimal.BigDecimal('0'), {maximumFractionDigits: 1}).toString() === '-0.1');
-  console.time();
-  console.assert(BigDecimalMath.nextFloor(BigDecimal.BigDecimal('1e10000000'), {maximumSignificantDigits: 100000}).toString() === '?');
-  console.timeEnd();
-  // default: 2289.925048828125ms
-  // default: 1335.22216796875ms
-}
 
-const USE_DIRECTED_ROUNDING_MODES = true;
+
 
 // https://en.wikipedia.org/wiki/Interval_arithmetic
 function Interval(a, b) {
   if (a instanceof Interval || b instanceof Interval) {
     throw new TypeError();// to help with debugging
   }
-  if (BigDecimal.greaterThan(a, b)) {
+  if (BigFloat.greaterThan(a, b)) {
     throw new TypeError();
   }
   this.a = a;
   this.b = b;
 }
-Interval.degenerate = function (a) {
-  return new Interval(a, a);
-};
 
 Interval.Context = function (precision, flag0) {
   //this.precision = precision;
@@ -172,268 +120,146 @@ Interval.Context = function (precision, flag0) {
   this.ceilRounding = Object.assign({}, anyRounding, {roundingMode: 'ceil'});
 };
 Interval.Context.prototype.unaryMinus = function (x) {
-  if (BigDecimal.equal(x.a, x.b)) {
-    return Interval.degenerate(BigDecimal.unaryMinus(x.a));
+  if (BigFloat.equal(x.a, x.b)) {
+    var t = BigFloat.unaryMinus(x.a);
+    return new Interval(t, t);
   }
-  return new Interval(BigDecimal.unaryMinus(x.b), BigDecimal.unaryMinus(x.a));
-};
-Interval.Context.prototype._add = function (x, y, which) {
-  if (USE_DIRECTED_ROUNDING_MODES) {
-    if (which === 'floor') {
-      var floorRounding = this.floorRounding;
-      return BigDecimal.add(x, y, floorRounding);
-    }
-    if (which === 'floor') {
-      var ceilRounding = this.ceilRounding;
-      return BigDecimal.add(x, y, ceilRounding);
-    }
-  }
-  if (BigDecimal.lessThan(BigDecimalMath.abs(x), BigDecimalMath.abs(y))) {
-    return this._add(y, x, which);
-  }
-  // |x| <= |y|
-  //TODO: check that round(x) === x and round(y) === y - ?
-  var s = BigDecimal.add(x, y, this.anyRounding);
-  var e = BigDecimal.subtract(BigDecimal.subtract(s, x), y);
-  if (which === 'floor' && BigDecimal.greaterThan(e, BigDecimal.BigDecimal(0))) {
-    return BigDecimalMath.nextFloor(s, this.anyRounding);
-  }
-  if (which === 'ceil' && BigDecimal.lessThan(e, BigDecimal.BigDecimal(0))) {
-    return BigDecimalMath.nextCeil(s, this.anyRounding);
-  }
-  return s;
+  return new Interval(BigFloat.unaryMinus(x.b), BigFloat.unaryMinus(x.a));
 };
 Interval.Context.prototype.add = function (x, y) {
-  return new Interval(this._add(x.a, y.a, 'floor'), this._add(x.b, y.b, 'ceil'));
+  return new Interval(BigFloat.add(x.a, y.a, this.floorRounding), BigFloat.add(x.b, y.b, this.ceilRounding));
 };
 Interval.Context.prototype.subtract = function (x, y) {
-  return new Interval(this._add(x.a, BigDecimal.unaryMinus(y.b), 'floor'), this._add(x.b, BigDecimal.unaryMinus(y.a), 'ceil'));
+  return new Interval(BigFloat.add(x.a, BigFloat.unaryMinus(y.b), this.floorRounding), BigFloat.add(x.b, BigFloat.unaryMinus(y.a), this.ceilRounding));
+};
+Interval.Context.prototype._multiply = function (x1, x2, y1, y2, f) {
+  var sign = BigFloat.sign;
+  if (sign(x1) >= 0) {
+    if (sign(y1) >= 0) {
+      return f(x1, y1, x2, y2);
+    }
+    if (sign(y2) <= 0) {
+      return f(x2, y1, x1, y2);
+    }
+    // y1 < 0 && y2 > 0
+    return f(x2, y1, x2, y2);
+  }
+  if (sign(x2) <= 0) {
+    if (sign(y2) <= 0) {
+      return f(x2, y2, x1, y1);
+    }
+    if (sign(y1) >= 0) {
+      return f(x1, y2, x2, y1);
+    }
+    // y1 < 0 && y2 > 0
+    return f(x1, y2, x1, y1);
+  }
+  if (sign(y1) >= 0) {// x1 < 0 && x2 > 0
+    return f(x1, y2, x2, y2);
+  }
+  if (sign(y2) <= 0) {// x1 < 0 && x2 > 0
+    return f(x2, y1, x1, y1);
+  }
+  // x1 < 0 && x2 > 0 && y1 < 0 && y2 > 0
+  var interval1 = f(x1, y2, x1, y1);
+  var interval2 = f(x2, y1, x2, y2);
+  return new Interval(BigFloat.min(interval1.a, interval2.a),
+                      BigFloat.max(interval1.b, interval2.b));
 };
 Interval.Context.prototype.multiply = function (x, y) {
-  var anyRounding = this.anyRounding;
   var floorRounding = this.floorRounding;
   var ceilRounding = this.ceilRounding;
-  var floorMultiply = function (x, y) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.multiply(x, y, floorRounding);
-    }
-    //TODO: test for wrong roundingMode
-    var p = BigDecimal.multiply(x, y, anyRounding);
-    var e = BigDecimalMath.fma(x, y, BigDecimal.unaryMinus(p), anyRounding);
-    if (BigDecimal.lessThan(e, BigDecimal.BigDecimal(0))) {
-      return BigDecimalMath.nextFloor(p, anyRounding);
-    }
-    return p;
+  if (BigFloat.equal(x.a, x.b) && BigFloat.equal(y.a, y.b)) {
+    var product = BigFloat.multiply(x.a, y.a);
+    return new Interval(BigFloat.round(product, floorRounding), BigFloat.round(product, ceilRounding));
+  }
+  var f = function (a, b, c, d) {
+    return new Interval(BigFloat.multiply(a, b, floorRounding), BigFloat.multiply(c, d, ceilRounding));
   };
-  var ceilMultiply = function (x, y) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.multiply(x, y, ceilRounding);
-    }
-    //TODO: test for wrong roundingMode
-    var p = BigDecimal.multiply(x, y, anyRounding);
-    var e = BigDecimalMath.fma(x, y, BigDecimal.unaryMinus(p), anyRounding);
-    if (BigDecimal.greaterThan(e, BigDecimal.BigDecimal(0))) {
-      return BigDecimalMath.nextCeil(p, anyRounding);
-    }
-    return p;
-  };
-  if (BigDecimal.equal(x.a, x.b) && BigDecimal.equal(y.a, y.b)) {
-    return new Interval(floorMultiply(x.a, y.a), ceilMultiply(x.a, y.a)); //TODO: single multiplication
-  }
-  var x1 = x.a;
-  var x2 = x.b;
-  var y1 = y.a;
-  var y2 = y.b;
-  if (BigDecimalMath.sign(x1) >= 0) {
-    if (BigDecimalMath.sign(y1) >= 0) {
-      return new Interval(floorMultiply(x1, y1), ceilMultiply(x2, y2));
-    }
-    if (BigDecimalMath.sign(y2) <= 0) {
-      return new Interval(floorMultiply(x2, y1), ceilMultiply(x1, y2));
-    }
-    // y1 < 0 && y2 > 0
-    return new Interval(floorMultiply(x2, y1), ceilMultiply(x2, y2));
-  }
-  if (BigDecimalMath.sign(x2) <= 0) {
-    if (BigDecimalMath.sign(y2) <= 0) {
-      return new Interval(floorMultiply(x2, y2), ceilMultiply(x1, y1));
-    }
-    if (BigDecimalMath.sign(y1) >= 0) {
-      return new Interval(floorMultiply(x1, y2), ceilMultiply(x2, y1));
-    }
-    // y1 < 0 && y2 > 0
-    return new Interval(floorMultiply(x1, y2), ceilMultiply(x1, y1));
-  }
-  if (BigDecimalMath.sign(y1) >= 0) {// x1 < 0 && x2 > 0
-    return new Interval(floorMultiply(x1, y2), ceilMultiply(x2, y2));
-  }
-  if (BigDecimalMath.sign(y2) <= 0) {// x1 < 0 && x2 > 0
-    return new Interval(floorMultiply(x2, y1), ceilMultiply(x1, y1));
-  }
-  var min = function (a, b) {
-    return BigDecimal.greaterThan(a, b) ? b : a;
-  };
-  var max = function (a, b) {
-    return BigDecimal.lessThan(a, b) ? b : a;
-  };
-  // x1 < 0 && x2 > 0 && y1 < 0 && y2 > 0
-  return new Interval(min(floorMultiply(x1, y2), floorMultiply(x2, y1)),
-                      max(ceilMultiply(x1, y1), ceilMultiply(x2, y2)));
+  return this._multiply(x.a, x.b, y.a, y.b, f);
 };
 Interval.Context.prototype.divide = function (x, y) {
-  var anyRounding = this.anyRounding;
   var floorRounding = this.floorRounding;
   var ceilRounding = this.ceilRounding;
-  var floorDivide = function (x, y) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.divide(x, y, floorRounding);
-    }
-    var q = BigDecimal.divide(x, y, anyRounding);
-    var e = BigDecimalMath.fma(q, y, BigDecimal.unaryMinus(x), anyRounding);
-    if (BigDecimal.greaterThan(BigDecimalMath.sign(y) < 0 ? BigDecimal.unaryMinus(e) : e, BigDecimal.BigDecimal(0))) {
-      return BigDecimalMath.nextFloor(q, anyRounding);
-    }
-    return q;
-  };
-  var ceilDivide = function (x, y) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.divide(x, y, ceilRounding);
-    }
-    var q = BigDecimal.divide(x, y, anyRounding);
-    var e = BigDecimalMath.fma(q, y, BigDecimal.unaryMinus(x), anyRounding);
-    if (BigDecimal.lessThan(BigDecimalMath.sign(y) < 0 ? BigDecimal.unaryMinus(e) : e, BigDecimal.BigDecimal(0))) {
-      return BigDecimalMath.nextCeil(q, anyRounding);
-    }
-    return q;
-  };
-  if (BigDecimalMath.sign(y.a) <= 0 && BigDecimalMath.sign(y.b) >= 0) {
-    if (BigDecimal.equal(y.a, y.b)) {
+  if (BigFloat.sign(y.a) <= 0 && BigFloat.sign(y.b) >= 0) {
+    if (BigFloat.equal(y.a, y.b)) {
       throw new RangeError();
     }
     return "CANNOT_DIVIDE";//TODO: FIX
   }
-  if (BigDecimal.equal(x.a, x.b) && BigDecimal.equal(y.a, y.b)) {
-    return new Interval(floorDivide(x.a, y.a), ceilDivide(x.a, y.a)); //TODO: single division
-  }
-  var x1 = x.a;
-  var x2 = x.b;
-  var y1 = y.a;
-  var y2 = y.b;
-  if (BigDecimalMath.sign(x1) >= 0) {
-    if (BigDecimalMath.sign(y1) >= 0) {
-      return new Interval(floorDivide(x1, y2), ceilDivide(x2, y1));
-    }
-    if (BigDecimalMath.sign(y2) <= 0) {
-      return new Interval(floorDivide(x2, y2), ceilDivide(x1, y1));
-    }
-    // y1 < 0 && y2 > 0
-    return "CANNOT_DIVIDE";//TODO: FIX
-  }
-  if (BigDecimalMath.sign(x2) <= 0) {
-    if (BigDecimalMath.sign(y2) <= 0) {
-      return new Interval(floorDivide(x2, y1), ceilDivide(x1, y2));
-    }
-    if (BigDecimalMath.sign(y1) >= 0) {
-      return new Interval(floorDivide(x1, y1), ceilDivide(x2, y2));
-    }
-    // y1 < 0 && y2 > 0
-    return "CANNOT_DIVIDE";//TODO: FIX
-  }
-  if (BigDecimalMath.sign(y1) >= 0) {// x1 < 0 && x2 > 0
-    return new Interval(floorDivide(x1, y1), ceilDivide(x2, y1));
-  }
-  if (BigDecimalMath.sign(y2) <= 0) {// x1 < 0 && x2 > 0
-    return new Interval(floorDivide(x2, y2), ceilDivide(x1, y2));
-  }
-  // x1 < 0 && x2 > 0 && y1 < 0 && y2 > 0
-  return "CANNOT_DIVIDE";//TODO: FIX
+  //if (BigFloat.equal(x.a, x.b) && BigFloat.equal(y.a, y.b)) {
+  //  var q = BigFloat.divide(x.a, y.a, this.anyRounding);
+  //  var r = BigFloat.subtract(x.a, BigFloat.multiply(y.a, q));
+  //  return new Interval(floorDivide(x.a, y.a), ceilDivide(x.a, y.a)); //TODO: single division
+  //}
+  var f = function (a, d, c, b) {
+    //Note: b and d are swapped
+    return new Interval(BigFloat.divide(a, b, floorRounding), BigFloat.divide(c, d, ceilRounding));
+  };
+  return this._multiply(x.a, x.b, y.a, y.b, f);
 };
 Interval.Context.prototype.nthRoot = function (x, n) {
-  if (BigDecimalMath.sign(x.a) < 0 && BigDecimalMath.sign(x.b) >= 0) {
+  if (BigFloat.sign(x.a) < 0 && BigFloat.sign(x.b) >= 0) {
     return "CANNOT_DIVIDE";//TODO: FIX
   }
-  if (BigDecimal.equal(x.a, x.b)) {
-    var c = BigDecimalMath.nthRoot(x.a, n, this.anyRounding);
-    var a = BigDecimalMath.nextFloor(c, this.anyRounding);
-    var b = BigDecimalMath.nextCeil(c, this.anyRounding);
-    return new Interval(a, b);
-  }
-  var a = BigDecimalMath.nextFloor(BigDecimalMath.nthRoot(x.a, n, this.anyRounding), this.anyRounding);
-  var b = BigDecimalMath.nextCeil(BigDecimalMath.nthRoot(x.b, n, this.anyRounding), this.anyRounding);
-  return new Interval(a, b);
+  return this._map(x, function (x, rounding) {
+    return BigFloatMath.nthRoot(x, n, rounding);
+  });
 };
 Interval.Context.prototype.exp = function (x) {
-  if (BigDecimal.equal(x.a, x.b)) {
-    var c = BigDecimal.exp(x.a, this.anyRounding);
-    var a = BigDecimalMath.nextFloor(c, this.anyRounding);
-    var b = BigDecimalMath.nextCeil(c, this.anyRounding);
-    return new Interval(a, b);
-  }
-  var a = BigDecimalMath.nextFloor(BigDecimal.exp(x.a, this.anyRounding), this.anyRounding);
-  var b = BigDecimalMath.nextCeil(BigDecimal.exp(x.b, this.anyRounding), this.anyRounding);
-  return new Interval(a, b);
+  return this._map(x, BigFloat.exp);
 };
 Interval.Context.prototype.log = function (x, precision) {
-  if (BigDecimalMath.sign(x.a) <= 0 && BigDecimalMath.sign(x.b) > 0) {
+  if (BigFloat.sign(x.a) <= 0 && BigFloat.sign(x.b) > 0) {
     return "CANNOT_DIVIDE";//TODO: FIX
   }
-  if (BigDecimal.equal(x.a, x.b)) {
-    var c = BigDecimal.log(x.a, this.anyRounding);
-    var a = BigDecimalMath.nextFloor(c, this.anyRounding);
-    var b = BigDecimalMath.nextCeil(c, this.anyRounding);
-    return new Interval(a, b);
-  }
-  //TODO: test coverage
-  var a = BigDecimalMath.nextFloor(BigDecimal.log(x.a, this.anyRounding), this.anyRounding);
-  var b = BigDecimalMath.nextCeil(BigDecimal.log(x.b, this.anyRounding), this.anyRounding);
+  return this._map(x, BigFloat.log);
+};
+Interval.Context.prototype.atan = function (x, precision) {
+  return this._map(x, BigFloat.atan);
+};
+Interval.Context.prototype._mapValue = function (value, callback) {
+  var c = callback(value, this.floorRounding); // TODO: ?
+  //var a = BigFloatMath.nextAfter(c, this.floorRounding);
+  var a = c;
+  var b = BigFloatMath.nextAfter(c, this.ceilRounding);
   return new Interval(a, b);
 };
-Interval.Context.prototype.pi = function () {
-  var c = BigDecimalMath.pi(this.anyRounding);
-  var a = BigDecimalMath.nextFloor(c, this.anyRounding);
-  var b = BigDecimalMath.nextCeil(c, this.anyRounding);
+Interval.Context.prototype._map = function (x, callback) {
+  if (BigFloat.equal(x.a, x.b)) {
+    return this._mapValue(x.a, callback);
+  }
+  var a = callback(x.a, this.floorRounding);
+  var b = callback(x.b, this.ceilRounding);
   return new Interval(a, b);
 };
 Interval.Context.prototype._trigonometry = function (x, which) {
-  var min = function (a, b) {
-    return BigDecimal.greaterThan(a, b) ? b : a;
+  if (BigFloat.equal(x.a, x.b)) {
+    return this._mapValue(x.a, which === 'sin' ? BigFloat.sin : BigFloat.cos);
+  }
+  var tau = BigFloat.multiply(BigFloat.BigFloat(8), BigFloat.atan(BigFloat.BigFloat(1), this.anyRounding));
+  if (!BigFloat.lessThan(BigFloat.subtract(x.b, x.a), tau)) {
+    return new Interval(BigFloat.BigFloat(-1), BigFloat.BigFloat(+1));
+  }
+  var f = function (x, rounding) {
+    return which === 'sin' ? BigFloat.sin(x, rounding) : BigFloat.cos(x, rounding);
   };
-  var max = function (a, b) {
-    return BigDecimal.lessThan(a, b) ? b : a;
-  };
-  var clamp = function (interval) {
-    var minusOne = BigDecimal.BigDecimal(-1);
-    var one = BigDecimal.BigDecimal(+1);
-    return new Interval(min(max(interval.a, minusOne), one), min(max(interval.b, minusOne), one));
-  };
+  var middle = BigFloat.divide(BigFloat.add(x.a, x.b), BigFloat.BigFloat(2), this.anyRounding); // with rounding it works better in case the interval has huge significant digits difference
   var anyRounding = this.anyRounding;
-  var f = function (x) {
-    return which === 'sin' ? BigDecimal.sin(x, anyRounding) : BigDecimal.cos(x, anyRounding);
-  };
-  if (BigDecimal.equal(x.a, x.b)) {
-    var fc = f(x.a);
-    return clamp(new Interval(BigDecimalMath.nextFloor(fc, this.anyRounding), BigDecimalMath.nextCeil(fc, this.anyRounding)));
-  }
-  var pi = BigDecimalMath.pi(this.anyRounding);
-  var tau = BigDecimal.multiply(BigDecimal.BigDecimal(2), pi);
-  if (!BigDecimal.lessThan(BigDecimal.subtract(x.b, x.a), tau)) {
-    return new Interval(BigDecimal.BigDecimal(-1), BigDecimal.BigDecimal(+1));
-  }
-  var middle = BigDecimal.divide(BigDecimal.add(x.a, x.b), BigDecimal.BigDecimal(2), this.anyRounding); // with rounding it works better in case the interval has huge significant digits difference
   var extremumPoint = function (q) {
-    var shift = BigDecimal.multiply(BigDecimal.divide(BigDecimal.BigDecimal(q), BigDecimal.BigDecimal(2), anyRounding), pi);
-    var k = BigDecimal.round(BigDecimal.divide(BigDecimal.subtract(middle, shift, anyRounding), tau, anyRounding), {
+    var shift = BigFloat.multiply(BigFloat.divide(BigFloat.BigFloat(q), BigFloat.BigFloat(4), anyRounding), tau);
+    var k = BigFloat.round(BigFloat.divide(BigFloat.subtract(middle, shift, anyRounding), tau, anyRounding), {
       maximumFractionDigits: 0,
       roundingMode: 'half-even'
     });
-    return BigDecimal.add(BigDecimal.multiply(tau, k), shift);
+    return BigFloat.add(BigFloat.multiply(tau, k), shift);
   };
   var minimumPoint = extremumPoint(which === 'sin' ? 3 : 2);
   var maximumPoint = extremumPoint(which === 'sin' ? 1 : 0);
-  var fmin = BigDecimal.lessThan(minimumPoint, x.a) ? f(x.a) : (BigDecimal.greaterThan(minimumPoint, x.b) ? f(x.b) : BigDecimal.BigDecimal(-1));
-  var fmax = BigDecimal.lessThan(maximumPoint, x.a) ? f(x.a) : (BigDecimal.greaterThan(maximumPoint, x.b) ? f(x.b) : BigDecimal.BigDecimal(+1));
+  var fmin = BigFloat.lessThan(minimumPoint, x.a) ? f(x.a, this.floorRounding) : (BigFloat.greaterThan(minimumPoint, x.b) ? f(x.b, this.floorRounding) : BigFloat.BigFloat(-1));
+  var fmax = BigFloat.lessThan(maximumPoint, x.a) ? f(x.a, this.ceilRounding) : (BigFloat.greaterThan(maximumPoint, x.b) ? f(x.b, this.ceilRounding) : BigFloat.BigFloat(+1));
   /**/
-  return clamp(new Interval(BigDecimalMath.nextFloor(fmin, this.anyRounding), BigDecimalMath.nextCeil(fmax, this.anyRounding)));
+  return new Interval(fmin, fmax);
 };
 Interval.Context.prototype.sin = function (x) {
   return this._trigonometry(x, 'sin');
@@ -448,7 +274,7 @@ Interval.Context.prototype.fromInteger = function (a) {
     };
     var k = a != 0 ? bitLength(abs(a)) - Math.ceil(Math.log2(10) * this.anyRounding.maximumSignificantDigits) : 0;
     if (k > 42) {
-      //TODO: move to BigDecimal.round - ?
+      //TODO: move to BigFloat.round - ?
       // for performance
       var p2k = BigInteger.exponentiate(BigInteger.BigInt(2), BigInteger.BigInt(k));
       var q = BigInteger.divide(a, p2k);
@@ -457,63 +283,29 @@ Interval.Context.prototype.fromInteger = function (a) {
       return this.multiply(this.fromIntegers(from, to), this.exponentiate(this.fromInteger(BigInteger.BigInt(2)), k));
     }
   }
-  //var x = BigDecimal.BigDecimal(a);
-  //if (BigInteger.equal(BigInteger.BigInt(BigDecimal.toBigInt(x)), a)) { // TODO: ?
-  //  return Interval.degenerate(x);
+  //var x = BigFloat.BigFloat(a);
+  //if (BigInteger.equal(BigInteger.BigInt(BigFloat.toBigInt(x)), a)) { // TODO: ?
+  //  return new Interval(x, x);
   //}
-  a = BigDecimal.BigDecimal(a);
-  if (USE_DIRECTED_ROUNDING_MODES) {
-    var anyRounding = this.anyRounding;
-    var floorRounding = this.floorRounding;
-    var ceilRounding = this.ceilRounding;
-    return new Interval(BigDecimal.round(a, floorRounding), BigDecimal.round(a, ceilRounding));
-  }
-  var guess = BigDecimal.round(a, this.anyRounding);
-  if (BigDecimal.greaterThan(guess, a)) {
-    return new Interval(BigDecimalMath.nextFloor(guess, this.anyRounding), guess);
-  } else if (BigDecimal.lessThan(guess, a)) {
-    return new Interval(guess, BigDecimalMath.nextCeil(guess, this.anyRounding));
-  }
-  return Interval.degenerate(guess);
+  a = BigFloat.BigFloat(a);
+  return new Interval(BigFloat.round(a, this.floorRounding),
+                      BigFloat.round(a, this.ceilRounding));
   //return this.fromIntegers(a, a);
 };
 Interval.Context.prototype.fromIntegers = function (a, b) {
-  var anyRounding = this.anyRounding;
-  var floorRounding = this.floorRounding;
-  var ceilRounding = this.ceilRounding;
-  var floorRound = function (x) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.round(x, floorRounding);
-    }
-    var guess = BigDecimal.round(x, anyRounding);
-    if (BigDecimal.greaterThan(guess, x)) {
-      return BigDecimalMath.nextFloor(guess, anyRounding);
-    }
-    return guess;
-  };
-  var ceilRound = function (x) {
-    if (USE_DIRECTED_ROUNDING_MODES) {
-      return BigDecimal.round(x, ceilRounding);
-    }
-    var guess = BigDecimal.round(x, anyRounding);
-    if (BigDecimal.lessThan(guess, x)) {
-      return BigDecimalMath.nextCeil(guess, anyRounding);
-    }
-    return guess;
-  };
-  var a = BigDecimal.BigDecimal(a);
-  var b = BigDecimal.BigDecimal(b);
+  var a = BigFloat.BigFloat(a);
+  var b = BigFloat.BigFloat(b);
   //TODO: test case (!!!)
-  console.assert(!BigDecimal.greaterThan(a, b));
-  return new Interval(floorRound(a),
-                      ceilRound(b));
+  console.assert(!BigFloat.lessThan(b, a));
+  return new Interval(BigFloat.round(a, this.floorRounding),
+                      BigFloat.round(b, this.ceilRounding));
 };
 Interval.Context.prototype.abs = function (x) {
-  if (BigDecimal.lessThan(x.a, BigDecimal.BigDecimal(0))) {
-    if (BigDecimal.lessThan(x.b, BigDecimal.BigDecimal(0))) {
-      return new Interval(BigDecimal.unaryMinus(x.b), BigDecimal.unaryMinus(x.a));
+  if (BigFloat.lessThan(x.a, BigFloat.BigFloat(0))) {
+    if (BigFloat.lessThan(x.b, BigFloat.BigFloat(0))) {
+      return new Interval(BigFloat.unaryMinus(x.b), BigFloat.unaryMinus(x.a));
     } else {
-      return new Interval(BigDecimal.BigDecimal(0), BigDecimalMath.max(BigDecimal.unaryMinus(x.a), x.b));
+      return new Interval(BigFloat.BigFloat(0), BigFloat.max(BigFloat.unaryMinus(x.a), x.b));
     }
   }
   return x;
@@ -543,68 +335,24 @@ Interval.Context.prototype.exponentiate = function (x, n) {
 
 Interval.Context.prototype.formatToDecimal = function (x, rounding) {
   // assume, that the value is not exact
-  var signA = BigDecimalMath.sign(x.a);
-  var signB = BigDecimalMath.sign(x.b);
+  var signA = BigFloat.sign(x.a);
+  var signB = BigFloat.sign(x.b);
   var sign = (signA || signB) === (signB || signA) ? (signA || signB) : 0;
   x = this.abs(x);
-  var anyRounding = this.anyRounding;
   var stringify = function (a, roundingMode) {
-    //TODO: roundingMode - ?
-    /*if (roundingMode === "half-down" && BASE === 2) {
-      var string = stringify(a, "half-up");
-      var match = /^(\d+)\.?(\d*)e?\+?(\-?\d*)$/.exec(string);
-      var significand = match[1] + (match[2] || '') + '5';
-      var exponent = BigInteger.subtract(BigInteger.BigInt(match[3]), BigInteger.BigInt((match[2] || '').length + 1));
-      var a1 = BigDecimal.divide(a, BigDecimalMath.exponentiate(BigDecimal.BigDecimal(2), exponent));
-      if (BigDecimal.equal(BigDecimal.round(a1, {maximumFractionDigits: 0, roundingMode: "half-even"}), a1)) {
-        var a2 = BigDecimal.divide(a1, BigDecimal.BigDecimal(2));
-        if (!BigDecimal.equal(BigDecimal.round(a2, {maximumFractionDigits: 0, roundingMode: "half-even"}), a2)) {
-          // a1 should be "small"
-          var u = BigInteger.subtract(BigInteger.BigInt(significand), BigInteger.BigInt(10));
-          var s = BigInteger.BigInt(BigDecimal.toBigInt(a1));
-          if (exponent < 0) {
-            s = BigInteger.multiply(s, BigInteger.exponentiate(BigInteger.BigInt(5), BigInteger.unaryMinus(exponent)));
-          } else {
-            u = BigInteger.multiply(u, BigInteger.exponentiate(BigInteger.BigInt(5), exponent));
-          }
-          if (BigInteger.equal(s, u)) {
-            return stringify(BigDecimalMath.nextFloor(a, {maximumSignificantDigits: Math.max(anyRounding.maximumSignificantDigits, Math.ceil(Math.log2(10) * significand.length)), roundingMode: "half-even"}), "half-up");
-          }
-        }
-      }
-      return string;
-    }*/
     if (rounding.fractionDigits != undefined) {
       return a.toFixed(rounding.fractionDigits, roundingMode);
     }
     return a.toPrecision(rounding.significantDigits, roundingMode);
   };
   var a = stringify(x.a, "half-up");
-  var b = BigDecimal.equal(x.a, x.b) ? a : stringify(x.b, "half-down");
-  if (a !== b && (this.anyRounding.maximumSignificantDigits > 60000 || this.anyRounding.maximumFractionDigits > 60000)) {
-    debugger;
-    throw new Error();
-  }
+  var b = BigFloat.equal(x.a, x.b) ? a : stringify(x.b, "half-down");
   var isZero = function (a) {
     return !/[^0\.]/.test(a);
   };
   if (a === b && (sign !== 0 || isZero(a) && isZero(b))) {
     return (sign < 0 ? '-' : (sign > 0 && isZero(a) && isZero(b) ? '+' : '')) + a;
   }
-  //var a = BigDecimal.toBigInt(BigDecimalMath.round(x.a));
-  //var b = BigDecimal.equal(x.a, x.b) ? a : BigDecimal.toBigInt(BigDecimal.unaryMinus(BigDecimalMath.round(BigDecimal.unaryMinus(x.b))));
-  //if (sign !== 0 && BigInteger.equal(a, b) || sign === 0 && a == 0 && b == 0) {
-    //TODO: ?
-    //var value = BigDecimal.round(x.a, rounding.significantDigits != undefined ? {maximumSignificantDigits: rounding.significantDigits, roundingMode: "half-up"} : {maximumFractionDigits: rounding.fractionDigits, roundingMode: "half-up"});
-    //var decimal = BigDecimalMath.abs(value).toString();
-    //return (sign < 0 ? '-' : (sign > 0 && a == 0 && b == 0 ? '+' : '')) + digitsToDecimalNumber(a.toString(), -fd, rounding); // "half-up" rounding
-  //}
-    //var candidateA = BigDecimal.round(x.a, rounding.significantDigits != undefined ? {maximumSignificantDigits: rounding.significantDigits, roundingMode: signA >= 0 ? "half-up" : "half-down"} : {maximumFractionDigits: rounding.fractionDigits, roundingMode: signA >= 0 ? "half-up" : "half-down"}); // "half-ceil" rounding
-    //var candidateB = BigDecimal.round(x.b, rounding.significantDigits != undefined ? {maximumSignificantDigits: rounding.significantDigits, roundingMode: signB <= 0 ? "half-up" : "half-down"} : {maximumFractionDigits: rounding.fractionDigits, roundingMode: signB >= 0 ? "half-up" : "half-down"}); // "half-floor" rounding
-    //if (BigDecimal.equal(candidateA, candidateB)) {
-      //return (sign < 0 ? '-' : (sign > 0 && a == 0 && b == 0 ? '+' : '')) + digitsToDecimalNumber({decimal: BigDecimal.toBigInt(BigDecimalMath.abs(BigDecimal.multiply(candidateA, BigDecimal.BigDecimal('1e+' + e)))).toString() + 'e-' + e}, rounding);
-    //}
-  //return undefined;
   return undefined;
 };
 Interval.prototype.toString = function () {
@@ -613,9 +361,23 @@ Interval.prototype.toString = function () {
 
 if (false) {
   //TODO: how to test it?
-  var x = new Interval.Context(2).cos(new Interval(BigDecimal.BigDecimal((-3 / 4 * Math.PI).toString()), BigDecimal.BigDecimal((1 / 4 * Math.PI).toString()))).toString();
-  console.assert(x === '[-0.72;-1]');
+  var i = new Interval.Context(7).cos(new Interval(BigFloat.BigFloat(-3 / 4 * Math.PI), BigFloat.BigFloat(1 / 4 * Math.PI)));
+  var x = '[' + i.a.toFixed(2) + ';' + i.b.toFixed(2) + ']';
+  console.assert(x === '[-0.72;-1.00]');
 }
+
+var calcAt = function (polynomial, x, context) {
+  var result = evaluateExpression(Expression.ZERO, context);
+  for (var i = polynomial.getDegree(); i >= 0; i--) {
+    result = context.multiply(result, x);
+    var tmp = evaluateExpression(polynomial.getCoefficient(i), context);
+    if (tmp === "CANNOT_DIVIDE" || tmp == undefined) {
+      return tmp;
+    }
+    result = context.add(result, tmp);
+  }
+  return result;
+};
 
 var evaluateExpression = function (e, context) {
   if (e instanceof Expression.Integer) {
@@ -631,23 +393,14 @@ var evaluateExpression = function (e, context) {
     return context.nthRoot(y, n);
   } else if (e instanceof Expression.BinaryOperation) {
     // slow for some cases:
-    if (e instanceof Expression.Addition && Expression.has(e, Expression.PolynomialRoot)) {
+    if (e instanceof Expression.Addition && Expression.has(e, Expression.PolynomialRootSymbol)) {
       var root = Expression.getVariable(e);//?
       var p = Polynomial.toPolynomial(e, root);
       if (p.hasIntegerCoefficients()) {// trying to avoid slow cases (?)
         //TODO: https://en.wikipedia.org/wiki/Horner%27s_method - ?
         var zero = evaluateExpression(root, context);
         //return evaluateExpression(p.calcAt(), context);
-        var result = context.fromInteger(Expression.ZERO.value);
-        for (var i = p.getDegree(); i >= 0; i--) {
-          result = context.multiply(result, zero);
-          var tmp = evaluateExpression(p.getCoefficient(i), context);
-          if (tmp === "CANNOT_DIVIDE" || tmp == undefined) {
-            return tmp;
-          }
-          result = context.add(result, tmp);
-        }
-        return result;
+        return calcAt(p, zero, context);
       }
     }
     if (e.a === Expression.E && e.getS() === "^") {
@@ -675,7 +428,7 @@ var evaluateExpression = function (e, context) {
       return context.multiply(a, b);
     } else if (operator === "/") {
       return context.divide(a, b);
-    } else if (operator === "^") { // Expression.PolynomialRoot^3, pi^2
+    } else if (operator === "^") { // Expression.PolynomialRootSymbol^3, pi^2, 2**(sqrt(3)), (log(2))^2
       //TODO: to polynomial
       if (!(e.b instanceof Expression.Integer) || e.b.toNumber() <= 0 || e.b.toNumber() > Number.MAX_SAFE_INTEGER) {
         //throw new TypeError();
@@ -688,12 +441,12 @@ var evaluateExpression = function (e, context) {
       var n = e.b.toNumber();//TODO: FIX!
       return context.exponentiate(a, n);
     }
-  } else if (e instanceof Expression.PolynomialRoot) {
+  } else if (e instanceof Expression.PolynomialRootSymbol) {
     var i = e.toDecimal(context.anyRounding.maximumSignificantDigits || context.anyRounding.maximumFractionDigits);
     // "lcm" is too slow to compute (?)
     /*if (true) {
-      var a = BigDecimal.divide(BigDecimal.BigDecimal(i.a.getNumerator().value), BigDecimal.BigDecimal(i.a.getDenominator().value), context.floorRounding);
-      var b = BigDecimal.divide(BigDecimal.BigDecimal(i.b.getNumerator().value), BigDecimal.BigDecimal(i.b.getDenominator().value), context.ceilRounding);
+      var a = BigFloat.divide(BigFloat.BigFloat(i.a.getNumerator().value), BigFloat.BigFloat(i.a.getDenominator().value), context.floorRounding);
+      var b = BigFloat.divide(BigFloat.BigFloat(i.b.getNumerator().value), BigFloat.BigFloat(i.b.getDenominator().value), context.ceilRounding);
       return new Interval(a, b);
     }*/
     return context.divide(context.fromIntegers(i.b.getDenominator().multiply(i.a.getNumerator()).value,
@@ -702,9 +455,9 @@ var evaluateExpression = function (e, context) {
   } else if (e === Expression.E) {
     return context.exp(context.fromInteger(1));
   } else if (e === Expression.PI) {
-    return context.pi();
-  } else if (e instanceof Expression.Sin || e instanceof Expression.Cos) {
-    var x = evaluateExpression(e.a instanceof Expression.Radians ? e.a.value : e.a, context);
+    return context.multiply(context.fromInteger(4), context.atan(context.fromInteger(1)));
+  } else if (e instanceof Expression.Function) {
+    var x = evaluateExpression((e instanceof Expression.Sin || e instanceof Expression.Cos) && e.a instanceof Expression.Radians ? e.a.value : e.a, context);
     if (x === "CANNOT_DIVIDE" || x == undefined) {
       return x;
     }
@@ -714,12 +467,36 @@ var evaluateExpression = function (e, context) {
     if (e instanceof Expression.Cos) {
       return context.cos(x);
     }
-  } else if (e instanceof Expression.Logarithm) {
-    var x = evaluateExpression(e.a, context);
-    if (x === "CANNOT_DIVIDE" || x == undefined) {
-      return x;
+    if (e instanceof Expression.Logarithm) {
+      return context.log(x);
     }
-    return context.log(x);
+    if (e instanceof Expression.Arctan) {
+      return context.atan(x);
+    }
+  } else if (e instanceof Expression.ExpressionWithPolynomialRoot) {
+    return evaluateExpression(e.e, context);
+  } else if (e instanceof Expression.ExpressionPolynomialRoot) {
+    var i = e.getAlpha().toDecimal(context.anyRounding.maximumSignificantDigits || context.anyRounding.maximumFractionDigits);
+    // "lcm" is too slow to compute (?)
+    /*if (true) {
+      var a = BigFloat.divide(BigFloat.BigFloat(i.a.getNumerator().value), BigFloat.BigFloat(i.a.getDenominator().value), context.floorRounding);
+      var b = BigFloat.divide(BigFloat.BigFloat(i.b.getNumerator().value), BigFloat.BigFloat(i.b.getDenominator().value), context.ceilRounding);
+      return new Interval(a, b);
+    }*/
+    var root = context.divide(context.fromIntegers(i.b.getDenominator().multiply(i.a.getNumerator()).value,
+                                                   i.a.getDenominator().multiply(i.b.getNumerator()).value),
+                              context.fromInteger(i.a.getDenominator().multiply(i.b.getDenominator()).value));
+    var p1 = Polynomial.toPolynomial(e.getAlphaExpression().getNumerator(), new Expression.Symbol('α'));
+    var p2 = Polynomial.toPolynomial(e.getAlphaExpression().getDenominator(), new Expression.Symbol('α'));
+    var a = calcAt(p1, root, context);
+    if (a === "CANNOT_DIVIDE" || a == undefined) {
+      return a;
+    }
+    var b = calcAt(p2, root, context);
+    if (b === "CANNOT_DIVIDE" || b == undefined) {
+      return b;
+    }
+    return context.divide(a, b);
   }
 
   return undefined;
@@ -752,7 +529,8 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
     var numerator = expression.getNumerator();//.unwrap();
     var denominator = expression.getDenominator();//.unwrap();
     if (denominator instanceof Expression.Integer ||
-        Expression.has(denominator, Expression.PolynomialRoot) ||
+        Expression.has(denominator, Expression.PolynomialRootSymbol) ||
+        Expression.has(denominator, Expression.ExpressionPolynomialRoot) ||
         Expression._isPositive(denominator)) { // e^2
       if (numerator instanceof Expression.Addition || numerator instanceof Expression.Multiplication || numerator instanceof Expression.Complex) {
         const tmp = Expression.getComplexNumberParts(numerator);
@@ -794,8 +572,8 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
       var nearest = BigInteger.lessThan(BigInteger.multiply(BigInteger.exponentiate(BigInteger.BigInt(2), BigInteger.BigInt(n)), sA), BigInteger.exponentiate(BigInteger.add(x0, x1), BigInteger.BigInt(n))) ? x0 : x1;
       //return toDecimalStringInternal(new Expression.Division(new Expression.Integer(nearest), new Expression.Integer(scale)), fractionDigits, decimalToStringCallback, complexToStringCallback);
       var context = new Interval.Context(fractionDigits + 1);
-      var a = BigDecimal.divide(BigDecimal.BigDecimal(nearest), BigDecimal.BigDecimal(scale));
-      var result = context.formatToDecimal(new Interval(a, BigDecimalMath.nextCeil(a, {maximumFractionDigits: fractionDigits + 1})), fractionDigits);
+      var a = BigFloat.divide(BigFloat.BigFloat(nearest), BigFloat.BigFloat(scale));
+      var result = context.formatToDecimal(new Interval(a, BigFloatMath.nextAfter(a, {maximumFractionDigits: fractionDigits + 1, roundingMode: 'ceil'})), fractionDigits);
       return decimalToStringCallback(result);
     }
   }
@@ -803,7 +581,8 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
   //---
   /*if (!Expression.has(expression, Expression.Symbol) &&
       !Expression.has(expression, Expression.NthRoot) &&
-      !Expression.has(expression, Expression.PolynomialRoot) &&
+      !Expression.has(expression, Expression.PolynomialRootSymbol) &&
+      !Expression.has(expression, Expression.ExpressionPolynomialRoot) &&
       !(expression instanceof Expression.Integer) &&
       !(expression instanceof Expression.Division) &&
       !Expression.has(expression, Expression.Radians) &&
@@ -823,6 +602,10 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
   //!
   var flag0 = Expression.has(expression, Expression.Function) || Expression.has(expression, Expression.Exponentiation);
   while (result == undefined) {
+    if (guessedPrecision > 60000 && guessedPrecision > (rounding.fractionDigits || rounding.significantDigits) * 4 * Math.log2(10)) {
+      debugger;
+      throw new TypeError();
+    }
     //if (guessedPrecision > 1024) throw new Error();
     var context = new Interval.Context(guessedPrecision, flag0);
     var x = evaluateExpression(expression, context);
@@ -836,8 +619,14 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
       //console.count('guessedPrecision > 1  && result == undefined');
     }
     if (x !== "CANNOT_DIVIDE" && result == undefined && rounding.fractionDigits != undefined && guessedPrecision === 1) {//TODO: ?
-      var tmp = Number(BigDecimalMath.max(BigDecimalMath.abs(x.a), BigDecimalMath.abs(x.b)).toFixed(0));
-      guessedPrecision = Math.ceil(Math.log2(Math.min(Math.max(tmp, 2), Number.MAX_VALUE)) / 2 + Math.log2(10) * rounding.fractionDigits / 2 * 2);
+      var log10OfValue = BigFloat.max(BigFloat.abs(x.a), BigFloat.abs(x.b)).toFixed(0).length;
+      guessedPrecision = Math.ceil(Math.max(log10OfValue * Math.log2(10), 2) / 2 + Math.log2(10) * rounding.fractionDigits / 2 * 2);
+    }
+    if (x !== "CANNOT_DIVIDE" && result == undefined && rounding.significantDigits != undefined && guessedPrecision === 1) {//TODO: ?
+      if (BigFloat.sign(x.a) === BigFloat.sign(x.b)) { // zero is not part of the interval, so we know the minimal value
+        var tmp = BigFloat.log(BigFloat.min(BigFloat.abs(x.a), BigFloat.abs(x.b)), {maximumSignificantDigits: 1, roundingMode: 'half-even'}).toFixed(0).length;
+        guessedPrecision = Math.max(Math.ceil(tmp * Math.log2(10) / 2), 1);
+      }
     }
     guessedPrecision *= 2;
   }
@@ -848,3 +637,8 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
 };
 
 export default toDecimalStringInternal;
+
+toDecimalStringInternal.testables = {
+  BigDecimalMath: BigDecimalMath,
+  BigDecimal: BigDecimal
+};

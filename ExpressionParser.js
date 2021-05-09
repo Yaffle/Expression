@@ -293,6 +293,7 @@
   };
 
   var operationSearchCache = new OperationSearchCache();
+  var trigonometryFunctions = {};
 
   var i = -1;
   while (++i < operations.length) {
@@ -300,6 +301,7 @@
   }
   for (const name of 'cos sin tan cot'.split(' ')) {
     operationSearchCache.append(Operator.trigonometry(name));
+    trigonometryFunctions[name] = true;
   }
   for (const name of 'cosh sinh tanh coth arccos arcsin arctan arccot arcosh arsinh artanh arcoth'.split(' ')) {
     operationSearchCache.append(Operator.simple(name));
@@ -600,13 +602,7 @@
             left = op.i(left).addPosition(operatorPosition, op.name.length, tokenizer.input);
           } else {
             if (op.arity === 1 && op.rightToLeftAssociative === RIGHT_TO_LEFT && op.precedence === UNARY_PRECEDENCE_PLUS_ONE && op.name.length > 1 &&
-                (op.name === "sin" ||
-                 op.name === "sen" ||
-                 op.name === "cos" ||
-                 op.name === "tan" ||
-                 op.name === "tg" ||
-                 op.name === "cot" ||
-                 op.name === "ctg") &&
+                trigonometryFunctions[op.name] === true &&
                 (token.type === 'operator' && token.value === '^' || token.type === 'superscript' && /^\d+$/.test(normalizeSuperscripts(token.value)))) {
               // https://en.wikipedia.org/wiki/Exponentiation#Exponential_notation_for_function_names
 
@@ -781,13 +777,20 @@
     return new ParseResult(left, token);
   };
 
-  //const decimalDigits = /\p{Decimal_Number}/u;
-  // Thanks to https://mothereff.in/regexpu
-  const decimalDigits = /(?:[0-9\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19]|\uD801[\uDCA0-\uDCA9]|\uD803[\uDD30-\uDD39]|\uD804[\uDC66-\uDC6F\uDCF0-\uDCF9\uDD36-\uDD3F\uDDD0-\uDDD9\uDEF0-\uDEF9]|\uD805[\uDC50-\uDC59\uDCD0-\uDCD9\uDE50-\uDE59\uDEC0-\uDEC9\uDF30-\uDF39]|\uD806[\uDCE0-\uDCE9\uDD50-\uDD59]|\uD807[\uDC50-\uDC59\uDD50-\uDD59\uDDA0-\uDDA9]|\uD81A[\uDE60-\uDE69\uDF50-\uDF59]|\uD835[\uDFCE-\uDFFF]|\uD838[\uDD40-\uDD49\uDEF0-\uDEF9]|\uD83A[\uDD50-\uDD59]|\uD83E[\uDFF0-\uDFF9])/;
-
   // https://tc39.es/ecma402/#table-numbering-system-digits (June 23, 2020)
-  // without hanidec, latn, fullwide, mathbold, mathdbl, mathmono, mathsanb, mathsans, and NON-BMP
-  var numberingSystemsWithSimpleDigitMappings = [];
+  const numberingSystemsWithSimpleDigitMappings = [0x0030, 0x0660, 0x06F0, 0x07C0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0BE6, 0x0C66, 0x0CE6, 0x0D66, 0x0DE6, 0x0E50, 0x0ED0, 0x0F20, 0x1040, 0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80, 0x1A90, 0x1B50, 0x1BB0, 0x1C40, 0x1C50, 0xA620, 0xA8D0, 0xA900, 0xA9D0, 0xA9F0, 0xAA50, 0xABF0, 0xFF10, 0x0104A0, 0x010D30, 0x011066, 0x0110F0, 0x011136, 0x0111D0, 0x0112F0, 0x011450, 0x0114D0, 0x011650, 0x0116C0, 0x011730, 0x0118E0, 0x011950, 0x011C50, 0x011D50, 0x011DA0, 0x016A60, 0x016B50, 0x01D7CE, 0x01D7D8, 0x01D7E2, 0x01D7EC, 0x01D7F6, 0x01E140, 0x01E2F0, 0x01E950, 0x01FBF0];
+
+  // To generate use the next code:
+  //var numberingSystemsWithSimpleDigitMappings = [];
+  //var i = 0;
+  //while (i <= 0x10FFFF) {
+  //  if (/\p{Decimal_Number}/u.test(String.fromCodePoint(i))) {
+  //    numberingSystemsWithSimpleDigitMappings.push(i);
+  //    i += 10;
+  //  } else {
+  //    i += 1;
+  //  }
+  //}
 
   // https://stackoverflow.com/a/29018745
   function binarySearch(ar, el, compare_fn) {
@@ -808,9 +811,7 @@
   }
 
   // https://www.ecma-international.org/ecma-402/5.0/index.html#table-numbering-system-digits
-  // TODO: remove or add tests
   var replaceSimpleDigit = function (codePoint) {
-    //TODO: optimize
     var i = binarySearch(numberingSystemsWithSimpleDigitMappings, codePoint, function (codePoint, systemOffset) {
       if (codePoint < systemOffset) {
         return -1;
@@ -823,18 +824,7 @@
     if (i >= 0) {
       return codePoint - numberingSystemsWithSimpleDigitMappings[i];
     }
-    var digit = -1;
-    while (decimalDigits.test(String.fromCodePoint(codePoint - digit - 1))) {
-      digit += 1;
-    }
-    if (digit !== -1) {
-      digit = digit % 10;
-    }
-    if (digit !== -1) {
-      numberingSystemsWithSimpleDigitMappings.push(codePoint - digit);
-      numberingSystemsWithSimpleDigitMappings.sort((a, b) => a - b);
-    }
-    return digit;
+    return -1;
   };
 
 
@@ -983,7 +973,7 @@
     this.value = value;
   }
 
-  Token.EOF = new Token('EOF', '', null);
+  Token.EOF = new Token('EOF', '');
 
   function Tokenizer(input, position, states) {
     this._preparedInput = replaceSomeChars(input.slice(position)); //TODO: fix ???
@@ -1163,6 +1153,9 @@
               var newOperation = new Operator(denotation, operation.arity, operation.rightToLeftAssociative, operation.precedence, operation.i);
               //operations.push(newOperation);
               operationSearchCache.append(newOperation);
+              if (trigonometryFunctions[operationName]) {
+                trigonometryFunctions[denotation] = true;
+              }
             }
           }
         }

@@ -176,7 +176,7 @@ Condition.prototype._and = function (operator, e) {
       return oldArray;
     }
     //TODO: check code coverage, remove extra branches
-    if (Expression.isConstant(y.expression instanceof Expression.ExpressionWithPolynomialRoot ? y.expression.e : y.expression) && !y.expression.equals(Expression.ZERO)) {
+    if (Expression.isConstant(y.expression) && !y.expression.equals(Expression.ZERO)) {
       if (y.operator === Condition.NEZ) {
         return oldArray;
       }

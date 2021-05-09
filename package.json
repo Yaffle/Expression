@@ -7,7 +7,7 @@
   },
   "bundleDependencies": false,
   "dependencies": {
-    "js-big-integer": "^3.0.0",
+    "js-big-integer": "^3.0.13",
     "@yaffle/bigdecimal": "^1.0.2",
     "bigint-gcd": "^1.0.0",
     "seedrandom": "*"
@@ -44,5 +44,5 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
-  "version": "0.0.29"
+  "version": "0.0.30"
 }

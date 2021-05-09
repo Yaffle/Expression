@@ -42,6 +42,22 @@ function bitLength(a) {
   return (s.length - 1) * 4 + (32 - Math.clz32(Math.min(c, 8)));
 }
 
+var previousValue = -1;
+// some terrible optimization as bitLength is slow
+function bitLength2(a) {
+  if (previousValue === -1) {
+    previousValue = bitLength(a)
+    return previousValue;
+  }
+  var n = Number(a >> BigInt(previousValue - 47));
+  if (n < 1 || n >= 2**47) {
+    previousValue = -1;
+    return bitLength2(a);
+  }
+  previousValue = previousValue - 47 + Math.ceil(Math.log2(n + 0.5));
+  return previousValue;
+}
+
 // https://en.wikipedia.org/wiki/Lehmer%27s_GCD_algorithm
 // https://www.imsc.res.in/~kapil/crypto/notes/node11.html
 // this implementation is good after ~80 bits (?)
@@ -53,7 +69,7 @@ function LehmersGCD(a, b) {
   }
   while (Number(b) >= Math.sqrt(Math.pow(Number.MAX_SAFE_INTEGER + 1, 3))) {
     console.assert(a >= b);
-    const m = BigInt(Math.max(0, bitLength(a) - Math.floor(Math.log2(Number.MAX_SAFE_INTEGER + 1))));
+    const m = BigInt(Math.max(0, bitLength2(a) - Math.floor(Math.log2(Number.MAX_SAFE_INTEGER + 1))));
     let x = Number(a >> m);
     let y = Number(b >> m);
     console.assert(x >= (Number.MAX_SAFE_INTEGER + 1) / 2 && x <= Number.MAX_SAFE_INTEGER);

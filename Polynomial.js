@@ -4,6 +4,7 @@
   import Matrix from './Matrix.js';
   import Heap from './Heap.js';
   import primeFactor from './primeFactor.js';
+  //import bitLength from './bitLength.js';
 
   const nextPrime = primeFactor._nextPrime;
 
@@ -17,14 +18,6 @@
     this.degrees = new Array(length);
     this.coefficients = new Array(length);
     this.size = 0; // public
-  }
-  if ("\v" !== "v") {
-    Object.defineProperty(PolynomialData.prototype, 'length', {
-      get: function () {
-        console.error('deprecated property');
-        return this.size;
-      }
-    });
   }
   PolynomialData.prototype.add = function (degree, coefficient) {
     if (degree < 0 || degree > Number.MAX_SAFE_INTEGER || Math.floor(degree) !== degree) {
@@ -151,36 +144,40 @@
     if (this.a.size === 0) {
       return p;
     }
-    var i = 0;
-    var j = 0;
     var newData = new PolynomialData(this.a.size + p.a.size);
-    while (i < this.a.size && j < p.a.size) {
-      var x = this.a.degree(i);
-      var xc = this.a.coefficient(i);
-      var y = p.a.degree(j);
-      var yc = p.a.coefficient(j);
-      if (x > y) {
-        newData.add(x, xc);
+    let i = -1;
+    let x = -2;
+    let xc = Expression.ZERO;
+    let j = -1;
+    let y = -2;
+    let yc = Expression.ZERO;
+    while (x !== -1 || y !== -1) {
+      const d = Math.max(x, y);
+      const flag = x !== y;
+      const c = x > y ? xc : (y > x ? yc : (d === -2 ? Expression.ZERO : xc.add(yc)));
+      if (x === d) {
         i += 1;
-      } else if (x < y) {
-        newData.add(y, yc);
-        j += 1;
-      } else {
-        var c = xc.add(yc);
-        if (!c.equals(Expression.ZERO)) {
-          newData.add(x, c);
+        if (i < this.a.size) {
+          x = this.a.degree(i);
+          xc = this.a.coefficient(i);
+        } else {
+          x = -1;
+          xc = Expression.ZERO;
         }
-        i += 1;
-        j += 1;
       }
-    }
-    while (i < this.a.size) {
-      newData.add(this.a.degree(i), this.a.coefficient(i));
-      i += 1;
-    }
-    while (j < p.a.size) {
-      newData.add(p.a.degree(j), p.a.coefficient(j));
-      j += 1;
+      if (y === d) {
+        j += 1;
+        if (j < p.a.size) {
+          y = p.a.degree(j);
+          yc = p.a.coefficient(j);
+        } else {
+          y = -1;
+          yc = Expression.ZERO;
+        }
+      }
+      if (flag || (d !== -2 && !c.equals(Expression.ZERO))) {
+        newData.add(d, c);
+      }
     }
     return new Polynomial(newData);
   };
@@ -327,8 +324,8 @@
     if (p.equals(Polynomial.ZERO)) {
       throw new TypeError("ArithmeticException");
     }
-    if (this.equals(Polynomial.ZERO)) {
-      return {quotient: this, remainder: this};
+    if (this.getDegree() < p.getDegree()) {
+      return {quotient: Polynomial.ZERO, remainder: this};
     }
     var quotient = [];
     //var remainder = this;
@@ -369,15 +366,13 @@
     return {quotient: Polynomial.fromTerms(quotient), remainder: remainder};
   };
 
-  Polynomial.pseudoRemainder = function (x, y) {
-    var lcg = y.getLeadingCoefficient();
-    var n = x.getDegree() - y.getDegree();
+  Polynomial.pseudoRemainder = function (A, B) {
+    var d = A.getDegree() - B.getDegree();
     // assertion
-    if (n < 0) {
+    if (d < 0) {
       throw new RangeError();
     }
-    var sx = x.scale(lcg._pow(n + 1));
-    return sx.divideAndRemainder(y, "throw").remainder;
+    return A.scale(B.getLeadingCoefficient()._pow(d + 1)).divideAndRemainder(B, "throw").remainder;
   };
 
   Polynomial.polynomialGCD = function (a, b) {
@@ -418,33 +413,36 @@
   };
 
   function gcdOfPrimitivePolynomials(A, B) {
+    console.assert(A.getDegree() >= B.getDegree());
+    //if (B.getDegree() === 1) {
+    //  return A.divideAndRemainder(B).remainder.equals(Polynomial.ZERO) ? B : Polynomial.of(Expression.ONE);
+    //}
     if (A.hasIntegerCoefficients() && B.hasIntegerCoefficients() && B.getDegree() > 2) {
       if (A.isDivisibleBy(B)) {
         return B;
       }
       return gcdByModularAlgorithm(A, B);
     }
-    return gcdUsingPrimitivePseudoRemainderSequence(A, B);
+    //TODO: 
+    if (A._hasIntegerLikeCoefficients() && B._hasIntegerLikeCoefficients() && B.getDegree() > 2) {//TODO: why isn't it working or slow for other cases - ?
+      return gcdUsingRemainderSequence(A, B, Polynomial._subresultantPseudoRemainderSequence).primitivePart();
+    }
+    return gcdUsingRemainderSequence(A, B, Polynomial._primitivePseudoRemainderSequence);
   }
 
-  Polynomial.debug = function (r) {
+  Polynomial.debug = function (R) {
   };
 
-  function gcdUsingPrimitivePseudoRemainderSequence(A, B) {
-    // https://en.wikipedia.org/wiki/Polynomial_greatest_common_divisor#Primitive_pseudo-remainder_sequence
-    while (!B.equals(Polynomial.ZERO)) {
-      var r = Polynomial.pseudoRemainder(A, B);
-      if (!r.equals(Polynomial.ZERO)) {
-        r = r.primitivePart();
-      }
-      A = B;
-      B = r;
-      Polynomial.debug(r);
+  function gcdUsingRemainderSequence(A, B, generator) {
+    var lastNonzeroRemainder = null;
+    for (var tmp of generator(A, B)) {
+      lastNonzeroRemainder = tmp.B;
+      Polynomial.debug(tmp.R);
     }
-    return A;
+    return lastNonzeroRemainder
   }
 
-  Polynomial._gcdUsingPrimitivePseudoRemainderSequence = gcdUsingPrimitivePseudoRemainderSequence;
+  Polynomial._gcdUsingRemainderSequence = gcdUsingRemainderSequence;
 
   function ChineseRemainderTheorem(m1, m2) {
     // https://en.wikipedia.org/wiki/Chinese_remainder_theorem#Case_of_two_moduli
@@ -452,7 +450,7 @@
     // x = r2 (mod m2)
     //TODO: fix
     const c = m1.modInverse(m2);
-    const m1m2 = m1.multiply(m2);
+    //const m1m2 = m1.multiply(m2);
     return function (r1, r2) {
       return r1.add((r2.subtract(r1)).multiply(c).modulo(m2).multiply(m1));
     };
@@ -479,12 +477,26 @@
     // https://www3.risc.jku.at/education/courses/ws2011/ca/3-gcd.pdf
     console.assert(a.hasIntegerCoefficients() && a.getContent().equals(Expression.ONE) && a.getDegree() > 0);
     console.assert(b.hasIntegerCoefficients() && b.getContent().equals(Expression.ONE) && b.getDegree() > 0);
+    if (!a.getCoefficient(0).equals(Expression.ZERO) &&
+        !b.getCoefficient(0).equals(Expression.ZERO) &&
+        a.getLeadingCoefficient().gcd(b.getLeadingCoefficient()).abs().compareTo(a.getCoefficient(0).gcd(b.getCoefficient(0)).abs()) > 0) {//?
+      var i = function (polynomial) {
+        var coefficients = new Array(polynomial.a.size);
+        for (var j = 0; j < polynomial.a.size; j += 1) {
+          coefficients[j] = {degree: polynomial.getDegree() - polynomial.a.degree(j), coefficient: polynomial.a.coefficient(j)};
+        }
+        coefficients.reverse();
+        return Polynomial.fromTerms(coefficients).primitivePart();
+      };
+      return i(gcdByModularAlgorithm(i(a), i(b)));
+    }
     const d = a.getLeadingCoefficient().gcd(b.getLeadingCoefficient());
     const maxGCDDegree = Math.min(a.getDegree(), b.getDegree());
-    //TODO: it can be more accurate as it is gcd of two polynomials (?)
     const bound = function (a, b, maxGCDDegree) {
       //TODO: not necessary to use power of two
-      const logarithmOfCoefficientBound = Math.min(a._log2OfBoundForCoefficientsOfFactor(maxGCDDegree), b._log2OfBoundForCoefficientsOfFactor(maxGCDDegree));
+      const maxGCDLeadingCoefficient = a.getLeadingCoefficient().gcd(b.getLeadingCoefficient()).abs();
+      const logarithmOfCoefficientBound = Math.min(a._log2OfBoundForCoefficientsOfFactor(maxGCDDegree, maxGCDLeadingCoefficient), b._log2OfBoundForCoefficientsOfFactor(maxGCDDegree, maxGCDLeadingCoefficient));
+      //TODO: multiply by gcd of leading coefficients (?)
       return Expression.TWO._pow(1 + Math.ceil(logarithmOfCoefficientBound));
     };
     let M = bound(a, b, maxGCDDegree);
@@ -492,19 +504,22 @@
     //  return gcdUsingPrimitivePseudoRemainderSequence(a, b);//TODO: !!!
     //}
     let p = Expression.Integer.fromBigInt(Math.min(M.toNumber(), Math.sqrt((Number.MAX_SAFE_INTEGER + 1) / 2))); // TODO: should we divide on n - ?
+    //let p = Expression.Integer.fromNumber(3);//TODO: remove
     let counter = 0;
     let g = null;
     while (g == null) {
       let P = Expression.Integer.fromNumber(0);
       while (P.compareTo(M) < 0) {
-        if (++counter > 50) {
+        counter += 1;
+        if (counter > 50 && p._pow(counter - 50).compareTo(M) >= 0) {
           throw new TypeError("!!!");
         }
         do {
           p = Expression.Integer.fromBigInt(nextPrime(p.toBigInt()));
         } while (d.remainder(p).equals(Expression.ZERO));
         const cp = Polynomial._gcdOfPolynomialsOverFiniteField(a, b, p);
-        const gp = cp.scale(d.remainder(p)).mod(p);
+        console.assert(cp.getLeadingCoefficient().equals(Expression.ONE));
+        const gp = cp.scale(d.remainder(p)).mod(p); //TODO: should it do .mod(p) ? as the book does not tell this
         if (gp.getDegree() < 1) {
           return Polynomial.of(Expression.ONE);
         }
@@ -514,27 +529,39 @@
         }
         if (g == null || gp.getDegree() < g.getDegree()) {//TODO: why ?
           if (g != null) {
-            debugger;
+            //debugger;
           }
-          g = gp;
+          g = gp.mod2(p);
           P = p;
           M = bound(a, b, gp.getDegree()); //!?
         } else if (gp.getDegree() === g.getDegree()) {//TODO: why ?
+          var oldG = g;
           g = ChineseRemainderTheoremForPolynomialCoefficients(g, gp, P, p);
           P = P.multiply(p);
+          g = g.mod2(P);
+          //does not work (?), the number of iteration is small anyway (?)
+          if (P.compareTo(M) < 0 && oldG.equals(g)) {
+            // optimization from the book:
+            // "Whenever g remains unchanged for a series of iterations through the while–loop, we might apply the test in step (5) and exit if the outcome is positive."
+            g = g.primitivePart();
+            // TODO: scale a and b instead (?) for the test
+            if (a.isDivisibleBy(g) && b.isDivisibleBy(g)) {
+              //console.log('counter:', counter);
+              return g;
+            }
+            g = oldG; //TODO: ???
+          } else {
+            //debugger;
+          }
         }
-        //console.log(counter, g.toString() === g.mod(P).toString(), P.toString());
-        //console.log('!', counter, g.toString());
-        //console.log(counter, g.mod2(P).primitivePart().toString(), P.toString());
+        //console.debug(counter, g.primitivePart().toString(), P.toString());
       }
-      g = g.mod2(P);
       g = g.primitivePart();
-      //console.log(counter, g.mod2(P).primitivePart().toString(), P.toString());
       if (!a.isDivisibleBy(g) || !b.isDivisibleBy(g)) {
         g = null;
       }
     }
-    //console.debug(counter);
+    //console.debug('counter:', counter);
     return g;
   }
 
@@ -692,11 +719,16 @@
       if (tmp.a0.getDegree() > 0) {
         return tmp.a0.doRationalRootTest() || tmp.a1.doRationalRootTest();
       }
-      var zeros = np.getZeros();
+      const toInteger = function (zero, scale) {
+        //TODO: ?
+        const fraction = zero instanceof Expression.ExpressionPolynomialRoot ? zero.root._root.toDecimal(0).a : zero.toDecimal().a;
+        return scale.multiply(fraction.getNumerator()).truncatingDivide(fraction.getDenominator());
+      };
+      var zeros = np.getZeros(primeFactor._bitLength(an.abs().toBigInt())); // note: for fractionDigits (!)
       for (var i = 0; i < zeros.length; i += 1) {
         var zero = zeros[i];
         if (i === 0 || zero !== zeros[i - 1]) {
-          var candidate = zero.root != null ? Expression.Integer.fromString(toDecimalStringInternal(an.equals(Expression.ONE) ? zero.root : new Expression.Multiplication(zero.root, an), {fractionDigits: 0})).divide(an) : zero;
+          var candidate = zero.root != null ? toInteger(zero, an).divide(an) : (zero.getNumerator() instanceof Expression.Integer && zero.getDenominator() instanceof Expression.Integer ? zero : Expression.ZERO);
           if (filter(candidate.getNumerator(), candidate.getDenominator()) && np.calcAt(candidate).equals(Expression.ZERO)) {
             return candidate;
           }
@@ -745,22 +777,19 @@
     return result;
   };
 
-  Polynomial.prototype.hasIntegerCoefficients = function () {
+  Polynomial.prototype._testCoefficients = function (f) {
     for (var i = 0; i < this.a.size; i += 1) {
-      if (!(this.a.coefficient(i) instanceof Expression.Integer)) {
+      if (!f(this.a.coefficient(i))) {
         return false;
       }
     }
     return true;
   };
+  Polynomial.prototype.hasIntegerCoefficients = function () {
+    return this._testCoefficients(c => c instanceof Expression.Integer);
+  };
   Polynomial.prototype.hasComplexCoefficients = function () {
-    for (var i = 0; i < this.a.size; i += 1) {
-      var coefficient = this.a.coefficient(i);
-      if (!(coefficient instanceof Expression.Complex) && !(coefficient instanceof Expression.Integer)) {
-        return false;
-      }
-    }
-    return true;
+    return this._testCoefficients(c => (c instanceof Expression.Complex) || (c instanceof Expression.Integer));
   };
 
   Polynomial.prototype._hasIntegerLikeCoefficients = function () {
@@ -782,11 +811,7 @@
       }
       return false;
     };
-    var integerLikeCoefficients = true;
-    for (var i = 0; i <= this.getDegree(); i += 1) {
-      integerLikeCoefficients = integerLikeCoefficients && isIntegerLike(this.getCoefficient(i));
-    }
-    return integerLikeCoefficients;
+    return this._testCoefficients(c => isIntegerLike(c));
   };
 
   Polynomial.prototype._canBeFactored = function (depth) {
@@ -1068,7 +1093,13 @@
 
     var nthRootInternal = function (n, x) {
       if (x instanceof Expression.ExpressionWithPolynomialRoot) {
+        //TODO: !?
         return undefined;//?
+        //return x._nthRoot(n);
+      }
+      if (x instanceof Expression.ExpressionPolynomialRoot) {
+        //return undefined;//?
+        return x._nthRoot(n);
       }
       if (x instanceof Expression.Division) {
         var sa1 = nthRootInternal(n, x.a);
@@ -1475,11 +1506,9 @@
     if (!np.hasIntegerCoefficients() && np.getDegree() === 3) {//?
       // convert to depressed (?)
       // x = t - b / (n * a)
-      var n = np.getDegree();
-      var a = np.getLeadingCoefficient();
-      var b = np.getCoefficient(n - 1);
-      if (!b.equals(Expression.ZERO)) {
-        var f = x => x.subtract(b.divide(Expression.Integer.fromNumber(n).multiply(a)));
+      var h = np._getShiftToDepressed();
+      if (!h.equals(Expression.ZERO)) {
+        var f = x => x.subtract(h);
         var p = np.subs(f);
         if (p.hasIntegerCoefficients()) {//?
           var zeros = p.getroots();
@@ -2029,13 +2058,15 @@ Polynomial.prototype._findGoodSubstitution = function () {
   return null;*/
 };
 
-Polynomial.prototype._toDepressed = function () { // for testing (?)
+Polynomial.prototype._getShiftToDepressed = function () { // for testing (?)
   var n = this.getDegree();
   var a = this.getLeadingCoefficient();
   var b = this.getCoefficient(n - 1);
-  var f = x => x.subtract(b.divide(Expression.Integer.fromNumber(n).multiply(a)));
-  var depressed = this.subs(f); 
-  return depressed;
+  var h = b.divide(Expression.Integer.fromNumber(n).multiply(a));
+  //var f = x => x.subtract(h);
+  //var depressed = this.subs(f); 
+  //console.log(depressed);
+  return h;
 };
 
 Polynomial.prototype.factorize = function () {
@@ -2200,4 +2231,43 @@ Polynomial.prototype.primitivePart = function () {
   //var content = this.getContent();
   //return this.scale(content.getDenominator()).divideAndRemainder(Polynomial.of(content.getNumerator()), "throw").quotient;
   return this.scale(this.getContent().inverse());
+};
+
+
+
+Polynomial.prototype.modularInverse = function (m) {
+  if (this.hasIntegerCoefficients() && m.hasIntegerCoefficients()) {
+    //TODO: ???
+  }
+  //TODO: ?
+  // https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Polynomial_extended_Euclidean_algorithm
+  var a = this;
+  var oldR = m;
+  var r = a.getDegree() >= m.getDegree() ? Polynomial.pseudoRemainder(a, m).primitivePart() : a; //? faster then swap (?)
+  //var r = a;
+  /*if (oldR.getDegree() < r.getDegree()) {
+    var tmp = oldR;
+    oldR = r;
+    r = tmp;
+  }*/
+  var oldT = Polynomial.of(Expression.ZERO);
+  var t = Polynomial.of(Expression.ONE);
+  //var oldS = Polynomial.of(Expression.ONE);
+  //var s = Polynomial.of(Expression.ZERO);
+  for (var tmp of Polynomial._subresultantPseudoRemainderSequence(oldR, r)) {
+    //?
+    var scale = r.getLeadingCoefficient()._pow(oldR.getDegree() - r.getDegree() + 1);
+    var quotient = tmp.q;
+    var α = tmp.α;
+    var newT = oldT.scale(scale).subtract(quotient.multiply(t)).divideAndRemainder(Polynomial.of(α), "throw").quotient;
+    [oldT, t] = [t, newT];
+    //var newS = oldS.scale(scale).subtract(quotient.multiply(s)).divideAndRemainder(Polynomial.of(α), "throw").quotient;
+    //[oldS, s] = [s, newS];
+    var newR = tmp.R;
+    [oldR, r] = [r, newR];
+  }
+  var gcd = oldR;
+  oldT = oldT.scale(gcd.getLeadingCoefficient().inverse());
+  //oldS = oldS.scale(gcd.getLeadingCoefficient().inverse());
+  return oldT;
 };

@@ -1,4 +1,4 @@
-import bitLength from './bitLength.js';
+import primeFactor from './primeFactor.js';
 
 function nthRootSmall(A, n) {
   var x = Math.exp(Math.log(A) / n);
@@ -45,7 +45,7 @@ function nthRoot(S, n) {
     }
     return y;
   }
-  const e = bitLength(S);
+  const e = primeFactor._bitLength(S);
   if (e <= n) {
     return 1n;
   }

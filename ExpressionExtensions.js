@@ -252,8 +252,14 @@ Expression.isReal = function (e) {
     if (e instanceof Expression.Function) {
       return isReal(e.a);
     }
-    if (e instanceof Expression.PolynomialRoot || e instanceof Expression.ExpressionWithPolynomialRoot) {
+    if (e instanceof Expression.PolynomialRootSymbol) {
       return true;//TODO: ?
+    }
+    if (e instanceof Expression.ExpressionWithPolynomialRoot) {
+      return isReal(e.e);
+    }
+    if (e instanceof Expression.ExpressionPolynomialRoot) {
+      return true;
     }
     return false;
   };
@@ -365,7 +371,7 @@ Expression.SVDDecomposition = function (matrix) {
   var tmp = Expression.getEigenvalues(MMstar);
   var eigenvalues = tmp.eigenvalues;
   //!
-  eigenvalues = eigenvalues.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
+  eigenvalues = eigenvalues.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot || eigenvalue instanceof Expression.ExpressionPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
   //!
   eigenvalues.sort((a, b) => a._pow(2).subtract(b._pow(2)).compareTo(Expression.ZERO) > 0 ? -1 : 1);
   var multiplicities = tmp.multiplicities;

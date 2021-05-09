@@ -1,5 +1,20 @@
 import nthRoot from './nthRoot.js';
-import bitLength from './bitLength.js';
+//import bitLength from './bitLength.js';
+
+
+// https://github.com/tc39/proposal-bigint/issues/205
+// https://github.com/tc39/ecma262/issues/1729
+// bitLength(a) = floor(log2(a)) + 1 if a > 0
+function bitLength(a) {
+  const s = a.toString(16);
+  const c = s.charCodeAt(0) - '0'.charCodeAt(0);
+  if (c <= 0) {
+    throw new RangeError();
+  }
+  return (s.length - 1) * 4 + (32 - Math.clz32(Math.min(c, 8)));
+}
+
+//export default bitLength;
 
 //function min(a, b) {
 //  return a < b ? a : b;
@@ -9,11 +24,11 @@ function modPow(base, exponent, modulus) {
   // exponent can be huge, use non-recursive variant
   let accumulator = 1n;
   while (exponent !== 0n) {
-    if (exponent % 2n !== 0n) {
-      exponent -= 1n;
+    let q = exponent >> 1n;
+    if (exponent !== q + q) {
       accumulator = (accumulator * base) % modulus;
     }
-    exponent /= 2n;
+    exponent = q;
     base = (base * base) % modulus;
   }
   return accumulator;
@@ -547,6 +562,7 @@ function nextPrime(n) {
   return n;
 }
 
+primeFactor._bitLength = bitLength;
 primeFactor._isPrime = isPrime;
 primeFactor._countTrailingZeros = countTrailingZeros;
 primeFactor._someFactor = someFactor;

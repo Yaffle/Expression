@@ -12,7 +12,7 @@ import NonSimplifiedExpression from './NonSimplifiedExpression.js';
 import ExpressionParser from './ExpressionParser.js';
 import Polynomial from './Polynomial.js';
 import Matrix from './Matrix.js';
-import './toLaTeX.js';
+//import './toLaTeX.js';
 import './polynomial-roots-finding.js';
 import './FormaCanonicalDeJordan.js';
 import './ExpressionExtensions.js';

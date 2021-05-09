@@ -1,6 +1,8 @@
 import Expression from './Expression.js';
 import NonSimplifiedExpression from './Expression.js';
 
+//! deprecated, convert MathML to LaTeX instead
+
 Expression.prototype.toLaTeX = function (options) {
   throw new RangeError();
 };
