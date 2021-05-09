@@ -2254,6 +2254,7 @@ Polynomial.prototype.modularInverse = function (m) {
   var t = Polynomial.of(Expression.ONE);
   //var oldS = Polynomial.of(Expression.ONE);
   //var s = Polynomial.of(Expression.ZERO);
+  //TODO: fix for different sequences (?)
   for (var tmp of Polynomial._subresultantPseudoRemainderSequence(oldR, r)) {
     //?
     var scale = r.getLeadingCoefficient()._pow(oldR.getDegree() - r.getDegree() + 1);
@@ -2267,7 +2268,23 @@ Polynomial.prototype.modularInverse = function (m) {
     [oldR, r] = [r, newR];
   }
   var gcd = oldR;
-  oldT = oldT.scale(gcd.getLeadingCoefficient().inverse());
+  //TODO: FIX
+  if (gcd.getDegree() !== 0) {
+    throw new TypeError();//?
+  }
+  oldT = oldT.primitivePart().scale(m.getLeadingCoefficient());
+  var r = oldT.multiply(this).divideAndRemainder(m, "throw").remainder;
+  if (r.getDegree() !== 0) {
+    throw new TypeError();//?
+  }
+  oldT = oldT.scale(r.getCoefficient(0).inverse());
+  //oldT = oldT.scale(gcd.getLeadingCoefficient().inverse());
+  //oldS = oldS.primitivePart().scale(m.getLeadingCoefficient());
+  //var r = oldS.multiply(this).divideAndRemainder(m, "throw").remainder;
+  //if (r.getDegree() !== 0) {
+  //  throw new TypeError();//?
+  //}
+  //oldS = oldS.scale(r.getCoefficient(0).inverse());
   //oldS = oldS.scale(gcd.getLeadingCoefficient().inverse());
   return oldT;
 };
