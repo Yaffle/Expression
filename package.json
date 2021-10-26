@@ -7,11 +7,11 @@
   },
   "bundleDependencies": [],
   "dependencies": {
-    "@yaffle/bigdecimal": "^1.0.2",
-    "bigint-gcd": "^1.0.6",
-    "continuedfractionfactorization": "^1.0.1",
+    "@yaffle/bigdecimal": "^1.0.25",
+    "bigint-gcd": "^1.0.7",
+    "continuedfractionfactorization": "^1.0.2",
     "js-big-integer": "^3.0.20",
-    "seedrandom": "*"
+    "seedrandom": "^3.0.5"
   },
   "deprecated": false,
   "description": "A library to parse expressions, solve and simplify systems of linear equations, find eigenvalues and eigenvectors",
