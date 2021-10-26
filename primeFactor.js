@@ -1,6 +1,6 @@
 import nthRoot from './nthRoot.js';
 //import bitLength from './bitLength.js';
-import ContinuedFractionFactorization from './node_modules/continuedFractionFactorization/continuedFractionFactorization.js';
+import ContinuedFractionFactorization from './node_modules/continuedfractionfactorization/continuedFractionFactorization.js';
 
 
 // https://github.com/tc39/proposal-bigint/issues/205
