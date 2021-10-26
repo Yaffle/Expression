@@ -516,10 +516,16 @@ Condition.prototype._and = function (operator, e) {
           var pivot = getPivotMonomial(x.expression);
           var p = pivot.divide(getConstant(pivot))._abs();
           pivot = collapse(x.expression, pivot);
+          var newYExpression = y.expression;
+          var c1 = 0;
           for (var a of y.expression.summands()) {
             if (a.gcd(p)._abs().equals(p)) {
-              return addRest(add(newArray, x), oldArray, i, {expression: y.expression.subtract(a.divide(pivot).multiply(x.expression)), operator: y.operator});
+              newYExpression = newYExpression.subtract(a.divide(pivot).multiply(x.expression));
+              c1 += 1;
             }
+          }
+          if (c1 > 0) {
+            return addRest(add(newArray, x), oldArray, i, {expression: newYExpression, operator: y.operator});
           }
         }
         if (newMethodEnabled && y.operator === Condition.EQZ) {
@@ -819,7 +825,53 @@ Condition.prototype._and = function (operator, e) {
 
     return newArray;
   };
-  var newArray = add(this.array, {
+  
+  //!new 2021-10-06
+  if (e instanceof Expression.Division) {//TODO: !?
+    return this._and(operator, e.getNumerator()).andNotZero(e.getDenominator());
+  }
+  //TODO: other cases, other types
+  var c = this;
+  if (true && operator === Condition.EQZ) {
+    const getVariable1 = function (e) {
+      var candidate = undefined;
+      for (var s of e.summands()) {
+        for (var f of s.factors()) {
+          var b = f instanceof Expression.Exponentiation ? f.a : f;
+          if (b instanceof Expression.Symbol) {
+            if (candidate == undefined || b.symbol < candidate.symbol) {
+              candidate = b;
+            }
+          }
+        }
+      }
+      return candidate;
+    };
+    const v = getVariable1(e);
+    if (v != undefined && Polynomial.of(e)._hasIntegerLikeCoefficients()) { // a^(1/2) or a/2
+      const ep = Polynomial.toPolynomial(e, v);
+      for (var x of this.array) {
+        if (x.operator === Condition.EQZ) {
+          if (Polynomial.of(x.expression)._hasIntegerLikeCoefficients() && getVariable1(x.expression).symbol >= v.symbol) {
+            const xp = Polynomial.toPolynomial(x.expression, v);
+            if (xp.getDegree() >= 1) {
+              var g = Polynomial.polynomialGCD(ep, xp);//TODO: !?
+              if (g.getDegree() === 0) { // it is slow to compute resultant, while it should be zero when gcd != 1
+                const res = Polynomial.resultant(ep, xp);
+                c = c.andZero(res);
+                if (c.isFalse()) {
+                  return c;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  //!
+  
+  var newArray = add(c.array, {
     operator: operator,
     expression: e
   });
@@ -894,5 +946,14 @@ Condition.prototype.getSolutionFor = function (variable) {
   }
   return null;
 };
+
+  Condition.prototype.updateExpression = function (e, options) {
+    return this.andNotZero(e).isFalse() ? Expression.ZERO : e;
+    //var symbol = new Expression.Symbol('$e');
+    //var condition = options && options.flag1 ? this : new Condition(this.array.filter(x => x.expression instanceof Expression.Symbol && x.operator === Condition.EQZ));
+    //var c2 = condition.andZero(e.subtract(symbol));
+    //return c2.getSolutionFor(symbol);
+    //return e;
+  };
 
 export default Condition;

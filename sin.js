@@ -194,6 +194,12 @@ var map = function (f, u) {
   if (u instanceof Expression.Logarithm) {
     return f(map(f, u.a).logarithm());
   }
+  if (u instanceof Expression.Determinant) {
+    return f(map(f, u.a).determinant());
+  }
+  if (u instanceof Expression.Inequality) {
+    return f(map(f, u.a).transformInequality(map(f, u.b), u.sign));
+  }
   throw new TypeError();
 };
 
@@ -544,10 +550,7 @@ if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
   // https://math.stackexchange.com/questions/125774/how-to-expand-cos-nx-with-cos-x#answer-125826
   if (d % 1 === 0) {//TODO: !!!
     var rational = Integer.fromNumber(d).add(fraction).divide(Integer.fromNumber(60));
-    //var gcd = function (a, b) {
-    //  return b === 0 ? a : gcd(b, a % b);
-    //};
-    //var n = 360 / gcd(360, d);
+    //var n = 360 / Math.gcd(360, d);
     var n = rational.getDenominator().toNumber();
     var a = rational.getNumerator().toNumber();
     if (n > Number.MAX_SAFE_INTEGER || a > Number.MAX_SAFE_INTEGER) {
@@ -571,7 +574,7 @@ if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
     polynomial = polynomial.scale(polynomial.getContent().inverse());
     //TODO: ?
     var approximate = Math.cos((d + fraction.getNumerator().toNumber() / fraction.getDenominator().toNumber()) / 180 * Math.PI);
-    var tmp = Math.round(approximate * 2**24);
+    var tmp = Math.floor(approximate * 2**24 + 0.5);
     var scale = Expression.Integer.fromNumber(2**24);
     var interval = new Expression.ExpressionPolynomialRoot.SimpleInterval(Expression.Integer.fromNumber(tmp - 1).divide(scale), Expression.Integer.fromNumber(tmp + 1).divide(scale));
     return Expression.ExpressionPolynomialRoot._create(polynomial, interval);
@@ -660,6 +663,9 @@ var simplifyConstantValue = function (x, type) {
     }
     //TODO:
   }
+  if (x instanceof Expression.ExpressionWithPolynomialRoot) {
+    return simplifyConstantValue(x.upgrade(), type);
+  }
   return undefined;
 };
 
@@ -723,17 +729,18 @@ Expression.prototype.arcoth = function () {
   return x.add(Expression.ONE).divide(x.subtract(Expression.ONE)).logarithm().divide(Expression.TWO);
 };
 
+Expression.isRealAlgebraicNumber = function isRealAlgebraicNumber(x) {
+  return x instanceof Expression.Integer ||
+         x instanceof Expression.NthRoot && typeof x.n === "number" && x.n % 1 === 0 && isRealAlgebraicNumber(x.a) && (x.n % 2 !== 0 || Expression._isPositive(x.a)) ||
+         x instanceof Expression.Division && isRealAlgebraicNumber(x.getNumerator()) && isRealAlgebraicNumber(x.getDenominator()) ||
+         x instanceof Expression.Addition && isRealAlgebraicNumber(x.a) && isRealAlgebraicNumber(x.b) ||
+         x instanceof Expression.Multiplication && isRealAlgebraicNumber(x.a) && isRealAlgebraicNumber(x.b);
+};
+
 var isArgumentValid = function (x, type) {
   if (x instanceof Expression.Radians) {
-    var isAlgebraicInteger = function (x) {
-      return x instanceof Expression.Integer ||
-             x instanceof Expression.NthRoot && typeof x.n === "number" && x.n % 1 === 0 && isAlgebraicInteger(x.a) ||
-             x instanceof Expression.Division && isAlgebraicInteger(x.getNumerator()) && isAlgebraicInteger(x.getDenominator()) ||
-             x instanceof Expression.Addition && isAlgebraicInteger(x.a) && isAlgebraicInteger(x.b) ||
-             x instanceof Expression.Multiplication && isAlgebraicInteger(x.a) && isAlgebraicInteger(x.b);
-    };
     // https://ru.wikipedia.org/wiki/Трансцендентное_число#Примеры_трансцендентных_чисел
-    return isAlgebraicInteger(x.value);
+    return Expression.isRealAlgebraicNumber(x.value);
   }
   if (x instanceof Expression.Degrees) {
     return simplifyConstantValue(x, type) != undefined;
@@ -1082,7 +1089,8 @@ Expression.prototype.arctan = function () {
   if (Expression.isConstant(x)) {
     var value = Number(toDecimalStringInternal(x, {fractionDigits: 15}));
     console.assert(!Number.isNaN(value));
-    var guess = ExpressionParser.parse(getlowestfraction(Math.atan(value) / Math.PI)).multiply(Expression.PI);
+    var tmp = getlowestfraction(Math.atan(value) / Math.PI).split("/");
+    var guess = Expression.Integer.fromNumber(Number(tmp[0])).divide(Expression.Integer.fromNumber(tmp[1])).multiply(Expression.PI);
     if (guess.getDenominator().toNumber() < 10000 && guess.tan().subtract(x).equals(Expression.ZERO)) {
       return guess;
     }

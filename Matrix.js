@@ -140,6 +140,10 @@
             e = this.e(targetRow, j).subtract(f.multiply(this.e(pivotRow, j)));
           } else {
             e = this.e(pivotRow, pivotColumn).multiply(this.e(targetRow, j)).subtract(this.e(targetRow, pivotColumn).multiply(this.e(pivotRow, j))).divide(currentOrPreviousPivot);
+            //TODO: 
+            //if (e instanceof Expression.Division) {
+            //  debugger;
+            //}
           }
           x[j] = e.simplifyExpression();
         }
@@ -278,8 +282,14 @@
   var isConditionValid = function (condition, matrix) {
     for (var i = 0; i < matrix.rows(); i++) {
       for (var j = 0; j < matrix.cols(); j++) {
-        if (condition.andNotZero(matrix.e(i, j)).isFalse() && condition.andZero(matrix.e(i, j)).isFalse()) {
-          return false;
+        var e = matrix.e(i, j);
+        if (!Polynomial._isIntegerLike(e)) {
+          if (Polynomial._isIntegerLike(e.getNumerator())) {//!!! for performance
+            e = e.getDenominator().inverse();
+          }
+          if (condition.andZero(e).isFalse() && condition.andNotZero(e).isFalse()) {
+            return false;
+          }
         }
       }
     }
@@ -328,8 +338,9 @@
         // x == 0 && x**2 == 0 is false
         // x == 0 && y/x != 0 is false
         // x == 0 && y/x == 0 is false
-        return condition.andNotZero(e).isFalse() ? Expression.ZERO : e;
+        return condition.updateExpression(e)
       });
+      previousPivot = condition.updateExpression(previousPivot);
     }
 
     var stoppedAtRow = Matrix.check(options.usage, matrix, 0, matrix.rows(), condition);
@@ -382,8 +393,10 @@
           } else {
             if (pivotOriginRow >= pivotRow) {
               matrix = pivotRow >= matrix.rows() || matrix.e(pivotRow, pivotColumn).equals(Expression.ZERO) ? matrix : matrix.map(function (e, i, j) { //?
-                return i === pivotOriginRow && j === pivotColumn ? Expression.ZERO : (condition.andNotZero(e).isFalse() ? Expression.ZERO : e);
+                //return i === pivotOriginRow && j === pivotColumn ? Expression.ZERO : condition.updateExpression(e);
+                return condition.updateExpression(e);
               });
+              previousPivot = condition.updateExpression(previousPivot);
             }
             var found = false;
             if (pivotOriginRow === pivotRow - 1) {//!
@@ -403,12 +416,16 @@
                 var c1 = condition.andNotZero(candidate);
                 var c2 = condition.andZero(candidate);
 
+                if (!c2.isFalse()) {
                 //!new 2020-01-03
+                // condition: r = 0, element = 1/r
                 if (!isConditionValid(c2, matrix)) {
+                  debugger;
                   c2 = Condition.FALSE;//!!!
                   condition = c1;//!
                 }
                 //!
+                }
 
                 if (c2.isFalse()) {
                   state = NOT_ZERO;
@@ -418,7 +435,7 @@
                   if (options.usage === "row-reduction") {
                     var tmp = Matrix.toRowEchelonStep(matrix, pivotRow, pivotColumn, pivotOriginRow, previousPivot, Object.assign({}, options, {callback: null}), condition);
                     var m = tmp.matrix.slice(pivotOriginRow + 1, matrix.rows(), pivotColumn, matrix.cols()).map(function (e, i, j) {
-                      return c2.andNotZero(e).isFalse() ? Expression.ZERO : e;
+                      return c2.updateExpression(e);
                     });
                     if (m.eql(Matrix.Zero(m.rows(), m.cols()))) {
                       return matrix.toRowEchelonInternal(options, pivotRow, pivotColumn, pivotOriginRow, previousPivot, NOT_ZERO, condition);
@@ -540,6 +557,9 @@
     var result = "";
     var rows = this.rows();
     var cols = this.cols();
+    if (rows === 0 && cols === 0) {
+      throw new RangeError();
+    }
     var j = -1;
     result += "{";
     while (++j < rows) {
@@ -867,6 +887,10 @@
     }
     return result;
   };
+  Vector.prototype.toUnitVector = function () {
+    var norm = this.dot(this).squareRoot();
+    return this.scale(norm.inverse());
+  };
 
   Vector.prototype.scale = function (s) {
     return new Vector(this.elements.map(e => s.multiply(e)));
@@ -878,12 +902,34 @@
     return new Vector(this.elements.map((e, i) => e.subtract(other.e(i))));
   };
 
+  Vector.prototype.eql = function (other) {
+    if (this.dimensions() !== other.dimensions()) {
+      throw new RangeError("MatrixDimensionMismatchException");
+    }
+    for (var i = 0; i < this.dimensions(); i += 1) {
+      if (!this.e(i).equals(other.e(i))) {
+        return false;
+      }
+    }
+    return true;
+  };
+  Vector.Zero = function (n) {
+    return new Vector(new Array(n).fill(Expression.ZERO));
+  };
+
   Matrix.Vector = Vector;
 
   Matrix.prototype.row = function (i) {
     const elements = new Array(this.cols());
     for (let j = 0; j < this.cols(); j += 1) {
       elements[j] = this.e(i, j);
+    }
+    return new Vector(elements);
+  };
+  Matrix.prototype.col = function (j) {
+    const elements = new Array(this.rows());
+    for (let i = 0; i < this.rows(); i += 1) {
+      elements[i] = this.e(i, j);
     }
     return new Vector(elements);
   };

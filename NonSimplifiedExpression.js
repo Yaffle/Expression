@@ -357,6 +357,13 @@
     return (this.integer || '0') + '.' + (this.transient || '') + (this.repetend != undefined ? '(' + this.repetend + ')' : '') + (this.exponent != undefined ? 'E' + this.exponent : '')
   };
 
+  NonSimplifiedExpression.prototype.augment = function (other) {
+    return new NonSimplifiedExpression(new Expression.AugmentedMatrix(this, other));
+  };
+  Expression.AugmentedMatrix.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).augment(prepare(this.b, holder));
+  };
+
   Expression.NonSimplifiedExpression = NonSimplifiedExpression;
 
   export default NonSimplifiedExpression;

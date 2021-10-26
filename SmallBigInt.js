@@ -1,25 +1,13 @@
 import './node_modules/js-big-integer/BigInteger.js';
 
-  const cache = new Array(16 * 2 + 1).fill(undefined);
   function BigIntWrapper() {
   }
   //const BigIntWrapper = typeof BigInt !== 'undefined' ? BigInt : function () {};
   BigIntWrapper.BigInt = function (x) {
-    if (typeof x === "number" && Math.abs(x) <= 16) {
-      var value = cache[x + 16];
-      if (value == undefined) {
-        value = BigInt(x);
-        cache[x + 16] = value;
-      }
-      return value;
-    }
-    if (typeof x === "number" && Math.abs(x) > Number.MAX_SAFE_INTEGER) { // as Chrome 67 does not support this
-      throw new RangeError();
-    }
-    if (typeof x === "bigint") {
-      return x;
-    }
     return BigInt(x);
+  };
+  BigIntWrapper.asUintN = function (bits, bigint) {
+    return BigInt.asUintN(bits, bigint);
   };
   BigIntWrapper.toNumber = function (bigint) {
     return Number(bigint);
@@ -68,7 +56,7 @@ import './node_modules/js-big-integer/BigInteger.js';
     if (n < 0) {
       throw new RangeError();
     }
-    if (n > 9007199254740991) {
+    if (n > Number.MAX_SAFE_INTEGER) {
       var y = Number(a);
       if (y === 0 || y === -1 || y === +1) {
         return y === -1 && Number(b % BigInt(2)) === 0 ? -a : a;
@@ -108,7 +96,23 @@ import './node_modules/js-big-integer/BigInteger.js';
     return a << n;
   };
 
-  var supportsBigInt = typeof BigInt !== "undefined" && BigInt(9007199254740991) + BigInt(2) - BigInt(2) === BigInt(9007199254740991);
+  var supportsBigInt = typeof BigInt !== "undefined" && BigInt(Number.MAX_SAFE_INTEGER) + BigInt(2) - BigInt(2) === BigInt(Number.MAX_SAFE_INTEGER);
+
+  if (supportsBigInt) {
+    // https://twitter.com/mild_sunrise/status/1339174371550760961
+    if (((-BigInt('0xffffffffffffffffffffffffffffffff')) >> BigInt(0x40)).toString() !== '-18446744073709551616') { // ((-(2**128 - 1)) >> 64) !== -1 * 2**64
+      supportsBigInt = false; // TODO: partial support (?)
+    }
+  }
+  if (supportsBigInt) {
+    try {
+      BigInt(Number.MAX_SAFE_INTEGER + 1);
+    } catch (error) {
+      // Chrome 67
+      supportsBigInt = false; // TODO: partial support (?)
+    }
+  }
+
   //supportsBigInt = false;//!!!
   if (supportsBigInt) {
     globalThis.JSBI = BigIntWrapper;//!!!

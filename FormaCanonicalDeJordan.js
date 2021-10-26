@@ -28,21 +28,13 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
     }
     return J;
   }
-  function matrixFromBasis(basis) {
-    if (basis.length === 0) {
-      throw new TypeError();
-    }
-    return Matrix.Zero(basis.length, basis[0].rows()).map(function (e, i, j) {
-      return basis[i].e(j, 0);
-    });
-  }
   function isSolution(coefficientMatrix, vector) {
     var f = coefficientMatrix.multiply(vector);
     return f.eql(Matrix.Zero(f.rows(), 1));
   }
   function isLinearlyIndependentSet(basis, vectors) {
     // https://math.stackexchange.com/questions/412563/determine-if-vectors-are-linearly-independent
-    return matrixFromBasis(basis.concat(vectors)).rank() === basis.length + vectors.length;
+    return Matrix.fromVectors(basis.concat(vectors)).rank() === basis.length + vectors.length;
   }
 
   //!TODO: remove
@@ -90,7 +82,7 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
           var s = solution;
           for (var k = 0; k < m; k += 1) {
             chain.push(s);
-            s = B.multiply(s);
+            s = B.multiply(s).col(0);
           }
           chain.reverse();
           if (isLinearlyIndependentSet(basisCorrespondingToTheEigenvalue, chain)) {
@@ -111,7 +103,7 @@ Expression.getFormaDeJordan = function (matrix, eigenvalues, multiplicities, hac
   if (basis.length !== n) {
     throw new TypeError("assertion failed");
   }
-  var P = matrixFromBasis(basis).transpose();
+  var P = Matrix.fromVectors(basis);
   //console.log("P=" + P.toString() + ", J=" + J.toString());
   //var P_INVERSED = P.inverse();
   var P_INVERSED = P.isExact() ? P.inverse() : (hack ? null : getInverse(A, eigenvalues, multiplicities, P));

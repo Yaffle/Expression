@@ -165,6 +165,9 @@
     new Operator("rank", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.rank();
     }),
+    new Operator("adj", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {//?
+      return a.adjugate();
+    }),
     new Operator("adjugate", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.adjugate();
     }),
@@ -476,8 +479,8 @@
   var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
   var integerLiteral = /^\d+(?![\d.])(?![eEЕ]|اس)(?!,(?:\d|\(\d+\)))/; // for performance
   var integerLiteralWithoutComma = /^\d+(?![\d.])(?![eEЕ]|اس)/; // for performance
-  var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|,(?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
-  var decimalFractionWithoutComma = /^(?=[.]?\d)\d*(?:[.]\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
+  var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|[.,](?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
+  var decimalFractionWithoutComma = new RegExp(decimalFraction.source.replace(/,/g, ''));
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
   // + https://en.wikipedia.org/wiki/Modern_Arabic_mathematical_notation#Mathematical_letters
   const greek = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho varsigma sigma tau upsilon phi chi psi omega".split(" ");
@@ -486,7 +489,7 @@
   var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2071\u2074-\u207F]+/; // superscript characters "2310i456789+−=()n"
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
   //var other = /^\S/u;
-  var other = /^(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|\S)/; // should not split surrogate pairts (for Tokenizer and other things)
+  var other = /^(?:[\uD800-\uDBFF][\uDC00-\uDFFF]|\S)/; // should not split surrogate pairs (for Tokenizer and other things)
 
   var decimalFractionWithGroups = /^(\d+)?(?:[.,](\d+)?(?:\((\d+)\))?)?(?:(?:[eEЕ]|اس)([\+\-]?\d+))?$/;
 
@@ -713,7 +716,7 @@
             tmp = parseExpression(tokenizer, token, context, 0, undefined);
             operand = tmp.result;
             token = tmp.token;
-            operand = context.wrap(new Expression.Matrix(left.unwrap().matrix.augment(operand.unwrap().matrix)));//!
+            operand = left.augment(operand);
             left = undefined;
           } else {
             ok = false;
@@ -777,57 +780,15 @@
     return new ParseResult(left, token);
   };
 
-  // https://tc39.es/ecma402/#table-numbering-system-digits (June 23, 2020)
-  const numberingSystemsWithSimpleDigitMappings = [0x0030, 0x0660, 0x06F0, 0x07C0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0BE6, 0x0C66, 0x0CE6, 0x0D66, 0x0DE6, 0x0E50, 0x0ED0, 0x0F20, 0x1040, 0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80, 0x1A90, 0x1B50, 0x1BB0, 0x1C40, 0x1C50, 0xA620, 0xA8D0, 0xA900, 0xA9D0, 0xA9F0, 0xAA50, 0xABF0, 0xFF10, 0x0104A0, 0x010D30, 0x011066, 0x0110F0, 0x011136, 0x0111D0, 0x0112F0, 0x011450, 0x0114D0, 0x011650, 0x0116C0, 0x011730, 0x0118E0, 0x011950, 0x011C50, 0x011D50, 0x011DA0, 0x016A60, 0x016B50, 0x01D7CE, 0x01D7D8, 0x01D7E2, 0x01D7EC, 0x01D7F6, 0x01E140, 0x01E2F0, 0x01E950, 0x01FBF0];
-
-  // To generate use the next code:
-  //var numberingSystemsWithSimpleDigitMappings = [];
-  //var i = 0;
-  //while (i <= 0x10FFFF) {
-  //  if (/\p{Decimal_Number}/u.test(String.fromCodePoint(i))) {
-  //    numberingSystemsWithSimpleDigitMappings.push(i);
-  //    i += 10;
-  //  } else {
-  //    i += 1;
-  //  }
-  //}
-
-  // https://stackoverflow.com/a/29018745
-  function binarySearch(ar, el, compare_fn) {
-      var m = 0;
-      var n = ar.length - 1;
-      while (m <= n) {
-          var k = (n + m) >> 1;
-          var cmp = compare_fn(el, ar[k]);
-          if (cmp > 0) {
-              m = k + 1;
-          } else if(cmp < 0) {
-              n = k - 1;
-          } else {
-              return k;
-          }
-      }
-      return -m - 1;
-  }
-
-  // https://www.ecma-international.org/ecma-402/5.0/index.html#table-numbering-system-digits
-  var replaceSimpleDigit = function (codePoint) {
-    var i = binarySearch(numberingSystemsWithSimpleDigitMappings, codePoint, function (codePoint, systemOffset) {
-      if (codePoint < systemOffset) {
-        return -1;
-      }
-      if (codePoint > systemOffset + 9) {
-        return +1;
-      }
-      return 0;
-    });
-    if (i >= 0) {
-      return codePoint - numberingSystemsWithSimpleDigitMappings[i];
+  const decimalNumberRegExp = new RegExp('\\p{Decimal_Number}', 'u');
+  const replaceSimpleDigit = function (codePoint) {
+    let i = 0;
+    while (decimalNumberRegExp.test(String.fromCodePoint(codePoint - i))) {
+      i += 1;
     }
-    return -1;
+    return i === 0 ? -1 : (i - 1) % 10;
   };
-
-
+  
   const map = {
     ":": "/",
     "[": "(",
@@ -900,6 +861,15 @@
     //}
     // hanidec digits
 
+  const isBidiControl = function (codePoint) {
+    // /\p{Bidi_Control}/u.test(String.fromCodePoint(codePoint))
+    return codePoint === 0x061C ||
+           codePoint === 0x200E ||
+           codePoint === 0x200F ||
+           codePoint >= 0x202A && codePoint <= 0x202E ||
+           codePoint >= 0x2066 && codePoint <= 0x2069;
+  };
+
   var getCodePointReplacement = function (codePoint) {
     if (codePoint >= 0xFF01 && codePoint <= 0xFF5E) {
       // normalize full-width forms:
@@ -909,12 +879,7 @@
     if (digit !== -1) {
       return digit + "0".charCodeAt(0);
     }
-    // /\p{Bidi_Control}/u.test(String.fromCodePoint(codePoint))
-    if (codePoint === 0x061C ||
-        codePoint === 0x200E ||
-        codePoint === 0x200F ||
-        codePoint >= 0x202A && codePoint <= 0x202E ||
-        codePoint >= 0x2066 && codePoint <= 0x2069) {
+    if (isBidiControl(codePoint)) {
       return " ".charCodeAt(0);
     }
     if (codePoint >= 0x0000 && codePoint <= 0xFFFF) {
@@ -927,10 +892,6 @@
     return -1;
   };
 
-  //var replaceRegExp = /[...]/g;
-  //var replaceFunction = function (c) {
-  //  return getCodePointReplacement(c.charCodeAt(0));
-  //};
   //input = input.replace(replaceRegExp, replaceFunction); - slow in Chrome
   var replaceSomeChars = function (input) {
     var lastIndex = 0;

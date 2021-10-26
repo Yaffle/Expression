@@ -1,5 +1,6 @@
 import nthRoot from './nthRoot.js';
 //import bitLength from './bitLength.js';
+import ContinuedFractionFactorization from './node_modules/continuedFractionFactorization/continuedFractionFactorization.js';
 
 
 // https://github.com/tc39/proposal-bigint/issues/205
@@ -20,32 +21,65 @@ function bitLength(a) {
 //  return a < b ? a : b;
 //}
 
-function modPow(base, exponent, modulus) {
-  // exponent can be huge, use non-recursive variant
-  let accumulator = 1n;
-  while (exponent !== 0n) {
-    let q = exponent >> 1n;
-    if (exponent !== q + q) {
-      accumulator = (accumulator * base) % modulus;
-    }
-    exponent = q;
-    base = (base * base) % modulus;
-  }
-  return accumulator;
+const SPLIT = Math.pow(2, Math.ceil(Math.log2((Number.MAX_SAFE_INTEGER + 1) * 2) / 2)) + 1;
+
+function fma(a, b, p) {
+  var at = SPLIT * a;
+  var ahi = at - (at - a);
+  var alo = a - ahi;
+  var bt = SPLIT * b;
+  var bhi = bt - (bt - b);
+  var blo = b - bhi;
+  var e = ((ahi * bhi + p) + ahi * blo + alo * bhi) + alo * blo;
+  return e;
 }
 
-function range(start, end) {
-  let i = start - 1;
-  const tmp = {
-    next: function () {
-      i += 1;
-      return {value: i > end ? undefined : i, done: i > end};
+function modMultiplySmall(a, b, m) {
+  if (!(a >= 0 && b >= 0 && a < m && b < m && m <= Number.MAX_SAFE_INTEGER)) {
+    throw new RangeError();
+  }
+  var p = a * b;
+  if (p <= Number.MAX_SAFE_INTEGER) {
+    return p - Math.floor(p / m) * m;
+  }
+  var r1 = fma(a, b, -p);
+  var q = (p / m) - (1 + Number.MAX_SAFE_INTEGER) + (1 + Number.MAX_SAFE_INTEGER); // note: this is a confusing line because of the double rounding
+  var r2 = 0 - fma(q, m, -p);
+  if (r1 > 0) {
+    r1 -= m;
+  }
+  if (r2 < 0) {
+    r2 += m;
+  }
+  var r = r1 + r2;
+  if (r < 0) {
+    r += m;
+  }
+  return r;
+}
+
+function modMultiplyN(N, a, b, mod) {
+  if (N) {
+    return modMultiplySmall(a, b, mod);
+  }
+  return (a * b) % mod;
+}
+
+function modPowN(N, base, exponent, modulus) {
+  const one = vN(N, 1);
+  const zero = vN(N, 0);
+  const two = vN(N, 2);
+  // exponent can be huge, use non-recursive variant
+  let accumulator = one;
+  while (exponent !== zero) {
+    let q = divideN(N, exponent, two);
+    if (exponent !== q + q) {
+      accumulator = modMultiplyN(N, accumulator, base, modulus);
     }
-  };
-  tmp[globalThis.Symbol.iterator] = function () {
-    return this;
-  };
-  return tmp;
+    exponent = q;
+    base = modMultiplyN(N, base, base, modulus);
+  }
+  return accumulator;
 }
 
 // isPrime implementation is stolen from:
@@ -53,40 +87,54 @@ function range(start, end) {
 // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Deterministic_variants
 function isPrime(n) {
   const number = Number(n);
+  var N = false;
   if (number <= Number.MAX_SAFE_INTEGER) {
-    return primeFactorUsingWheel(number) === number;
+    N = true;
+    n = number;
+  } else {
+    N = false;
+    n = BigInt(n);
   }
-  if (n < 2n) {
+  const zero = vN(N, 0);
+  const one = vN(N, 1);
+  const two = vN(N, 2);
+  if (n < two) {
     throw new RangeError();
   }
-  if (n === 2n) {
-    return true;
-  }
-  if (n % 2n === 0n) {
+  if (primeFactorUsingWheelN(N, n, 2**10) < n) {
     return false;
   }
+  if (N && n < Math.pow((2**10), 2)) {
+    return true;
+  }
   let r = 0;
-  let d = n - 1n;
-  while (d % 2n === 0n) {
-    d /= 2n;
+  let d = n - one;
+  while (d % two === zero) {
+    d /= two;
     r += 1;
   }
   // https://en.wikipedia.org/wiki/Miller–Rabin_primality_test#Testing_against_small_sets_of_bases
-  const getRange = function (n) {
-    const lnN = bitLength(n) * Math.log(2);
-    const max = Math.min(Number(n - 2n), Math.floor(2 * lnN * Math.log(lnN)));
-    return range(2, max);
-  };
   let bases = null;
-  if (n < 3317044064679887385961981n) {
-    bases = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41].filter(x => x < n);
+  if (Number(n) < 3215031751) {
+    bases = [2, 3, 5, 7];
+  } else if (BigInt(n) < 3825123056546413051) {
+    bases = [2, 3, 5, 7, 11, 13, 17, 19, 23];
+  } else if (BigInt(n) < 3317044064679887385961981n) {
+    bases = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41];
   } else {
-    bases = getRange(n);
+    const lnN = bitLength(BigInt(n)) * Math.log(2);
+    const max = Math.floor(2 * lnN * Math.log(lnN));
+    const range = new Array(max - 2 + 1);
+    for (let i = 2; i <= max; i += 1) {
+      range[i - 2] = i;
+    }
+    bases = range;
   }
+  console.assert(n > bases[bases.length - 1]);
   for (const a of bases) {
-    const adn = modPow(BigInt(a), d, n);
-    if (adn !== 1n) {
-      for (let i = 0, x = adn; x !== n - 1n; i += 1, x = (x * x) % n) {
+    const adn = modPowN(N, N ? a : BigInt(a), d, n);
+    if (adn !== one) {
+      for (let i = 0, x = adn; x !== n - one; i += 1, x = modMultiplyN(N, x, x, n)) {
         if (i === r - 1) {
           return false;
         }
@@ -96,44 +144,59 @@ function isPrime(n) {
   return true;
 }
 
+function vN(N, i) {
+  return N ? i : (i === 0 ? 0n : (i === 1 ? 1n : (i === 2 ? 2n : BigInt(i))));
+}
+
+function divideN(N, a, b) {
+  return N ? Math.floor(a / b) : (a / b);
+}
+
 function abs(a) {
-  return a < 0n ? -a : a;
-}
-
-function gcd(a, b) {
-  while (b !== 0n) {
-    var r1 = a % b;
-    var r2 = b - r1;
-    var r = r1 < r2 ? r1 : r2;
-    a = b;
-    b = r;
-  }
-  return a;
-}
-
-function f(x, c, mod) {
-  return ((x * x) % mod + c) % mod;
+  return a < a - a ? -a : a;
 }
 
 // https://cp-algorithms.com/algebra/factorization.html#toc-tgt-9
-function brent(n, x0 = 2n, c = 1n) {
+function brentN(N, n, x0, c, maxIterations) {
+
+  const zero = vN(N, 0);
+  const one = vN(N, 1);
+
+  function gcd(a, b) {
+    while (b !== zero) {
+      var r = a % b;
+      a = b;
+      b = r;
+    }
+    return a;
+  }
+
+  function f(x, c, mod) {
+    var y = modMultiplyN(N, x, x, mod) - c;
+    return y < zero ? y + mod : y;
+  }
+
+  function brent(n, x0, c) {
     var x = x0;
-    var g = 1n;
-    var q = 1n;
-    var xs, y;
+    var g = one;
+    var q = one;
+    var xs = zero, y = zero;
 
     var m = 128;
     var l = 1;
-    while (g === 1n) {
+    var iteration = 0;
+    while (g === one && iteration <= maxIterations) {
+        iteration += 1;
         y = x;
-        for (var i = 1; i < l; i++)
+        for (var i = 1; i < l; i++) {
             x = f(x, c, n);
+        }
         var k = 0;
-        while (k < l && g === 1n) {
+        while (k < l && g === one) {
             xs = x;
             for (var i = 0; i < m && i < l - k; i++) {
                 x = f(x, c, n);
-                q = (q * abs(y - x)) % n;
+                q = modMultiplyN(N, q, abs(y - x), n);
             }
             g = gcd(q, n);
             k += m;
@@ -144,9 +207,29 @@ function brent(n, x0 = 2n, c = 1n) {
         do {
             xs = f(xs, c, n);
             g = gcd(abs(xs - y), n);
-        } while (g === 1n);
+        } while (g === one);
     }
     return g;
+  }
+
+  if (n % (one + one) === zero) {
+    return (one + one);
+  }
+
+  return brent(n, x0, c);
+}
+
+function brentWrapper(n, small, maxIterations = 1/0) {
+  if (isPrime(n)) {
+    return n;
+  }
+  var x0 = 2 - 1;
+  var g = n;
+  do {
+    x0 += 1;
+    g = small ? brentN(true, n, x0, 1, maxIterations) : brentN(false, n, BigInt(x0), 1n, maxIterations);
+  } while (g === n);
+  return g;
 }
 
 // Pollard's rho implementation is stolen from:
@@ -197,14 +280,22 @@ function remainder(n, i) {
   return n - Math.floor(n / i) * i;
 }
 
-function primeFactorUsingWheel(n) {
+function primeFactorUsingWheelN(N, n, max = undefined) {
+  function isDivisibleBy(n, i) {
+    if (N) {
+      return remainder(n, i) === 0;
+    }
+    return n % BigInt(i) === 0n;
+  }
   var steps = WHEEL3;
   var cycle = 3;
-  var sn = Math.floor(Math.sqrt(n + 0.5));
+  if (max == undefined) {
+    max = Math.floor(Math.sqrt(Number(n) + 0.5));
+  }
   var i = 2;
   var s = 0;
-  while (i <= sn) {
-    if (remainder(n, i) === 0) {
+  while (i <= max) {
+    if (isDivisibleBy(n, i)) {
       return i;
     }
     i += steps[s];
@@ -216,22 +307,12 @@ function primeFactorUsingWheel(n) {
   return n;
 }
 
+function primeFactorUsingWheel(n, max) {
+  return primeFactorUsingWheelN(true, n, max);
+}
+
 function primeFactorUsingWheelBig(n, max) {
-  var steps = WHEEL3;
-  var cycle = 3;
-  var i = 2n;
-  var s = 0;
-  while (i <= max) {
-    if (n % i === 0n) {
-      return i;
-    }
-    i += BigInt(steps[s]);
-    s += 1;
-    if (s === steps.length) {
-      s = cycle;
-    }
-  }
-  return n;
+  return primeFactorUsingWheelN(false, n, max);
 }
 
 function someFactor(n) {
@@ -242,44 +323,70 @@ function someFactor(n) {
   if (x === 1) {
     return n;
   }
-  var s = gcd(BigInt(n), BigInt(304250263527210)); // a primorial - https://en.wikipedia.org/wiki/Primorial
-  if (s > 1n) {
+  //var s = gcd(BigInt(n), BigInt(304250263527210)); // a primorial - https://en.wikipedia.org/wiki/Primorial
+  //if (s > 1n) {
     //TODO: use-cases - ?
-    return s === n ? BigInt(primeFactorUsingWheel(Number(s))) : s;
+  //  return s === n ? BigInt(primeFactorUsingWheel(Number(s))) : s;
+  //}
+  if (x <= Number.MAX_SAFE_INTEGER) {
+    var pf = primeFactorUsingWheel(x, 1000);
+    if (pf < x) {
+      return BigInt(pf);
+    }
+    if (x <= 1000 * 1000) {
+      return BigInt(pf);
+    }
+    if (x % 2 === 0) {
+      return 2n;
+    }
   }
 
   //! optimize n = f**2
-  var squareRoot = nthRoot(n, 2);
+  var squareRoot = BigInt(nthRoot(n, 2));
   if (squareRoot**2n === n) {
     return squareRoot;
   }
+if (x > 5) {
   // https://en.wikipedia.org/wiki/Fermat%27s_factorization_method
   var a = squareRoot + 1n;
   var b2 = a*a - BigInt(n);
-  var b = nthRoot(b2, 2);
+  var b = BigInt(nthRoot(b2, 2));
   if (b*b === b2) {
     //console.debug("Fermat's method", n, a - b);
     return a - b;
   }
+}
   //! optimize n = f**3
-  var cubicRoot = nthRoot(n, 3);
+  var cubicRoot = BigInt(nthRoot(n, 3));
   if (cubicRoot**3n === n) {
     return cubicRoot;
   }
 
   if (x <= Number.MAX_SAFE_INTEGER) {
-    return BigInt(primeFactorUsingWheel(x));
+    //return BigInt(primeFactorUsingWheel(x));
+    return brentWrapper(x, true);
   }
-  if (isPrime(n)) {
-    return n;
+  if (true) {
+    const L = function (n) {
+      const e = Math.max(0, n.toString(16).length * 4 - 48);
+      const lnn = (Math.log2(Number(BigInt(n) >> BigInt(e))) + e) * Math.LN2;
+      return Math.exp(Math.sqrt(lnn * Math.log(lnn)));
+    };
+    var limit = Math.floor(Math.log(L(n)));
+    var factor = brentWrapper(n, false, limit);
+    if (factor !== 1n) {
+      return factor;
+    }
+    if (true) {
+      if (globalThis.onerror != null) {
+        var size = bitLength(n);
+        var error = new TypeError("big size of " + "someFactor " + "bitLength(" + n + ")" + " === " + size);
+        globalThis.onerror(error.message, "", 0, 0, error);
+      }
+    }
+    return ContinuedFractionFactorization(n);
   }
-  var x0 = 2 - 1;
-  var g = n;
-  do {
-    x0 += 1;
-    g = brent(n, BigInt(x0));
-  } while (g === n);
-  return g;
+  return brentWrapper(n, false);
 }
 
   // https://en.wikipedia.org/wiki/Find_first_set#CTZ
@@ -297,6 +404,24 @@ function someFactor(n) {
     if (x === 0n) {
       throw new TypeError();
     }
+    if (base === 2n) {
+      var k = 32;
+      while (BigInt.asUintN(k, x) === 0n) {
+        k *= 2;
+      }
+      var n = 0;
+      for (var i = Math.floor(k / 2); i >= 32; i = Math.floor(i / 2)) {
+        if (BigInt.asUintN(i, x) === 0n) {
+          n += i;
+          x >>= BigInt(i);
+        }
+      }
+      const ctz4 = function (x) {
+        return 32 - (Math.clz32(x & -x) + 1);
+      };
+      n += ctz4(Number(BigInt.asUintN(32, x)));
+      return n;
+    }
     var k = 1;
     while (x % base**BigInt(k) === 0n) {
       k *= 2;
@@ -304,9 +429,11 @@ function someFactor(n) {
     var n = 0;
     for (var i = k / 2; i >= 1; i /= 2) {
       var v = base**BigInt(i);
-      if (x % v === 0n) {
+      var q = x / v;
+      var r = x - q * v;
+      if (r === 0n) {
         n += i;
-        x = x / v;
+        x = q;
       }
     }
     return n;
@@ -404,7 +531,6 @@ function someFactor(n) {
         const result = ((sn + sd / 2n) / sd).toString();
         let f = (sign < 0 ? '-' : '') + digitsToDecimalNumber(result, -scaling, rounding);
         const lengthOfTransient = Math.max(a, b);
-        const d1 = d / (2n**BigInt(a) * 5n**BigInt(b));
         const period = getPeriodOfRepeatingDecimalSegment(d1, f.length);
         ///^0\.(\d+?)(\d*?)(?:\1\2)*\1$/.exec('0.123123')
         if (period !== 0 && period <= f.length) { // a repeating decimal, the result is not exact
@@ -428,7 +554,7 @@ function someFactor(n) {
 
 function primeFactor(n) {
   n = BigInt(n);
-  var factor = someFactor(n);
+  var factor = BigInt(someFactor(n));
   if (factor === n) {
     return factor;
   }
@@ -449,115 +575,75 @@ function primeFactor(n) {
 }
 
 // from https://github.com/juanelas/bigint-mod-arith/blob/master/lib/index.browser.mod.js :
-/**
- * @typedef {Object} egcdReturn A triple (g, x, y), such that ax + by = g = gcd(a, b).
- * @property {bigint} g
- * @property {bigint} x
- * @property {bigint} y
- */
-/**
- * An iterative implementation of the extended euclidean algorithm or extended greatest common divisor algorithm.
- * Take positive integers a, b as input, and return a triple (g, x, y), such that ax + by = g = gcd(a, b).
- *
- * @param {number|bigint} a
- * @param {number|bigint} b
- *
- * @returns {egcdReturn} A triple (g, x, y), such that ax + by = g = gcd(a, b).
- */
-function eGcd (a, b) {
-  if (Number(a) <= Number.MAX_SAFE_INTEGER && Number(b) <= Number.MAX_SAFE_INTEGER) {
-    return eGcdSmall(a, b);
+// x * a + y * b = gcd(a, b)
+function eGCD_N(N, a, b) {
+  const zero = vN(N, 0);
+  const one = vN(N, 1);
+  var [oldR, r] = [abs(a), abs(b)];
+  var [oldX, x] = [one, zero];
+  var [oldY, y] = [zero, one];
+  while (r !== zero) {
+    var q = divideN(N, oldR, r);
+    [oldR, r] = [r, oldR - q * r];
+    [oldX, x] = [x, oldX - q * x];
+    [oldY, y] = [y, oldY - q * y];
+    if (r > oldR - r) {
+      // increase q by 1 and negate coefficients
+      r = oldR - r;
+      x = oldX - x;
+      y = oldY - y;
+    }
   }
-  a = BigInt(a)
-  b = BigInt(b)
-  if (a <= 0n || b <= 0n) throw new RangeError('a and b MUST be > 0') // a and b MUST be positive
-
-  let x = 0n
-  let y = 1n
-  let u = 1n
-  let v = 0n
-
-  while (a !== 0n) {
-    const q = b / a
-    const r = b % a
-    const m = x - (u * q)
-    const n = y - (v * q)
-    b = a
-    a = r
-    x = u
-    y = v
-    u = m
-    v = n
-  }
-  return {
-    g: b,
-    x: x,
-    y: y
-  }
+  return {gcd: oldR, x: oldX, y: oldY};
 }
 
-function eGcdSmall (a, b) {
-  a = Number(a)
-  b = Number(b)
-  if (a <= 0 || b <= 0) throw new RangeError('a and b MUST be > 0') // a and b MUST be positive
-
-  let x = 0
-  let y = 1
-  let u = 1
-  let v = 0
-
-  while (a !== 0) {
-    const q = Math.floor(b / a)
-    const r = b % a
-    const m = x - (u * q)
-    const n = y - (v * q)
-    b = a
-    a = r
-    x = u
-    y = v
-    u = m
-    v = n
-  }
-  return {
-    g: b,
-    x: x,
-    y: y
-  }
-}
-
-function modInverse(a, m) {
-  a = BigInt(a);
-  m = BigInt(m);
-  console.assert(a >= 0n);
-  console.assert(m > 0n);
+function modInverseN(N, a, m) {
+  const zero = vN(N, 0);
+  console.assert(a >= zero);
+  console.assert(m > zero);
   if (a > m) {
     a = a % m;
   }
-  let inv = BigInt(eGcd(a, m).x);
-  inv = inv < 0n ? BigInt(inv) + m : inv;
-  console.assert(inv >= 0n && inv < m);
+  let inv = eGCD_N(N, a, m).x;
+  inv = inv < zero ? inv + m : inv;
+  console.assert(inv >= zero && inv < m);
   return inv;
 }
 
-function nextPrime(n) {
-  if (n < Number.MAX_SAFE_INTEGER) {
-    n = Number(n);
-    n += 1;
-    while (primeFactorUsingWheel(n) !== n) {
-      n += 1;
+function modInverseSmall(a, m) {
+  return modInverseN(true, a, m);
+}
+
+function modInverseBig(a, m) {
+  return modInverseN(false, a, m);
+}
+
+function modInverse(a, m) {
+  if (typeof m === "number") {
+    if (typeof a === "number") {
+      return modInverseSmall(a, m);
     }
-    return n;
+    return modInverseSmall(Number(BigInt(a) % BigInt(m)), m);
+  }
+  return modInverseBig(BigInt(a), BigInt(m));
+}
+
+function nextPrime(n) {
+  let i = Number(n);
+  i += 1;
+  while (i < Number.MAX_SAFE_INTEGER && !isPrime(i)) {
+    i += 1;
+  }
+  if (i < Number.MAX_SAFE_INTEGER) {
+    return i;
   }
   n = BigInt(n);
-  if (n < 2n) {
-    return 2n;
-  }
   n += 1n;
-  if (n % 2n === 0n) {
-    n += 1n;
+  if (n < BigInt(i)) {
+    n = BigInt(i);
   }
   while (!isPrime(n)) {
-    n += 2n;
+    n += 1n;
   }
   return n;
 }
@@ -568,4 +654,17 @@ primeFactor._countTrailingZeros = countTrailingZeros;
 primeFactor._someFactor = someFactor;
 primeFactor._modInverse = modInverse;
 primeFactor._nextPrime = nextPrime;
+
+primeFactor._modMultiplySmall = modMultiplySmall;
+primeFactor._modPowSmall = function (a, n, m) {
+  return modPowN(true, a, n, m);
+};
+primeFactor._modPow = function (a, n, m) {
+  return modPowN(false, a, n, m);
+};
+
+primeFactor.testables = {
+  brentWrapper: brentWrapper
+};
+
 export default primeFactor;

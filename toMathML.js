@@ -63,13 +63,19 @@ var decimalToMathML = function (decimal) {
          (groups.sign !== "" ? "<mrow>" : "") +
          (groups.sign === "+" ? "<mo>+</mo>" : "") +
          (groups.sign === "-" ? "<mo>&minus;</mo>" : "") +
-         "<mn>" + Expression.numberFormat.format(groups.significand.replace(/[\(\)]/g, '')).replace(/^[\s\S]+$/g, function (p) {
-           var i = groups.significand.indexOf('(');
-           var j = groups.significand.lastIndexOf(')');
-           return i === -1 || j === -1 ? p : p.slice(0, i) + '<span style="text-decoration:overline;">' + p.slice(i, j - 1) + '</span>' + p.slice(j - 1);
+         "<mn>" + numberFormat.format(groups.significand.replace(/[\(\)]/g, '')).replace(/^[\s\S]+$/g, function (p) {
+           var a = groups.significand.indexOf('(');
+           var b = groups.significand.lastIndexOf(')');
+           if (a === -1 || b === -1) {
+             return p;
+           }
+           const digitLength = numberFormat.format('0').trim().length;
+           var i = p.length - (groups.significand.length - a - '('.length - ')'.length) * digitLength;
+           var j = p.length - (groups.significand.length - b - ')'.length) * digitLength;
+           return p.slice(0, i) + '<span style="text-decoration:overline;">' + p.slice(i, j) + '</span>' + p.slice(j);
          }) + "</mn>" +
          (groups.sign !== "" ? "</mrow>" : "") +
-         (groups.exponent !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo>" + "<msup>" + "<mn>" + Expression.numberFormat.format('10') + "</mn>" + decimalToMathML(groups.exponent) + "</msup>" : "") +
+         (groups.exponent !== "" ? "<mo lspace=\"0\" rspace=\"0\">&sdot;</mo>" + "<msup>" + "<mn>" + numberFormat.format('10') + "</mn>" + decimalToMathML(groups.exponent) + "</msup>" : "") +
          (groups.exponent !== "" ? "</mrow>" : "");
 };
 
@@ -99,6 +105,9 @@ Expression._complexToMathML = complexToMathML;
     }
     if (e instanceof Expression.ExpressionPolynomialRoot) {
       return true;
+    }
+    if (e instanceof Expression.ExpressionWithPolynomialRoot) {
+      return isConstant(e.e);
     }
     if (e instanceof Expression.Symbol) {
       //return false;
@@ -315,7 +324,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
       while (++j < cols) {
         result += "<mtd" + (cellIdGenerator != undefined ? " id=\"" + cellIdGenerator(i, j) + "\"" : "") + ">";
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
-          result += "<mstyle mathvariant=\"bold\">";
+          result += "<mrow style=\"font-weight: bolder\">";
           result += "<menclose notation=\"circle\">";
         }
         if (horizontalStrike === i) {
@@ -324,6 +333,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
         if (verticalStrike === j) {
           result += "<menclose notation=\"verticalstrike\">";
         }
+        // <mpadded> is an extra element, it is too many elements if to use it, which can cause performance problems
         if (useColumnspacing) {
           result += "<mpadded width=\"+0.8em\" lspace=\"+0.4em\">";
         }
@@ -347,7 +357,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
         }
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
           result += "</menclose>";
-          result += "</mstyle>";
+          result += "</mrow>";
         }
         result += "</mtd>";
       }
@@ -379,7 +389,8 @@ Expression.Determinant.prototype.toMathML = function (options) {
     //TODO: fix
     return x.a.toMathML(options);
   }
-  return "<mrow><mo>|</mo>" + x.a.toMathML(options) + "<mo>|</mo></mrow>";
+  //return "<mrow><mo>|</mo>" + x.a.toMathML(options) + "<mo>|</mo></mrow>";
+  return Expression.Function.prototype.toMathML.call(this, options); // det(X)
 };
 Expression.Transpose.prototype.toMathML = function (options) {
   var x = this;
@@ -416,10 +427,10 @@ Expression.NthRoot.prototype.toMathML = function (options) {
   if (d != undefined) {
     return d;
   }
-  console.assert(typeof this.n === "number");
+  console.assert(typeof this.n === "number" && Math.floor(this.n) === this.n && this.n >= 3);
   return "<mroot>" +
          this.a.toMathML(Expression.setTopLevel(true, options)) +
-         "<mn>" + Expression.numberFormat.format(this.n.toString()) + "</mn>" +
+         "<mn>" + numberFormat.format(this.n.toString()) + "</mn>" +
          "</mroot>";
 };
 Expression.denotations = {};
@@ -461,8 +472,56 @@ Expression.Division.prototype.toMathML = function (options) {
 };
 
 Expression.numberFormat = {
+  format: function (number) {
+    return number.toString();
+  }
+};
+
+const decimalNumberRegExp = new RegExp('\\p{Decimal_Number}', 'u');
+const replaceSimpleDigit = function (codePoint) {
+  let i = 0;
+  while (decimalNumberRegExp.test(String.fromCodePoint(codePoint - i))) {
+    i += 1;
+  }
+  return i === 0 ? -1 : (i - 1) % 10;
+};
+
+// only for non-negative integers without groupping, but large
+var numberFormat = {
   format: function (string) {
-    return string;
+    var getDecimalSeparator = function () {
+      var s = Expression.numberFormat.format(1.5).trim();
+      var tmp = /[٫,\.]/.exec(s);
+      if (tmp == null) {
+        console.error(s);
+        return '.';
+      }
+      return tmp[0];
+    };
+    var getDecimalZeroOffset = function () {
+      var codePoint = Expression.numberFormat.format(0).trim().codePointAt(0);
+      var isDecimalZero = replaceSimpleDigit(codePoint) === 0;
+      if (!isDecimalZero) {
+        console.error(codePoint);
+        return 0;
+      }
+      return codePoint - "0".charCodeAt(0);
+    };
+    // This method is needed as native Intl.NumberFormat cannot format strings.
+    // https://github.com/tc39/ecma402/issues/334
+    var decimalSeparator = string.indexOf('.');
+    if (decimalSeparator !== -1) {
+      return numberFormat.format(string.slice(0, decimalSeparator)) + getDecimalSeparator() + numberFormat.format(string.slice(decimalSeparator + '.'.length));
+    }
+    var decimalZeroOffset = getDecimalZeroOffset();
+    if (decimalZeroOffset === 0) {
+      return string;
+    }
+    var result = "";
+    for (var i = 0; i < string.length; i += 1) {
+      result += String.fromCodePoint(decimalZeroOffset + string.charCodeAt(i));
+    }
+    return result;
   }
 };
 
@@ -475,7 +534,7 @@ Expression.Integer.prototype.toMathML = function (options) {
   var sign = x.compareTo(Expression.ZERO) < 0 ? '-' : '';
   var abs = x.compareTo(Expression.ZERO) < 0 ? x.negate() : x;
   var s = abs.value.toString();
-  var tmp = Expression.numberFormat.format(s);
+  var tmp = numberFormat.format(s);
   return sign === "-" ? "<mrow>" + "<mo>&minus;</mo>" + "<mn>" + tmp + "</mn>" + "</mrow>" : "<mn>" + tmp + "</mn>";
 };
 Expression.BinaryOperation.prototype.toMathML = function (options) {
@@ -580,7 +639,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
     return Expression.isScalar(e.unwrap()) || e.unwrap() instanceof Expression.MatrixSymbol;
   };
   var base = function (e) {
-    return e instanceof Expression.Exponentiation && e.b.unwrap() instanceof Expression.Integer ? e.a.unwrap() : e;
+    return e instanceof Expression.Exponentiation && (e.b.unwrap() instanceof Expression.Integer || e.b.unwrap() instanceof Expression.Symbol && e.b.unwrap().symbol === "T") ? e.a.unwrap() : e;
   };
   var canUseInvisibleTimes = function (e) {
     return !fa && !fb && (e.a.unwrap() instanceof Expression.Integer || base(e.a.unwrap()) instanceof Expression.Symbol || e.a.unwrap() instanceof Expression.Multiplication && base(e.a.unwrap().b.unwrap()) instanceof Expression.Symbol) && (base(e.b.unwrap()) instanceof Expression.Symbol || options.rounding == null && e.b.unwrap() instanceof Expression.SquareRoot);
@@ -593,6 +652,9 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       var factor = x instanceof Expression.Multiplication ? x.b.unwrap() : x;
       if (!(base(factor).unwrap() instanceof Expression.Symbol && Expression.isScalar(factor))) {
         f = false;
+      }
+      if (factor instanceof Expression.ExpressionWithPolynomialRoot) {
+        f = false; // like a+b*i
       }
     }
     if (f) {
