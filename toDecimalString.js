@@ -1,6 +1,6 @@
 import Expression from './Expression.js';
 import primeFactor from './primeFactor.js';
-import {BigDecimal, BigFloat} from './BigDecimal/BigDecimal.js';
+import {BigDecimal, BigFloat} from './node_modules/@yaffle/bigdecimal/BigDecimal.js';
 
 const BASE = 2;
 //const BASE = 10;
