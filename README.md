@@ -121,17 +121,31 @@ Types
     .of(a0, a1, ...)
     .from(arrayLike)
     .pseudoRemainder(p1, p2)
+    .polynomialGCD(p1, p2)
+    .resultant(p1, p2)
     .toPolynomial(expression, variable)
+
     #getDegree()
     #getCoefficient(index)
     #getLeadingCoefficient() - same as p.getCoefficient(p.getDegree())
+    #getContent()
+
+    #add(other)
+    #multiply(other)
+    #scale(coefficient)
     #shift(n)
+    #divideAndRemainder(other)
+    #modularInverse(m)
+
     #getroots()
     #getZeros([precision, complex])
+    #numberOfRoots(interval)
     #calcAt(point)
-    #scale(coefficient)
-    #divideAndRemainder(other)
-    #getContent()
+
+    #_exponentiateRoots(n)
+    #_scaleRoots(s)
+    #_translateRoots(h)
+
     #factorize() - find some factor of a polynomial with integer coefficients
   ExpressionParser
     parse(string, context)
@@ -169,6 +183,8 @@ Types
       Expression.Complex
         real
         imaginary
+      Expression.ExpressionPolynomialRoot
+        root
 ```
 
 DEMO
