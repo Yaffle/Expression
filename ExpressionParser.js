@@ -85,28 +85,24 @@
     return a.transpose().complexConjugate();
   };
 
+  var inequalityOperator = function (name, sign) {
+    return new Operator(name, 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
+      return a.transformInequality(b, sign);//TODO:
+    });
+  };
+
   var operations = [
     new Operator("=", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
       return a.transformEquality(b);
     }),
-    new Operator("≠", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '!=');//TODO:
-    }),
-    new Operator("!=", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '!=');//TODO:
-    }),
-    new Operator(">", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '>');//TODO: ?
-    }),
-    new Operator("<", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '<');//TODO: ?
-    }),
-    new Operator("⩽", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '<=');//TODO: ?
-    }),
-    new Operator("⩾", 2, LEFT_TO_RIGHT, EQUALITY_PRECEDENCE, function (a, b) {
-      return a.transformInequality(b, '>=');//TODO: ?
-    }),
+
+    inequalityOperator('≠', '!='),
+    inequalityOperator('!=', '!='),
+    inequalityOperator('>', '>'),
+    inequalityOperator('<', '<'),
+    inequalityOperator('⩽', '>='),
+    inequalityOperator('⩾', '<='),
+
     new Operator(";", 2, LEFT_TO_RIGHT, COMMA_PRECEDENCE, function (a, b) {
       return a.transformComma(b);
     }),
@@ -233,6 +229,10 @@
     }),
     new Operator("ln", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.logarithm();
+    }),
+
+    new Operator("abs", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.abs();
     }),
 
     new Operator("\\left", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
@@ -709,7 +709,11 @@
             operand = tmp.result;
             token = tmp.token;
             token = parsePunctuator(tokenizer, token, "|");
-            operand = operand.determinant();//!
+            if (Expression.isScalar(operand)) {//TODO: !?
+              operand = operand.abs();
+            } else {
+              operand = operand.determinant();//!
+            }
           } else if (precedence < COMMA_PRECEDENCE) {
             //TODO: fix
             token = parsePunctuator(tokenizer, token, "|");

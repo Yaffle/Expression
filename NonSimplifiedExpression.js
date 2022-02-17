@@ -94,6 +94,9 @@
   NonSimplifiedExpression.prototype.cubeRoot = function () {
     return new NonSimplifiedExpression(new Expression.CubeRoot(this));
   };
+  NonSimplifiedExpression.prototype.abs = function () {
+    return new NonSimplifiedExpression(new Expression.Function("abs", this));
+  };
   NonSimplifiedExpression.prototype.cos = function () {
     return new NonSimplifiedExpression(new Expression.Function("cos", this));
   };
@@ -214,6 +217,9 @@
   };
   Expression.CubeRoot.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).cubeRoot();
+  };
+  Expression.NthRoot.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder)._nthRoot(this.n);
   };
   Expression.Function.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder)[this.name]();

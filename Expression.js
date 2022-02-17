@@ -1341,21 +1341,40 @@
     var a = i.next().value;
     var b = j.next().value;
     var result = Expression.ONE;
+    var added = false;
     while (a != null || b != null) {
       var f = null;
-      if (a instanceof Expression.Matrix || b instanceof Expression.Matrix) {
+      if (a instanceof Expression.Matrix &&
+          a.matrix.isScalar() &&
+          isScalar(a.matrix.e(0, 0)) && !a.matrix.e(0, 0).equals(Expression.ZERO) && //TODO: !?
+          b instanceof Expression.Matrix &&
+          b.matrix.isScalar() &&
+          isScalar(b.matrix.e(0, 0)) && !b.matrix.e(0, 0).equals(Expression.ZERO) && //TODO: !?
+          a.matrix.rows() === b.matrix.rows() && a.matrix.cols() === b.matrix.cols() &&
+          !a.equals(b)) {
+        var f = function (a, x) {
+          //return Expression._map(e => e.equals(a) ? a.matrix.divide(a.matrix.e(0, 0)) : e, a.matrix.e(0, 0).multiply(x));
+          return a.matrix.e(0, 0).multiply(x).multiply(a.inverse());
+        };
+        return addSimilar(f(a, x), f(b, y));
+      } else if (!added && (a instanceof Expression.Matrix || b instanceof Expression.Matrix) && (a == null || b == null || !a.equals(b))) {
+        added = true;
         f = (a == null ? c1 : a.multiply(c1)).add(b == null ? c2 : b.multiply(c2));
         c1 = Expression.ONE;
         c2 = Expression.ONE;
       } else {
         if (!a.equals(b)) {
-          throw new TypeError();
+          //throw new TypeError();
+          return null;
         }
         f = a;
       }
       result = f.multiply(result);//!TODO: depends on the iteration order !!!
       a = i.next().value;
       b = j.next().value;
+    }
+    if (!added) {
+      result = c1.add(c2).multiply(result);
     }
     return result;
   };
@@ -1473,8 +1492,14 @@
       } else {
         if (Expression.has(a, Expression.Matrix) || Expression.has(b, Expression.Matrix)) {
           var last = addSimilar(a, b);
-          if (!last.equals(Expression.ZERO)) {
-            s.push(last);
+          if (last != null) {
+            if (!last.equals(Expression.ZERO)) {
+              s.push(last);
+            }
+          } else {
+            //TODO: fix
+            s.push(a);
+            s.push(b);
           }
         } else {
           const constantA = getConstant(a, true);
@@ -4974,6 +4999,10 @@ if (simplifyIdentityMatrixPower) {
   Integer.prototype.modInverse = function (p) {
     return Expression.Integer.fromBigInt(primeFactor._modInverse(this.toBigInt(), p.toBigInt()));
   };
+  Integer.prototype.modulo = function modulo(p) {
+    const r = this.remainder(p);
+    return r.compareTo(Expression.ZERO) < 0 ? r.add(p) : r;
+  };
   // ---
 
 
@@ -5313,7 +5342,8 @@ if (simplifyIdentityMatrixPower) {
     if (withX == undefined) {
       if (e.getDenominator() instanceof Integer &&
           !(e.getNumerator() instanceof Expression.Matrix) &&
-          !Expression.has(e, Expression.MatrixSymbol)) {
+          !Expression.has(e, Expression.MatrixSymbol) &&
+          !e.equals(Expression.ZERO)) {
         if (typeof e.upgrade === "function") {//TODO:
           e = e.upgrade();
         }
@@ -5601,6 +5631,24 @@ if (simplifyIdentityMatrixPower) {
       }
     }
     return (count < 2 ? (this.polynomial.getLeadingCoefficient().equals(Expression.ONE) ? new Expression.Symbol("x") : new Expression.Multiplication(Expression.ONE, Expression.ONE)) : new Expression.Addition(Expression.ONE, Expression.ONE)).getPrecedence();
+  };
+  Expression.Polynomial.prototype.modulo = function (p) {
+    if (p instanceof Expression.Polynomial) {
+      return new Expression.Polynomial(this.polynomial.divideAndRemainder(p.polynomial).remainder);
+    }
+    throw new TypeError();
+  };
+  Expression.Polynomial.prototype.modInverse = function (p) {
+    if (p instanceof Expression.Polynomial) {
+      return new Expression.Polynomial(this.polynomial.primitivePart().modularInverse(p.polynomial).scale(this.polynomial.getContent().inverse()));
+    }
+    throw new TypeError();
+  };
+  Expression.Polynomial.prototype.isDivisibleBy = function (other) {
+    if (other instanceof Expression.Polynomial) {
+      return this.polynomial.isDivisibleBy(other.polynomial);
+    }
+    throw new TypeError();
   };
 
   Expression.sum = function (array) {
@@ -5931,43 +5979,28 @@ Expression.prototype._abs = function () {
   };
   Expression.prototype.transformComma = function (b) {
     var a = this;
-    if (a instanceof Expression.Equality && b instanceof Expression.Equality) {
-      return Expression.SystemOfEquations.from([{left: a.a, right: a.b}, {left: b.a, right: b.b}]);
-    }
-    if (a instanceof Expression.Equality && b instanceof Expression.NoAnswerExpression && b.name === 'system-of-equations') {
-      return Expression.SystemOfEquations.from([{left: a.a, right: a.b}].concat(b.second.equations));
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.Equality) {
-      return Expression.SystemOfEquations.from(a.second.equations.concat([{left: b.a, right: b.b}]));
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.Inequality) {
-      return Expression.SystemOfEquations.from(a.second.equations.concat([{left: b.a, right: b.b, sign: b.sign}]));
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'polynomial-roots' && b instanceof Expression.NoAnswerExpression && b.name === 'polynomial-roots') {
-      var ae = a.second.polynomial.calcAt(a.second.variable);
-      var be = b.second.polynomial.calcAt(b.second.variable);
-      //TODO: use original input expression
-      return Expression.SystemOfEquations.from([{left: ae, right: Expression.ZERO}, {left: be, right: Expression.ZERO}]);
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.NoAnswerExpression && b.name === 'polynomial-roots') {
-      var be = b.second.polynomial.calcAt(b.second.variable);
-      //TODO: do not use NonSimplifiedExpression - ? and systemo-of-equations (?) or change (!)
-      return Expression.SystemOfEquations.from(a.second.equations.concat([{left: be, right: Expression.ZERO}]));
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'polynomial-roots' && b instanceof Expression.NoAnswerExpression && b.name === 'system-of-equations') {
-      var ae = a.second.polynomial.calcAt(a.second.variable);
-      //TODO: do not use NonSimplifiedExpression - ? and systemo-of-equations (?) or change (!)
-      return Expression.SystemOfEquations.from([{left: ae, right: Expression.ZERO}].concat(b.second.equations));
-    }
-    if (a instanceof Expression.NoAnswerExpression && a.name === 'system-of-equations' && b instanceof Expression.NoAnswerExpression && b.name === 'system-of-equations') {
-      return Expression.SystemOfEquations.from(a.second.equations.concat(b.second.equations));
-    }
-    if (a instanceof Expression.Inequality && b instanceof Expression.Inequality) {
-      return Expression.SystemOfEquations.from([{left: a.a, right: a.b, sign: a.sign}, {left: b.a, right: b.b, sign: b.sign}]);
-    }
-    if (a instanceof Expression.Inequality && b instanceof Expression.NoAnswerExpression && b.name === 'polynomial-roots') {
-      var be = b.second.polynomial.calcAt(b.second.variable);
-      return Expression.SystemOfEquations.from([{left: a.a, right: a.b, sign: a.sign}, {left: be, right: Expression.ZERO}]);
+    var equations = function (e) {
+      if (e instanceof Expression.Equality) {
+        return [{left: e.a, right: e.b}];
+      }
+      if (e instanceof Expression.NoAnswerExpression && e.name === 'system-of-equations') {
+        return e.second.equations;
+      }
+      if (e instanceof Expression.Inequality) {
+        return [{left: e.a, right: e.b, sign: e.sign}];
+      }
+      if (e instanceof Expression.NoAnswerExpression && e.name === 'polynomial-roots') {
+        var ee = e.second.polynomial.calcAt(e.second.variable);
+        //TODO: use original input expression
+        return [{left: ee, right: Expression.ZERO}];
+      }
+      return null;
+    };
+    var ae = equations(a);
+    var be = equations(b);
+    //TODO: do not use NonSimplifiedExpression - ? and systemo-of-equations (?) or change (!)
+    if (ae != null && be != null) {
+      return Expression.SystemOfEquations.from(ae.concat(be));
     }
     throw new TypeError("NotSupportedError");
   };
@@ -6245,4 +6278,13 @@ Expression.Logarithm.prototype.complexConjugate = function () {
   Expression.AugmentedMatrix.prototype.toMathML = function (options) {
     //TODO:
     return '<mrow>' + '<mo>(</mo>' + this.a.toMathML(options) + '<mo>|</mo>' + this.b.toMathML(options) + '<mo>)</mo>' + '</mrow>';
+  };
+
+  Expression.Abs = function (a) {
+    Expression.Function.call(this, "argument", a);
+  };
+  Expression.Abs.prototype = Object.create(Expression.Function.prototype);
+  Expression.Abs.prototype.toMathML = function (options) {
+    //TODO:
+    return '<mrow>' + '<mo stretchy="false">|</mo>' + this.a.toMathML(options) + '<mo stretchy="false">|</mo>' + '</mrow>';
   };

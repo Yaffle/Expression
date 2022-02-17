@@ -4,6 +4,41 @@ import Expression from './Expression.js';
 import nthRoot from './nthRoot.js';
 import './node_modules/seedrandom/seedrandom.js';
 import combinations from './combinations.js';
+import IntPolynomial from './IntPolynomial.js';//?
+
+function toInt(c, p) {
+  if (p instanceof Expression.Integer) {
+    return Expression.Integer.fromBigInt(c);
+  }
+  return c;
+}
+
+function fromInt(c) {
+  if (c instanceof Expression.Integer) {
+    return c;
+  }
+  return Expression.Integer.fromBigInt(c);
+}
+
+function toIntPolynomial(f, p) {
+  if (p instanceof Expression.Integer) {
+    return f.mod(p);
+  }
+  var ep = Expression.Integer.fromBigInt(p);
+  var coefficients = new Array(f.getDegree() + 1);
+  for (var i = 0; i < coefficients.length; i += 1) {
+    coefficients[i] = f.getCoefficient(i).modulo(ep).toBigInt();
+  }
+  return IntPolynomial.from(coefficients);
+}
+
+function fromIntPolynomial(f) {
+  var coefficients = new Array(f.getDegree() + 1);
+  for (var i = 0; i < coefficients.length; i += 1) {
+    coefficients[i] = Expression.Integer.fromBigInt(f.getCoefficient(i));
+  }
+  return Polynomial.from(coefficients);
+}
 
 // Books:
 // Henri Cohen "A Course in Computational Algebraic Number Theory"
@@ -14,7 +49,7 @@ import combinations from './combinations.js';
 // https://en.wikipedia.org/wiki/Factorization_of_polynomials#Factoring_univariate_polynomials_over_the_integers
 
 
-const nextPrime = primeFactor._nextPrime;
+const isPrime = primeFactor._isPrime;
 
 function ExtendedEuclideanAlgorithm(A, B, p) {
   // U * A + V * B = gcd(A, B) (mod p)
@@ -22,13 +57,16 @@ function ExtendedEuclideanAlgorithm(A, B, p) {
   B = B.mod(p);
   // https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm#Pseudocode
   let [old_r, r] = [A, B];
-  const ONE = Polynomial.of(Expression.ONE);//TODO: ?
-  let [old_s, s] = [ONE, Polynomial.ZERO];
-  let [old_t, t] = [Polynomial.ZERO, ONE];
-  while (!r.equals(Polynomial.ZERO)) {
+  const ZERO = Polynomial.of(Expression.ZERO);
+  const ONE = Polynomial.of(p.divide(p));//TODO: ?
+  let [old_s, s] = [ONE, ZERO];
+  let [old_t, t] = [ZERO, ONE];
+  while (r.getDegree() >= 0) {
     const multiplier = r.getLeadingCoefficient().modInverse(p);
-    const quotient = old_r.scale(multiplier).mod(p).divideAndRemainderModP(r.scale(multiplier).mod(p), "throw", p).quotient;
-    [old_r, r] = [r, old_r.subtract(quotient.multiply(r)).mod(p)];
+    const tmp = old_r.scale(multiplier).mod(p).divideAndRemainderModP(r.scale(multiplier).mod(p), p);
+    const quotient = tmp.quotient;
+    //[old_r, r] = [r, old_r.subtract(quotient.multiply(r)).mod(p)];
+    [old_r, r] = [r, tmp.remainder.scale(r.getLeadingCoefficient()).mod(p)];
     [old_s, s] = [s, old_s.subtract(quotient.multiply(s)).mod(p)];
     [old_t, t] = [t, old_t.subtract(quotient.multiply(t)).mod(p)];
   }
@@ -43,28 +81,26 @@ function ExtendedEuclideanAlgorithm(A, B, p) {
   };
 }
 
-
 // https://en.wikipedia.org/wiki/Factorization_of_polynomials_over_finite_fields#Equal-degree_factorization
 
-Expression.Integer.prototype.modulo = function modulo(p) {
-  const r = this.remainder(p);
-  return r.compareTo(Expression.ZERO) < 0 ? r.add(p) : r;
-};
-
-Polynomial.prototype.modPow = function (n, m, q) {
-  let p = this;
+function modPow(polynomial, n, m, q) {
+  let p = polynomial;
   let accumulator = null;
-  while (n.compareTo(Expression.ZERO) > 0) {
-    if (n.remainder(Expression.TWO).compareTo(Expression.ZERO) !== 0) {
+  while (!n.equals(Expression.ZERO)) {
+    if (!n.remainder(Expression.TWO).equals(Expression.ZERO)) {
       n = n.subtract(Expression.ONE);
-      accumulator = (accumulator == null ? p : accumulator.multiply(p).mod(q)).divideAndRemainderModP(m, "throw", q).remainder;
+      if (accumulator == null) {
+        accumulator = p;
+      } else {
+        accumulator = accumulator.multiply(p).mod(q).divideAndRemainderModP(m, q).remainder;
+      }
     } else {
       n = n.truncatingDivide(Expression.TWO);
-      p = p.multiply(p).mod(q).divideAndRemainderModP(m, "throw", q).remainder;
+      p = p.multiply(p).mod(q).divideAndRemainderModP(m, q).remainder;
     }
   }
   return accumulator;
-};
+}
 
 function distinctDegreeFactorization(f, p) {
   f = f.mod(p);
@@ -74,18 +110,18 @@ function distinctDegreeFactorization(f, p) {
   let fStar = f;
   fStar = toMonic(fStar, p);
   const q = p;
-  const x = Polynomial.of(Expression.ONE).shift(1);//TODO: ?
-  let xInQInI = x.modPow(q, fStar, q); // x**(q**i)
+  const x = f.constructor.from([toInt(0, p), toInt(1, p)]);//TODO: ?
+  let xInQInI = modPow(x, fromInt(q), fStar, q); // x**(q**i)
   while (fStar.getDegree() >= 2 * i) {
     //TODO: see the Wikipedia page for some optimizations - ?
-    const h = xInQInI.subtract(x).divideAndRemainderModP(fStar, "throw", q).remainder;
+    const h = xInQInI.subtract(x).divideAndRemainderModP(fStar, q).remainder;
     const g = gcdOfPolynomialsOverFiniteField(fStar, h, q);
     if (g.getDegree() !== 0) {
       S.push({factor: g, degree: i});
-      fStar = fStar.divideAndRemainderModP(g, "throw", q).quotient;
+      fStar = fStar.divideAndRemainderModP(g, q).quotient;
     }
     i = i + 1;
-    xInQInI = xInQInI.modPow(q, fStar, q);
+    xInQInI = modPow(xInQInI, fromInt(q), fStar, q);
   }
   if (fStar.getDegree() > 0) {
     S.push({factor: fStar, degree: fStar.getDegree()});
@@ -96,23 +132,23 @@ function distinctDegreeFactorization(f, p) {
   return S;
 }
 
-function randomBigInt(size, random = Math.random) {
+function randomBigInt0(size, random = Math.random) {
   console.assert(Math.floor(size) === size);
   if (size <= 52) {
     return Math.floor(random() * 2**size);
   }
   const q = Math.ceil(size / (2 * 52)) * 52;
-  return (BigInt(randomBigInt(size - q, random)) << BigInt(q)) + BigInt(randomBigInt(q, random));
+  return (BigInt(randomBigInt0(size - q, random)) << BigInt(q)) + BigInt(randomBigInt0(q, random));
 }
-function randomPolynomial(maxCoefficient, maxDegree, random) {
-  const maxCoefficientSize = maxCoefficient.bitLength();
-  const coefficients = new Array(maxDegree);
-  for (let i = 0; i < maxDegree; i += 1) {
-    coefficients[i] = Expression.Integer.fromBigInt(randomBigInt(maxCoefficientSize, random)).remainder(maxCoefficient);
+
+// [0; max - 1]
+function randomBigInt(max, random = Math.random) {
+  if (Number(max) <= 2**52) {
+    return Math.floor(random() * Number(max));
   }
-  return Polynomial.from(coefficients);
+  var size = Expression.Integer.fromBigInt(max).bitLength();
+  return (BigInt(randomBigInt0(size, random)) * BigInt(max)) >> BigInt(size);
 }
-Polynomial.random = randomPolynomial;//TODO: remove - ?
 
 function CantorZassenhausAlgorithm(f, p, factorsDegree) {
   f = f.mod(p);
@@ -126,15 +162,16 @@ function CantorZassenhausAlgorithm(f, p, factorsDegree) {
   Factors.push(f);
   const random = new Math.seedrandom('hello.');
   while (Factors.length < r) {
-    const h = randomPolynomial(q, n, random);
-    const ONE = Polynomial.of(Expression.ONE);
-    const g = h.modPow((q._pow(d).subtract(Expression.ONE)).truncatingDivide(Expression.TWO), f, q).subtract(ONE).divideAndRemainderModP(f, "throw", q).remainder;
+    const h = f.constructor.from(new Array(n).fill(q).map(q => toInt(randomBigInt(fromInt(q).toBigInt(), random), q)));
+    const ONE = f.constructor.from([toInt(1, p)]);
+    const qInDminusOneOverTwo = (fromInt(q)._pow(d).subtract(Expression.ONE)).truncatingDivide(Expression.TWO);
+    const g = modPow(h, qInDminusOneOverTwo, f, q).subtract(ONE).divideAndRemainderModP(f, q).remainder;
     const updatedFactors = [];
     for (const u of Factors) {
       const gcd = gcdOfPolynomialsOverFiniteField(g, u, q);
       if (gcd.getDegree() !== 0 && gcd.getDegree() !== u.getDegree()) {
         updatedFactors.push(gcd);
-        updatedFactors.push(u.divideAndRemainderModP(gcd, "throw", q).quotient);
+        updatedFactors.push(u.divideAndRemainderModP(gcd, q).quotient);
       } else {
         updatedFactors.push(u);
       }
@@ -143,7 +180,6 @@ function CantorZassenhausAlgorithm(f, p, factorsDegree) {
   }
   return Factors;
 }
-
 
 function factorizeOverTheFiniteField(f, p) {
   if (!isFactorizationOverZpSquareFree(f, p)) {
@@ -158,72 +194,22 @@ function factorizeOverTheFiniteField(f, p) {
   return factorization;
 }
 
-
-Polynomial.prototype.mod = function (m) {
-  return this.map(c => c.modulo(m));
-};
-Polynomial.prototype.mod2 = function (m) {
-  return this.mod(m).map(c => c.subtract(m).add(c).compareTo(Expression.ZERO) < 0 ? c : c.subtract(m));
-};
-
 function toMonic(f, p) {
-  if (f.getLeadingCoefficient().compareTo(Expression.ZERO) === 0) {
+  if (f.getDegree() < 0) {
     return f;
   }
-  const scale = f.getLeadingCoefficient().modInverse(p);
-  return f.map(c => c.multiply(scale).modulo(p));
+  const scale = toInt(fromInt(f.getLeadingCoefficient()).modInverse(fromInt(p)).toBigInt(), p);
+  return f.scale(scale).mod(p);
 }
 
-//@private
-Polynomial.prototype.divideAndRemainderModP = function (divisor, w, p) {
-  if (w !== "throw") {
-    throw new RangeError();
-  }
-  //const tmp = this.divideAndRemainder(divisor, "throw");
-  //return {quotient: tmp.quotient.mod(p), remainder: tmp.remainder.mod(p)};
-  const dividend = this;
-  const divisorLeadingCoefficient = divisor.getLeadingCoefficient();
-  if (divisorLeadingCoefficient.compareTo(Expression.ONE) !== 0) {
-    throw new RangeError();
-  }
-  const divisorDegree = divisor.getDegree();
-  //if (!divisor.mod(p).equals(divisor)) {
-  //  throw new RangeError();//TODO: REMOVE
-  //}
-  //let remainder = dividend;
-  let remainder = new Array(dividend.getDegree() + 1).fill(Expression.ZERO);
-  for (let i = 0; i < dividend.a.size; i += 1) {
-    remainder[dividend.a.degree(i)] = dividend.a.coefficient(i);
-  }
-  //let remainderDegree = remainder.getDegree();
-  let remainderDegree = remainder.length - 1;
-  let quotient = new Array(Math.max(remainderDegree - divisorDegree + 1, 0)).fill(Expression.ZERO);
-  while (remainderDegree >= divisorDegree) {
-    const n = remainderDegree - divisorDegree;
-    const q = remainder[remainderDegree];
-    //const q = remainder.getLeadingCoefficient();
-    quotient[n] = q;
-    //TODO: optimize
-    //remainder = remainder.subtract(divisor.shift(n).scale(q)).mod(p);
-    for (let j = 0; j < divisor.a.size; j += 1) {
-      const degree = divisor.a.degree(j);
-      const coefficient = divisor.a.coefficient(j);
-      remainder[degree + n] = remainder[degree + n].subtract(q.multiply(coefficient)).modulo(p);
-    }
-    while (remainderDegree >= 0 && remainder[remainderDegree].compareTo(Expression.ZERO) === 0) {
-      remainderDegree -= 1;
-    }
-  }
-  return {quotient: Polynomial.from(quotient), remainder: Polynomial.from(remainder)};
-};
+
 
 function gcdOfPolynomialsOverFiniteField(a, b, p) {
-  a = a.mod(p);
-  b = b.mod(p);
+  a = a.mod(p);//?
+  b = b.mod(p);//?
   b = toMonic(b, p);
-  //TODO: make monic - ?
-  while (!b.equals(Polynomial.ZERO)) {
-    let r = a.divideAndRemainderModP(b, "throw", p).remainder;
+  while (b.getDegree() >= 0) {
+    let r = a.divideAndRemainderModP(b, p).remainder;
     r = toMonic(r, p);
     a = b;
     b = r;
@@ -231,9 +217,13 @@ function gcdOfPolynomialsOverFiniteField(a, b, p) {
   return a;
 }
 
+function _gcdOfPolynomialsOverFiniteField0(a, b, p) {
+  return fromIntPolynomial(gcdOfPolynomialsOverFiniteField(toIntPolynomial(a, p), toIntPolynomial(b, p), p));
+}
+
 function isFactorizationOverZpSquareFree(u, prime) {
   const f = u;
-  return gcdOfPolynomialsOverFiniteField(f, f.derive(), prime).getDegree() === 0;
+  return gcdOfPolynomialsOverFiniteField(f, f.derive().mod(prime), prime).getDegree() === 0;
 }
 
 // The art of computer programming. Vol.2: Seminumerical algorithms, page 452
@@ -256,13 +246,21 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
   };
   const B = Math.min(getBound(u), getBound(u._exponentiateRoots(-1)));//TODO: REMOVE
 
-  let prime = undefined;
+  let prime = 0;
   const nextGoodPrime = function (integer) {
     let p = integer;
+    let pp = p;
     do {
-      p = Expression.Integer.fromBigInt(nextPrime(p.toBigInt()));
-    } while (u.getLeadingCoefficient().remainder(p).compareTo(Expression.ZERO) === 0 || !isFactorizationOverZpSquareFree(u, p));
-    return p;
+      do {
+        p = Expression.Integer.fromBigInt(p).add(Expression.TWO).toBigInt();
+      } while (!isPrime(p));
+      if (!useHenselLifting) {
+        pp = Expression.Integer.fromBigInt(p);
+      } else {
+        pp = p;
+      }
+    } while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(p)).equals(Expression.ZERO) || !isFactorizationOverZpSquareFree(toIntPolynomial(u, pp), pp));
+    return pp;
   };
   const log2 = function (b) {
     //TODO: ?
@@ -271,9 +269,9 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
   };
   //const useHenselLifting = true;//TODO: ?
   if (!useHenselLifting) {
-    prime = nextGoodPrime(Expression.TWO._pow(Math.ceil(1 + log2(u.getLeadingCoefficient().abs()) + B)));
+    prime = nextGoodPrime(Expression.TWO._pow(Math.ceil(1 + log2(u.getLeadingCoefficient().abs()) + B)).add(Expression.ONE).toBigInt());
   } else {
-    prime = nextGoodPrime(Expression.TWO);
+    prime = nextGoodPrime(1);
   }
   const tryMultiplePrimes = !useHenselLifting ? 0 : 2;
   if (tryMultiplePrimes !== 0) {
@@ -281,7 +279,8 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
     let bestFactorsNumber = 1 / 0;
     for (let tries = 0; tries < tryMultiplePrimes; tries += 1) {
       let factorsNumber = 0;
-      for (const entry of distinctDegreeFactorization(u, prime)) {
+      const ddfs = distinctDegreeFactorization(toIntPolynomial(u, prime), prime);
+      for (const entry of ddfs) {
         factorsNumber += (entry.factor.getDegree() / entry.degree);
       }
       if (bestFactorsNumber > factorsNumber) {
@@ -292,15 +291,20 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
     }
     prime = best;
   }
-  let factors = factorizeOverTheFiniteField(u, prime);
-  let q = prime;
+  let factors = factorizeOverTheFiniteField(toIntPolynomial(u, prime), prime).map(factor => useHenselLifting ? fromIntPolynomial(factor) : factor);
+  let q = 0;
   if (useHenselLifting) {
-    let e = Math.ceil((1 + log2(u.getLeadingCoefficient().abs()) + B) / Math.log2(prime.toNumber()));
-    if (useQuadraticHenselLift) {
-      e = Math.pow(2, Math.ceil(Math.log2(e)));
-    }
-    factors = HenselLifting(u, factors, prime, e);
-    q = prime._pow(e);
+    let e = Math.ceil((1 + log2(u.getLeadingCoefficient().abs()) + B) / Math.log2(prime));
+    //if (useQuadraticHenselLift) {
+    //  e = Math.pow(2, Math.ceil(Math.log2(e)));
+    //}
+    const p = Expression.Integer.fromNumber(prime);
+    factors[factors.length - 1] = factors[factors.length - 1].scale(u.getLeadingCoefficient().modulo(p)).mod(p);
+    factors = HenselLifting(u, factors, p, e);
+    q = p._pow(e);
+    factors = factors.map(factor => factor.scale(factor.getLeadingCoefficient().modulo(q).modInverse(q)).mod(q));//TODO: ?
+  } else {
+    q = prime;
   }
   //!!! (number of factors depends on the choise of prime numbers)
   //TODO: how to reduce number of iterations (?) (see Donald Knuth's book)
@@ -310,23 +314,24 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
     let combination = null;
     while ((combination = combinationsIterator.next().value) != null) {
       c += 1;
+      const lc = u.getLeadingCoefficient();
       // an optimization from the Donald Knuth's book, page 452
-      let productTrailingCoefficient = u.getLeadingCoefficient();
+      let productTrailingCoefficient = lc;
       for (const f of combination) {
         productTrailingCoefficient = productTrailingCoefficient.multiply(f.getCoefficient(0)).modulo(q);
       }
       productTrailingCoefficient = Polynomial.of(productTrailingCoefficient).mod2(q).getCoefficient(0);
-      if (u.getCoefficient(0).multiply(u.getLeadingCoefficient()).remainder(productTrailingCoefficient).equals(Expression.ZERO)) {
+      if (u.getCoefficient(0).multiply(lc).remainder(productTrailingCoefficient).equals(Expression.ZERO)) {
         let v = productModQ(combination, q);
-        console.assert(v.getLeadingCoefficient().compareTo(Expression.ONE) === 0);
-        v = v.scale(u.getLeadingCoefficient());
+        console.assert(v.getLeadingCoefficient().equals(Expression.ONE));
+        v = v.scale(lc);
         v = v.mod2(q);
         //TODO: test, we need to try w(x) = productModQ(factors.filter(factor => combination.indexOf(factor) === -1), q) as well (see Donald Knuth's book) - ?
         console.assert(v.getDegree() < u.getDegree());
         //if (v.getDegree() <= u.getDegree() / 2 || v.getDegree() < u.getDegree()) {
           //v = v.primitivePart();
-          const tmp = u.scale(u.getLeadingCoefficient()).divideAndRemainder(v, "undefined");
-          if (tmp != undefined && tmp.remainder.equals(Polynomial.ZERO)) {
+          const tmp = u.scale(lc).divideAndRemainder(v, "undefined");
+          if (tmp != undefined && tmp.remainder.getDegree() < 0) {
             v = v.primitivePart();
             factors = factors.filter(factor => combination.indexOf(factor) === -1);
             combinationsIterator = combinations(factors, countOfFactors);//!?
@@ -340,15 +345,16 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
 if (c > 16) {
   console.debug(c);
 }
-  if (!polynomial.subtract(u).equals(Polynomial.ZERO)) {
+  if (polynomial.subtract(u).getDegree() >= 0) {
     u = u.primitivePart();//?
     return u;
   }
   return null;
 }
 
-
-function HenselLift(C, A, B, U, V, q, r) { // q -> q * r
+// if q == p, then C = A * B (mod p) -> A1 * B1 (mod p**2), A1 = A (mod p) and B1 = B (mod p)
+function HenselLift(C, A, B, U, V, q, p) { // q -> q * p
+  // C = A * B mod p
   /*
   // https://www.csd.uwo.ca/~mmorenom/CS874/Lectures/Newton2Hensel.html/node17.html#eq:FactorizationLiftingProblem
   //C = C.map(c => new IntegerModuloPrimeNumber(c, Expression.Integer.fromBigInt(p**2)))
@@ -361,117 +367,141 @@ function HenselLift(C, A, B, U, V, q, r) { // q -> q * r
   // http://tomlr.free.fr/Math%E9matiques/Math%20Complete/Number%20theory/A%20course%20in%20computational%20algebraic%20number%20theory%20-%20Cohen%20H..pdf
   // Algorithm 3.5.5 (Hensel Lift).
   // A,B,C are polynomials over Integers:
-  console.assert(A.hasIntegerCoefficients());
-  console.assert(B.hasIntegerCoefficients());
-  console.assert(C.hasIntegerCoefficients());
-  const f = C.subtract(A.multiply(B)).scale(q.inverse()).mod(r);
-  const t = V.multiply(f).mod(r).divideAndRemainderModP(A, "throw", r).quotient;
-  const A0 = V.multiply(f).subtract(A.multiply(t)).mod(r);
-  const B0 = U.multiply(f).add(B.multiply(t)).mod(r);
+  //console.assert(A.hasIntegerCoefficients());
+  //console.assert(B.hasIntegerCoefficients());
+  //console.assert(C.hasIntegerCoefficients());
+  console.assert(q.isDivisibleBy(p));
+  //C = C.mod(q.multiply(p));//TODO: ???
+  const f = C.subtract(A.multiply(B)).scale(q.inverse()).mod(p);
+  const tmp = V.multiply(f).mod(p).divideAndRemainderModP(A.mod(p), p);
+  const t = tmp.quotient;
+  //const A0 = V.multiply(f).subtract(A.multiply(t)).mod(p);
+  const A0 = tmp.remainder;
+  const B0 = U.multiply(f).add(B.mod(p).multiply(t)).mod(p);
   const A1 = A.add(A0.scale(q));
   const B1 = B.add(B0.scale(q));
-  return {A1: A1.mod(q.multiply(r)), B1: B1.mod(q.multiply(r))};
+  return [A1.mod(q.multiply(p)), B1.mod(q.multiply(p))];
 }
-function QuadraticHenselLift(C, A, B, U, V, q, p) {
+function QuadraticHenselLift(A1, B1, U, V, p) {
   // http://tomlr.free.fr/Math%E9matiques/Math%20Complete/Number%20theory/A%20course%20in%20computational%20algebraic%20number%20theory%20-%20Cohen%20H..pdf
   // Algorithm 3.5.6 
-  const tmp = HenselLift(C, A, B, U, V, q, p);
-  const A1 = tmp.A1;
-  const B1 = tmp.B1;
-  const g = Polynomial.of(Expression.ONE).subtract(U.multiply(A1)).subtract(V.multiply(B1)).scale(p.inverse()).mod(p);
-  const t = V.multiply(g).mod(q).divideAndRemainderModP(A1.mod(q), "throw", q).quotient;
-  const U0 = U.multiply(g).add(B1.multiply(t)).mod(q);
-  const V0 = V.multiply(g).subtract(A1.multiply(t)).mod(q);
+  const one = p.divide(p);
+  const g = Polynomial.of(one).subtract(U.multiply(A1)).subtract(V.multiply(B1)).scale(p.inverse()).mod(p);
+  const tmp = V.multiply(g).mod(p).divideAndRemainderModP(A1.mod(p), p);
+  const t = tmp.quotient;
+  const U0 = U.multiply(g).add(B1.mod(p).multiply(t)).mod(p);
+  //const V0 = V.multiply(g).subtract(A1.multiply(t)).mod(p);
+  const V0 = tmp.remainder;
   const U1 = U.add(U0.scale(p));
   const V1 = V.add(V0.scale(p));
-  //return HenselLift(C, A1, B1, U1, V1, BigInt(q) * BigInt(p.toBigInt()), BigInt(p.toBigInt()) * BigInt(p.toBigInt()));
-  return {A1: A1, B1: B1, U1: U1.mod(q.multiply(p)), V1: V1.mod(q.multiply(p))};
+  return [U1.mod(p.multiply(p)), V1.mod(p.multiply(p))];
 }
-const useQuadraticHenselLift = true;
 function HenselLiftingOfTwoFactors(C, A, B, p, k) {
-  if (useQuadraticHenselLift && k === Math.pow(2, Math.ceil(Math.log2(k)))) { // TODO: any degree
-    //TODO: ???
-    let q = p;
-    const tmp1 = ExtendedEuclideanAlgorithm(A, B, p);
-    console.assert(tmp1.gcd.getDegree() === 0);
-    let U = tmp1.U;
-    let V = tmp1.V;
+  const useQuadraticHenselLift = true;
+  const tmp1 = ExtendedEuclideanAlgorithm(A, B, p);
+  console.assert(tmp1.gcd.getDegree() === 0);
+  let U = tmp1.U;
+  let V = tmp1.V;
+  var ok = !(p instanceof Expression.Polynomial); // somehow the quadratic hensel lifting is slower in other case
+  if (useQuadraticHenselLift && ok) { // TODO: any degree
+    const pInK = p._pow(k);
     for (let i = 1; i < k / 2; i *= 2) {
-      const tmp = QuadraticHenselLift(C, A, B, U, V, q, p);
-      A = tmp.A1;
-      B = tmp.B1;
-      U = tmp.U1;
-      V = tmp.V1;
-      q = q.multiply(q);
+      [A, B] = HenselLift(C, A, B, U, V, p, p);
+      [U, V] = QuadraticHenselLift(A, B, U, V, p);
       p = p.multiply(p);
     }
-    const tmp = HenselLift(C, A, B, U, V, q, p);
-    A = tmp.A1;
-    B = tmp.B1;
-    return {A1: A, B1: B};
+    [A, B] = HenselLift(C, A, B, U, V, p, p);
+    //let q = p.multiply(p);
+    //TODO: !?
+    if (k !== Math.pow(2, Math.ceil(Math.log2(k)))) {
+      A = A.mod(pInK);
+      B = B.mod(pInK);
+    }
+    return [A, B];
   }
   //TODO: ?
   let q = p;
   for (let i = 1; i < k; i += 1) {
-    const tmp1 = ExtendedEuclideanAlgorithm(A, B, p);
-    console.assert(tmp1.gcd.getDegree() === 0);
-    const tmp = HenselLift(C, A, B, tmp1.U, tmp1.V, q, p);
-    A = tmp.A1;
-    B = tmp.B1;
+    [A, B] = HenselLift(C, A, B, U, V, q, p);
+    //console.assert(U.multiply(A).add(V.multiply(B)).mod(p).toString() === '1');
     q = q.multiply(p);
   }
-  return {A1: A, B1: B};
+  return [A, B];
 }
-//function product(factors) {
-//  console.assert(factors.length > 0);
-//  return factors.length > 1 ? product(factors.slice(0, Math.ceil(factors.length / 2))).multiply(product(factors.slice(Math.ceil(factors.length / 2)))) : factors[0];
-//}
 function productModQ(factors, q) {
   console.assert(factors.length > 0);
   return factors.length > 1 ? productModQ(factors.slice(0, Math.ceil(factors.length / 2)), q).multiply(productModQ(factors.slice(Math.ceil(factors.length / 2)), q)).mod(q) : factors[0];
 }
-function HenselLifting(f, factors, p, e) {
+function HenselLifting(C, factors, p, e) {
   // https://scholar.rose-hulman.edu/cgi/viewcontent.cgi?article=1163&context=math_mstr
   // "2.3 Factoring mod p e: Hensel Lifting"
-  let C = f;
-  let newFactors = [];
-  const c = C.getLeadingCoefficient().modulo(p);
-  if (c.compareTo(Expression.ONE) !== 0) {
-    factors = factors.concat([Polynomial.of(c)]);
+  if (factors.length === 1) {
+    return [C];
   }
-  if (true && factors.length > 1) {
-    //TODO: check this code !!!
-    // divide and conquer
-    let A = factors.slice(0, Math.ceil(factors.length / 2));
-    let B = factors.slice(Math.ceil(factors.length / 2));
-    const tmp = HenselLiftingOfTwoFactors(C, productModQ(A, p), productModQ(B, p), p, e);
-    if (c.compareTo(Expression.ONE) !== 0) {
-      B = B.slice(0, -1);
-    }
-    return HenselLifting(tmp.A1, A, p, e).concat(HenselLifting(tmp.B1, B, p, e));
-  }
-  for (let i = 0; i < factors.length - 1; i += 1) {
-    const A = factors[i];
-    const tmp = HenselLiftingOfTwoFactors(C, A, productModQ(factors.slice(i + 1), p), p, e);
-    newFactors.push(tmp.A1);
-    C = tmp.B1;
-  }
-  if (C.getDegree() > 0) {
-    newFactors.push(C);
-  } else {
-    console.assert(c.compareTo(Expression.ONE) !== 0);
-  }
-  const pInE = p._pow(e);
-  newFactors = newFactors.map(factor => toMonic(factor.mod(pInE), pInE));//TODO: ?
-  return newFactors;
+  // divide and conquer
+  const s = Math.ceil(factors.length / 2);
+  const A = factors.slice(0, s);
+  const B = factors.slice(s);
+  const [A1, B1] = HenselLiftingOfTwoFactors(C, productModQ(A, p), productModQ(B, p), p, e);
+  return HenselLifting(A1, A, p, e).concat(HenselLifting(B1, B, p, e));
 }
 
-//  import factorizeOverTheIntegers from './polynomialFactorization.js';
-Polynomial.prototype._factorizeOverTheIntegers = function () {
-  //return factorizeOverTheIntegers(this).next().value;
-  return factorizeOverTheIntegers(this);
-};
-Polynomial._gcdOfPolynomialsOverFiniteField = gcdOfPolynomialsOverFiniteField;//TODO: ?
+factorizeOverTheIntegers._gcdOfPolynomialsOverFiniteField0 = _gcdOfPolynomialsOverFiniteField0; //TODO: ?
+
+function factorizeMultivariateIntegerPolynomial(p) {
+  // see "Art of Computer Programming, Volume 2: Seminumerical Algorithms"
+  function factorizeInternal(p) {//TODO: REMOVE
+    var factors = [];
+    p = p.primitivePart();
+    var f = p.getDegree() > 1 ? (!p.hasIntegerCoefficients() ? p.factorize() : factorizeOverTheIntegers(p)) : null;//TODO: ?
+    if (f != null) {
+      factors = factors.concat(factorizeInternal(f));
+      factors = factors.concat(factorizeInternal(p.divideAndRemainder(f, "throw").quotient));
+    } else {
+      factors.push(p);
+    }
+    return factors;
+  }
+  var degreeByY = 0;
+  for (var i = 0; i <= p.getDegree(); i += 1) {
+    if (!(p.getCoefficient(i).equals(Expression.ZERO))) {
+      degreeByY = Math.max(degreeByY, p.getCoefficient(i).polynomial.getDegree());
+    }
+  }
+  //if (degreeByY > p.getDegree()) {
+  //  return toPolynomialByAnotherVar(factorizeMultivariateIntegerPolynomial(toPolynomialByAnotherVar(p)));
+  //}
+  //degreeByY = Math.pow(2, Math.ceil(Math.log2(degreeByY + 1))) - 1;//!?
+  for (var y = 0;; y += 1) {
+    var p_r = p.map(c => c.polynomial.calcAt(Expression.Integer.fromNumber(y)));
+    if (p_r.getDegree() === p.getDegree() && p_r.isSquareFreePolynomial()) {
+      var factors = Array.from(factorizeInternal(p_r)).map(f => f.map(c => new Expression.Polynomial(Polynomial.of(c))));
+      if (factors.length < 2) {
+        return null; // primitive (?)
+      }
+      var s = new Expression.Polynomial(Polynomial.of(p_r.getContent()));
+      factors[factors.length - 1] = factors[factors.length - 1].scale(s);
+      const r = new Expression.Polynomial(Polynomial.of(Expression.Integer.fromNumber(0 - y), Expression.ONE));
+      var q = r._pow(degreeByY + 1);
+      factors = HenselLifting(p, factors, r, degreeByY + 1);
+      console.assert(p.subtract(productModQ(factors, q)).mod(q).toString() === '0');
+      for (var number = 1; number <= factors.length - 1; number += 1) {
+        for (var c of combinations(factors, number)) {
+          var candidate = productModQ(c, q);
+          candidate = candidate.scale(p.getLeadingCoefficient()).mod(q);
+          if (candidate._hasIntegerLikeCoefficients()) {
+            candidate = candidate.primitivePart();
+            if (p.scale(p.getLeadingCoefficient()._pow(p.getDegree() - candidate.getDegree() + 1)).isDivisibleBy(candidate)) {
+              return candidate;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+factorizeOverTheIntegers._factorizeMultivariateIntegerPolynomial = factorizeMultivariateIntegerPolynomial;
 
 export default factorizeOverTheIntegers;
 
@@ -479,9 +509,16 @@ factorizeOverTheIntegers.testables = {
   gcdOfPolynomialsOverFiniteField: gcdOfPolynomialsOverFiniteField,
   distinctDegreeFactorization: distinctDegreeFactorization,
   CantorZassenhausAlgorithm: CantorZassenhausAlgorithm,
+  isFactorizationOverZpSquareFree: isFactorizationOverZpSquareFree,
   factorizeOverTheFiniteField: factorizeOverTheFiniteField,
+  modPow: modPow,
+
+  randomBigInt: randomBigInt,
+
   ExtendedEuclideanAlgorithm: ExtendedEuclideanAlgorithm,
   HenselLift: HenselLift,
+  QuadraticHenselLift: QuadraticHenselLift,
+  HenselLiftingOfTwoFactors: HenselLiftingOfTwoFactors,
   HenselLifting: HenselLifting,
-  randomBigInt: randomBigInt
+  productModQ: productModQ
 };

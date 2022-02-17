@@ -825,6 +825,12 @@
       return i !== j ? Expression.ZERO : e;
     }));
   };
+  Matrix.prototype.isScalar = function () {
+    var that = this;
+    return this.eql(this.map(function (e, i, j) {
+      return i !== j ? Expression.ZERO : that.e(0, 0);
+    }));
+  };
   Matrix.prototype.isNilpotent = function () {
     var x = this.map(function (e, i, j) {
       return j <= i ? Expression.ZERO : e;

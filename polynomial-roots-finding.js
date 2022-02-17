@@ -886,6 +886,7 @@ Expression.toPolynomialRoot = function (e) {
         };
         var bCandidates = getZeros1(resultant('a', 'b'));
         bCandidates = bCandidates.filter(c => Expression._isPositive(c));//!?
+        bCandidates = bCandidates.map(c => c instanceof ExpressionWithPolynomialRoot && c.root.polynomial.getDegree() / c.root.polynomial.getGCDOfTermDegrees() <= 2 ? c.upgrade() : c);//TODO: !?
         //!new
         if (true) {
           var A = Polynomial.toPolynomial(cpa, new Expression.Symbol('a')).map(c => Polynomial.toPolynomial(c, new Expression.Symbol('b')));
@@ -1212,6 +1213,12 @@ Expression.Division.prototype.abs = function () {
   return this.getNumerator().abs().divide(this.getDenominator().abs());
 };
 Expression.prototype.abs = function () {//TODO: remove - ?
+  if (this instanceof Expression.Symbol) {
+    return new Expression.Abs(this);//TODO: !?
+  }
+  if (this instanceof Expression.Multiplication) {
+    return this.a.abs().multiply(this.b.abs());
+  }
   if (this.compareTo(Expression.ZERO) < 0) {
     return this.negate();
   }

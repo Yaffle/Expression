@@ -124,3 +124,4 @@ globalThis.SturmSequence = SturmSequence;//TODO: ???
     return (aIsARoot ? 1 : 0) + (bIsARoot ? 1 : 0) + sturmSequence.numberOfRoots(interval);
   };
 
+export default SturmSequence;

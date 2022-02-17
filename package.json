@@ -9,8 +9,8 @@
   "dependencies": {
     "@yaffle/bigdecimal": "^1.0.25",
     "bigint-gcd": "^1.0.7",
-    "continuedfractionfactorization": "^1.0.2",
     "js-big-integer": "^3.0.20",
+    "quadraticsievefactorization": "^1.0.1",
     "seedrandom": "^3.0.5"
   },
   "deprecated": false,

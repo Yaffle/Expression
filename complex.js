@@ -193,8 +193,11 @@
         b = b.negate();
         a = a.negate();
       }
-      var sign = a.compareTo(Expression.ONE) < 0 ? Expression.ONE.negate() : Expression.ONE;
-      return a.add(b.truncatingDivide(Expression.TWO).multiply(sign)).truncatingDivide(b);
+      var e = b.truncatingDivide(Expression.TWO);
+      if (a.compareTo(Expression.ONE) < 0) {
+        e = e.negate();
+      }
+      return a.add(e).truncatingDivide(b);
     }
     var x = this;
     var n = y instanceof Expression.Integer ? x : x.multiply(y.conjugate());
