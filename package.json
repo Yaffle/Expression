@@ -44,8 +44,9 @@
     "url": "git+https://github.com/Yaffle/Expression.git"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install": "node ./post-install.js"
   },
   "type": "module",
-  "version": "0.0.35"
+  "version": "0.0.36"
 }

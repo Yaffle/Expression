@@ -160,7 +160,7 @@ function CantorZassenhausAlgorithm(f, p, factorsDegree) {
   const q = p;
   let Factors = [];
   Factors.push(f);
-  const random = new Math.seedrandom('hello.');
+  const random = Math.seedrandom != null ? new Math.seedrandom('hello.') : Math.random;
   while (Factors.length < r) {
     const h = f.constructor.from(new Array(n).fill(q).map(q => toInt(randomBigInt(fromInt(q).toBigInt(), random), q)));
     const ONE = f.constructor.from([toInt(1, p)]);

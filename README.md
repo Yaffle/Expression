@@ -12,7 +12,7 @@ or
 Usage example
 =============
 
-example.js:
+example.mjs:
 <!-- {% raw %} -->
 ```javascript
   import {ExpressionParser, Polynomial, Expression} from './node_modules/@yaffle/expression/index.js';
@@ -23,7 +23,7 @@ example.js:
 
   // Polynomial roots:
   var p = Polynomial.toPolynomial(ExpressionParser.parse("x^5−2x^4−11x^3+26x^2−2x−13"), ExpressionParser.parse("x"));
-  console.log(p.getZeros(5).result.map(x => x.toString({fractionDigits: 20})).toString()); // -3.41190231035920486644,-0.60930943815581736137,1.07534597839596488553,1.92498144931467217779,3.02088432080438516449
+  console.log(p.getZeros(5).map(x => x.toString({fractionDigits: 20})).toString()); // -3.41190231035920486644,-0.60930943815581736137,1.07534597839596488553,1.92498144931467217779,3.02088432080438516449
 
   // parse a matrix from a string:
   var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
@@ -47,6 +47,7 @@ example.js:
   console.log(ExpressionParser.parse('sqrt(2)').toMathML({fractionDigits: 100})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
 
   // simplify an expression:
+  const simplify = ExpressionParser.parse;
   console.log(simplify('x * y * -x / (x ^ 2)').toString()) // '-y'
 
   // parsing with substitutions:
@@ -72,19 +73,19 @@ example.js:
 ```
 <!-- {% endraw %} -->
 
-to run from a webbrowser create example.js (see above), example.html and open it in Firefox or Edge:
+to run from a webbrowser create example.mjs (see above), example.html, npm install http-server, npx http-server, and open it in a web browser:
 ====================================================================================================
 ```html
 <meta charset="utf-8" />
-<script type="module" src="example.js"></script>
+<script type="module" src="example.mjs"></script>
 ```
 See the console output.
 
-to run from the node.js create example.js (see above), then run:
+to run from the node.js create example.mjs (see above), then run:
 ================================================================
 ```sh
 npm install @yaffle/expression --save
-node --experimental-modules --loader @yaffle/expression/js-loader.mjs example.js
+node --experimental-modules example.mjs
 ```
 
 

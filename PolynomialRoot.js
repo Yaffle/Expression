@@ -1,6 +1,9 @@
 import primeFactor from './primeFactor.js';
 import nthRoot from './nthRoot.js';
 
+import Expression from './Expression.js'; //TODO: ?
+import Polynomial from './Polynomial.js';//TODO: !?
+
 // API:
 
 // a class for real algebraic numbers

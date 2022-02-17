@@ -2,7 +2,7 @@ import Expression from './Expression.js';
 import ExpressionParser from './ExpressionParser.js';
 import LazyPolynomialRoot from './PolynomialRoot.js';
 
-
+import Polynomial from './Polynomial.js';//TODO: !?
 
 
 var SimpleInterval = LazyPolynomialRoot.SimpleInterval;
