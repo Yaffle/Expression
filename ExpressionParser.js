@@ -234,6 +234,12 @@
     new Operator("abs", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.abs();
     }),
+    new Operator("conjugate", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.complexConjugate();
+    }),
+    new Operator("overline", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.complexConjugate();
+    }),
 
     new Operator("\\left", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
@@ -485,7 +491,7 @@
   // + https://en.wikipedia.org/wiki/Modern_Arabic_mathematical_notation#Mathematical_letters
   const greek = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho varsigma sigma tau upsilon phi chi psi omega".split(" ");
   const ARABIC_MATHEMATIC_LETTER = /(?:[\u0627\u066E\u062D\u062F\u0633\u0634\u0635\u0639\u0637\u06BE\u062A]|\u062d\u0640\u0640\u0640\u0640)(?![\u0600-\u06FF])/;
-  var symbols = new RegExp(/^(?:GREEK|circ|[a-zA-Zа-яА-Яα-ωß]|ARABIC_MATHEMATIC_LETTER)(?:\_[0-9]+|\_\([a-z0-9]+,[a-z0-9]+\)|[\u2080-\u2089]+)?/.source.replace(/GREEK/g, greek.join('|')).replace(/ARABIC_MATHEMATIC_LETTER/g, ARABIC_MATHEMATIC_LETTER.source));
+  var symbols = new RegExp(/^(?:GREEK|circ|∞|[a-zA-Zа-яА-Яα-ωß]|ARABIC_MATHEMATIC_LETTER)(?:\_[0-9]+|\_\([a-z0-9]+,[a-z0-9]+\)|[\u2080-\u2089]+)?/.source.replace(/GREEK/g, greek.join('|')).replace(/ARABIC_MATHEMATIC_LETTER/g, ARABIC_MATHEMATIC_LETTER.source));
   var superscripts = /^[\u00B2\u00B3\u00B9\u2070\u2071\u2074-\u207F]+/; // superscript characters "2310i456789+−=()n"
   var vulgarFractions = /^[\u00BC-\u00BE\u2150-\u215E]/;
   //var other = /^\S/u;
@@ -522,7 +528,7 @@
 
   var normalizeSubscripts = function (s) {
     var i = s.length - 1;
-    while (i >= 0 && s.charCodeAt(i) >= 0x2080) {
+    while (i >= 0 && s.charCodeAt(i) >= 0x2080 && s.charCodeAt(i) <= 0x2089) {
       i -= 1;
     }
     return i === s.length - 1 ? s : s.slice(0, i + 1) + "_" + s.slice(i + 1).replace(/[\u2080-\u2089]/g, function (c) {
@@ -703,7 +709,7 @@
           operand = context.wrap(operand);
           token = nextToken(tokenizer);
         } else if (token.type === 'punctuator' && token.value === "|") {
-          if (left == undefined || !(left.unwrap() instanceof Expression.Matrix) && precedence < COMMA_PRECEDENCE) {//!
+          if (left == undefined || Expression.isScalar(left) && precedence < COMMA_PRECEDENCE) {//!
             token = parsePunctuator(tokenizer, token, "|");
             tmp = parseExpression(tokenizer, token, context, COMMA_PRECEDENCE, undefined);
             operand = tmp.result;
@@ -1068,6 +1074,9 @@
     }
     if (symbolName === "circ") { //TODO: ○ - ?
       return Expression.CIRCLE;
+    }
+    if (symbolName === "∞") {
+      return Expression.INFINITY;
     }
     return new Expression.Symbol(symbolName);
   };

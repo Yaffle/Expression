@@ -1,6 +1,5 @@
 import nthRoot from './nthRoot.js';
 //import bitLength from './bitLength.js';
-//import ContinuedFractionFactorization from './node_modules/continuedfractionfactorization/continuedFractionFactorization.js';
 import QuadraticSieveFactorization from './node_modules/quadraticsievefactorization/QuadraticSieveFactorization.js';
 import isPrime from './node_modules/quadraticsievefactorization/isPrime.js';
 
@@ -143,7 +142,7 @@ function abs(a) {
 // Pollard's rho implementation is stolen from:
 // https://github.com/jiggzson/nerdamer/blob/master/nerdamer.core.js
 // https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm#C_code_sample
-
+// TODO: library (?)
 function factorByPollardRho(n, x0 = 2n, c = 1n, maxIterations = 1 / 0) {
   
   const zero = n - n;
@@ -197,8 +196,9 @@ function factorByPollardRho(n, x0 = 2n, c = 1n, maxIterations = 1 / 0) {
               //cycleSize *= 2;
               x = productStart;
               found = true;
+            } else {
+              return factor;
             }
-            return factor;
           }
           product = one;
           productStart = x;
@@ -268,11 +268,11 @@ function someFactor(n) {
   //  return s === n ? BigInt(primeFactorUsingWheel(Number(s))) : s;
   //}
   if (x <= Number.MAX_SAFE_INTEGER) {
-    var pf = primeFactorUsingWheel(x, 1000);
+    var pf = primeFactorUsingWheel(x, 1024);
     if (pf < x) {
       return BigInt(pf);
     }
-    if (x <= 1000 * 1000) {
+    if (x <= 1024 * 1024) {
       return BigInt(pf);
     }
     if (x % 2 === 0) {
@@ -281,7 +281,7 @@ function someFactor(n) {
   }
 
   //! optimize n = f**2
-  var squareRoot = BigInt(nthRoot(n, 2));
+  var squareRoot = BigInt(nthRoot(BigInt(n), 2));
   if (squareRoot**2n === n) {
     return squareRoot;
   }
@@ -289,16 +289,20 @@ if (x > 5) {
   // https://en.wikipedia.org/wiki/Fermat%27s_factorization_method
   var a = squareRoot + 1n;
   var b2 = a*a - BigInt(n);
-  var b = BigInt(nthRoot(b2, 2));
+  var b = BigInt(nthRoot(BigInt(b2), 2));
   if (b*b === b2) {
     //console.debug("Fermat's method", n, a - b);
     return a - b;
   }
 }
+
   //! optimize n = f**3
-  var cubicRoot = BigInt(nthRoot(n, 3));
-  if (cubicRoot**3n === n) {
-    return cubicRoot;
+  var size = bitLength(BigInt(n));
+  for (var k = 3; k <= size / 10; k += 2) {
+    var root = BigInt(nthRoot(BigInt(n), k));
+    if (root**BigInt(k) === BigInt(n)) {
+      return root;
+    }
   }
 
   if (x <= Number.MAX_SAFE_INTEGER) {
@@ -313,6 +317,14 @@ if (x > 5) {
     };
     //TODO: estimate new limit
     var limit = Math.floor(Math.log(L(n)));
+    if (Number(n) <= 2**64) {
+      limit = 1 / 0;
+    }
+    if (Number(n) > 2**128) {
+      // try 2n**128n + 1n (large factors)
+      // try 516580063688473107036756944316883068479010630159425669n (small factor)
+      limit = limit - 2;
+    }
     var factor = factorByPollardRhoWrapper(n, limit);
     if (factor !== 1n) {
       return factor;
@@ -324,7 +336,6 @@ if (x > 5) {
         globalThis.onerror(error.message, "", 0, 0, error);
       }
     }
-    //return ContinuedFractionFactorization(n);
     return QuadraticSieveFactorization(n);
   }
   return factorByPollardRhoWrapper(n);
@@ -358,7 +369,8 @@ if (x > 5) {
         }
       }
       const ctz4 = function (x) {
-        return 32 - (Math.clz32(x & -x) + 1);
+        const n = +x;
+        return 32 - (Math.clz32(n & -n) + 1);
       };
       n += ctz4(Number(BigInt.asUintN(32, x)));
       return n;
@@ -569,8 +581,12 @@ primeFactor._isPrime = function (n) {
 primeFactor._countTrailingZeros = countTrailingZeros;
 primeFactor._someFactor = someFactor;
 primeFactor._modInverse = modInverse;
+primeFactor._integerNthRoot = function (a, n) {
+  return nthRoot(BigInt(a), n);
+};
 
 primeFactor.testables = {
+  factorByPollardRho: factorByPollardRho,
   factorByPollardRhoWrapper: factorByPollardRhoWrapper
 };
 

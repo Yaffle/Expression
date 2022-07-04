@@ -107,8 +107,8 @@
     if (a.rows() !== b.rows() || a.cols() !== b.cols()) {
       throw new RangeError("MatrixDimensionMismatchException");
     }
-    return a.map(function (elem, i, j) {
-      return elem.add(b.e(i, j));
+    return a.map(function (element, i, j) {
+      return element.add(b.e(i, j));
     });
   };
 
@@ -338,7 +338,7 @@
         // x == 0 && x**2 == 0 is false
         // x == 0 && y/x != 0 is false
         // x == 0 && y/x == 0 is false
-        return condition.updateExpression(e)
+        return condition.updateExpression(e);
       });
       previousPivot = condition.updateExpression(previousPivot);
     }
@@ -888,7 +888,7 @@
   Vector.prototype.dot = function (other) {
     let result = Expression.ZERO;
     for (let i = 0; i < Math.max(this.dimensions(), other.dimensions()); i += 1) {
-      var s = this.e(i).multiply(other.e(i).getNumerator() instanceof Expression.Complex ? other.e(i).getNumerator().conjugate().divide(other.e(i).getDenominator()) : other.e(i));
+      var s = this.e(i).multiply(other.e(i).complexConjugate());
       result = result === Expression.ZERO ? s : result.add(s);
     }
     return result;
@@ -905,14 +905,20 @@
     if (this.dimensions() !== other.dimensions()) {
       throw new RangeError("MatrixDimensionMismatchException");
     }
-    return new Vector(this.elements.map((e, i) => e.subtract(other.e(i))));
+    const n = this.dimensions();
+    const result = new Array(n);
+    for (let i = 0; i < n; i += 1) {
+      result[i] = this.e(i).subtract(other.e(i));
+    }
+    return new Vector(result);
   };
 
   Vector.prototype.eql = function (other) {
     if (this.dimensions() !== other.dimensions()) {
       throw new RangeError("MatrixDimensionMismatchException");
     }
-    for (var i = 0; i < this.dimensions(); i += 1) {
+    const n = this.dimensions();
+    for (var i = 0; i < n; i += 1) {
       if (!this.e(i).equals(other.e(i))) {
         return false;
       }

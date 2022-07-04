@@ -1,7 +1,6 @@
 import primeFactor from './primeFactor.js';
 import Polynomial from './Polynomial.js';
 import Expression from './Expression.js';
-import nthRoot from './nthRoot.js';
 import './node_modules/seedrandom/seedrandom.js';
 import combinations from './combinations.js';
 import IntPolynomial from './IntPolynomial.js';//?
@@ -240,7 +239,7 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
   const getBound = function (p) {
     if (checkBothVariants) {
       return Math.min(p._log2OfBoundForCoefficientsOfFactor(Math.floor(p.getDegree() / 2), p.getLeadingCoefficient().abs()),
-                      p._log2OfBoundForCoefficientsOfFactor(p.getDegree(), Expression.Integer.fromBigInt(nthRoot(p.getLeadingCoefficient().abs().toBigInt(), 2))));
+                      p._log2OfBoundForCoefficientsOfFactor(p.getDegree(), p.getLeadingCoefficient().abs()._integerNthRoot(2)));
     }
     return p._log2OfBoundForCoefficientsOfFactor(p.getDegree(), p.getLeadingCoefficient().abs());
   };
@@ -404,16 +403,29 @@ function HenselLiftingOfTwoFactors(C, A, B, p, k) {
   let V = tmp1.V;
   var ok = !(p instanceof Expression.Polynomial); // somehow the quadratic hensel lifting is slower in other case
   if (useQuadraticHenselLift && ok) { // TODO: any degree
-    const pInK = p._pow(k);
-    for (let i = 1; i < k / 2; i *= 2) {
+    const originalP = p;
+    let e = 1;
+    while (e < k / 2) {
       [A, B] = HenselLift(C, A, B, U, V, p, p);
       [U, V] = QuadraticHenselLift(A, B, U, V, p);
       p = p.multiply(p);
+      e *= 2;
+      if (true) {
+        var c = 1;
+        while (e * c < k) {
+          c *= 2;
+        }
+        if ((e - 1) * c >= k) {
+          e -= 1;
+          p = p.divide(originalP);
+        }
+      }
     }
     [A, B] = HenselLift(C, A, B, U, V, p, p);
-    //let q = p.multiply(p);
-    //TODO: !?
-    if (k !== Math.pow(2, Math.ceil(Math.log2(k)))) {
+    //p = p.multiply(p);
+    e *= 2;
+    if (e !== k) {
+      const pInK = originalP._pow(k);
       A = A.mod(pInK);
       B = B.mod(pInK);
     }

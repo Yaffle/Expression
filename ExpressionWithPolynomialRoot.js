@@ -38,6 +38,9 @@ PolynomialRootSymbol.prototype.toMathML = function (options) {
   return tmp;
 };
 
+PolynomialRootSymbol.prototype.isNegative = function () {
+  return this.sign() < 0;
+};
 
 Expression.PolynomialRootSymbol = PolynomialRootSymbol;
 

@@ -20,18 +20,63 @@
   import primeFactor from './primeFactor.js';
   import QuadraticInteger from './QuadraticInteger.js';
 
-  import nthRoot from './nthRoot.js';
   import bigIntGCD from './node_modules/bigint-gcd/gcd.js';
   import toDecimalStringInternal from './toDecimalString.js';
 
-  Math.gcd = function (a, b) {
-    while (b != 0) {
-      var t = a % b;
+  function gcdOfSafeIntegers(a, b) {
+    a = Math.abs(a);
+    b = Math.abs(b);
+    while (b !== 0) {
+      const r = a - Math.floor(a / b) * b;
       a = b;
-      b = t;
+      b = r;
     }
     return a;
+  }
+
+  Math.gcd = function (a, b) {
+    if (typeof a !== "number" &&
+        typeof b !== "number") {
+      throw new RangeError();
+    }
+    const maxSMI = 1073741823;
+    if ((a | 0) === a && Math.abs(a) <= maxSMI &&
+        (b | 0) === b && Math.abs(b) <= maxSMI) {
+      let A = Math.abs(a);
+      let B = Math.abs(b);
+      while (B !== 0) {
+        const R = A % B;
+        A = B;
+        B = R;
+      }
+      return A;
+    }
+    return gcdOfSafeIntegers(a, b);
   };
+
+  function bigIntGCDWrapper2(a, b) {
+    if (Math.abs(SmallBigInt.toNumber(a)) >= 1/0 && Math.abs(SmallBigInt.toNumber(b)) >= 1/0) {
+      var size = Math.min(Expression.Integer.fromBigInt(a).abs().bitLength(), Expression.Integer.fromBigInt(b).abs().bitLength());
+      size = Math.pow(2, Math.ceil(Math.log2(size)));
+      if (size >= 128 * 1024) {
+        if (size > lastMaxSize) {
+          lastMaxSize = size;
+          var error = new TypeError("big size of " + "gcd" + " " + size);
+          if (globalThis.onerror != null) {
+            globalThis.onerror(error.message, "", 0, 0, error);
+          }
+        }
+      }
+    }
+    return bigIntGCD(SmallBigInt.BigInt(a), SmallBigInt.BigInt(b));
+  }
+
+  function bigIntGCDWrapper(a, b) {
+    if (typeof a === "number" && typeof b === "number") {
+      return Math.gcd(a, b);
+    }
+    return bigIntGCDWrapper2(a, b);
+  }
 
   var pow = function (x, count, accumulator) {
     if (!(count >= 0)) {
@@ -133,7 +178,7 @@
           }
         }
         var result = Matrix.Zero(N.cols(), N.cols());
-        for (var k = 0; k < N.cols(); k += 1) {
+        for (var k = 0; k < N.cols() && (k === 0 || !N.isZero()); k += 1) {
           var Dnmk = D.map(function (e, i, j) {
             return i === j ? (e.equals(Expression.ZERO) ? Expression.ZERO : e.pow(n.subtract(Expression.Integer.fromNumber(k)))) : Expression.ZERO;
           });
@@ -420,6 +465,30 @@
 
   Expression.prototype.powExpression = function (x) {
     var y = this;
+    
+    if (y === Expression.INFINITY) {
+      if (Expression.isReal(x)) {
+        if (x.compareTo(Expression.ONE) > 0) {
+          //TODO: !? more arithmetic support for infinities (?)
+          //return Expression.INFINITY;
+          throw new RangeError("NotSupportedError");
+        }
+        if (x.compareTo(Expression.ONE) === 0) {
+          return Expression.ONE;
+        }
+        if (x.compareTo(Expression.ONE.negate()) > 0) {
+          return Expression.ZERO;
+        }
+        throw new RangeError("NotSupportedError");
+      }
+      var tmp = Expression.getComplexNumberParts(x);
+      if (Expression.isReal(tmp.real) && Expression.isReal(tmp.imaginary)) {
+        var rhorho = tmp.real._pow(2).add(tmp.imaginary._pow(2));
+        if (rhorho.compareTo(Expression.ONE) < 0) {
+          return Expression.ZERO;
+        }
+      }
+    }
 
     if (y instanceof Expression.Symbol && (y.symbol === "t" || y.symbol === "T")) {
       if (Expression.has(x, MatrixSymbol) || Expression.has(x, Expression.Matrix)) {//TODO: fix
@@ -562,7 +631,7 @@
     }
 
     //TODO:
-    if (x instanceof Expression.Matrix && isIntegerOrN(y)) {
+    if (x instanceof Expression.Matrix && (isIntegerOrN(y) || y === Expression.INFINITY)) {
       if (!x.matrix.isSquare()) {
         throw new RangeError("NonSquareMatrixException");
       }
@@ -747,7 +816,7 @@
     }
 
     if (enableEC) {
-      if (x === Expression.E && isConstant(y) && !has(y, Expression.Complex)) {
+      if (x === Expression.E && isConstant(y) && !has(y, Expression.Complex) && !has(y, Expression.Logarithm)) {
         return new Expression.Exponentiation(x, y);
       }
       if ((x instanceof Expression.Symbol || Expression.has(x, Expression.Symbol)) && y instanceof Expression.Division && y.getDenominator() instanceof Integer) {
@@ -874,6 +943,7 @@
       return getBase(x).pow(getExponent(x).multiply(y));
     }
     //!
+
     throw new RangeError("NotSupportedError");
   };
 
@@ -1122,6 +1192,16 @@
     }
     if (x instanceof Exponentiation && y instanceof Integer) {
       return multiplyByInteger(y, x);
+    }
+    //!new 2022-06-20
+    //TODO: FIX
+    if (getBase(x) instanceof Expression.MatrixSymbol || getBase(y) instanceof Expression.MatrixSymbol) {
+      c = compare4Multiplication(getBase(x), getBase(y));
+      if (c === 0) {
+        if (getExponent(x).equals(new Expression.Symbol("T")) || getExponent(y).equals(new Expression.Symbol("T"))) {
+          return new Multiplication(x, y);
+        }
+      }
     }
     if (x instanceof Exponentiation && y instanceof Expression.Symbol) {
       c = compare4Multiplication(getBase(x), y);
@@ -1806,20 +1886,7 @@
       y = y.imaginary;
     }
     if (x instanceof Expression.Integer && y instanceof Expression.Integer) {
-      if (Math.abs(y.toNumber()) >= 1/0 && Math.abs(x.toNumber()) >= 1/0) {
-        var size = Math.min(x.abs().bitLength(), y.abs().bitLength());
-        size = Math.pow(2, Math.ceil(Math.log2(size)));
-        if (size >= 128 * 1024) {
-          if (size > lastMaxSize) {
-            lastMaxSize = size;
-            var error = new TypeError("big size of " + "gcd" + " " + size);
-            if (globalThis.onerror != null) {
-              globalThis.onerror(error.message, "", 0, 0, error);
-            }
-          }
-        }
-      }
-      return Expression.Integer.fromBigInt(bigIntGCD(x.value, y.value));
+      return Expression.Integer.fromBigInt(bigIntGCDWrapper(x.value, y.value));
     }
     var a = x;
     var b = y;
@@ -3035,7 +3102,7 @@ if (simplifyIdentityMatrixPower) {
     if (SmallBigInt.toNumber(r) === 0) {
       return new Integer(q);
     }
-    var g = SmallBigInt.BigInt(bigIntGCD(r, b));
+    var g = SmallBigInt.BigInt(bigIntGCDWrapper(r, b));
     //if (BigInteger.notEqual(g, Expression.ONE.value)) {
       a = SmallBigInt.divide(a, g);
       b = SmallBigInt.divide(b, g);
@@ -3116,7 +3183,7 @@ if (simplifyIdentityMatrixPower) {
 
   Expression.Matrix.prototype.augment = function (other) {
     if (other instanceof Expression.IdentityMatrix) {
-      return new Expression.Matrix(this.matrix.augment(Matrix.I(this.matrix.cols())))
+      return new Expression.Matrix(this.matrix.augment(Matrix.I(this.matrix.cols())));
     }
     return new Expression.Matrix(this.matrix.augment(other.matrix));
   };
@@ -3779,7 +3846,12 @@ if (simplifyIdentityMatrixPower) {
       return x.real.compareTo(Expression.ZERO) < 0 || (x.real.compareTo(Expression.ZERO) === 0 && x.imaginary.compareTo(Expression.ZERO) < 0);
     }
     if (x instanceof Addition) {
-      return x.a.isNegative();
+      var e = x;
+      do {
+        e = e.a;
+      } while (e instanceof Addition);
+      return e.isNegative();
+      //return x.a.isNegative();
       //return x.a.isNegative() && x.b.isNegative();
     }
     if (x instanceof Multiplication) {
@@ -3887,10 +3959,10 @@ if (simplifyIdentityMatrixPower) {
   //}
 
   function isPerfectCube(n) {
-    return SmallBigInt.toNumber(SmallBigInt.subtract(SmallBigInt.exponentiate(SmallBigInt.BigInt(nthRoot(n, 3)), SmallBigInt.BigInt(3)), n)) === 0;
+    return SmallBigInt.toNumber(SmallBigInt.subtract(SmallBigInt.exponentiate(n._integerNthRoot(3).toBigInt(), SmallBigInt.BigInt(3)), n.toBigInt())) === 0;
   }
   function isPerfectSquare(n) {
-    return SmallBigInt.toNumber(SmallBigInt.subtract(SmallBigInt.exponentiate(SmallBigInt.BigInt(nthRoot(n, 2)), SmallBigInt.BigInt(2)), n)) === 0;
+    return SmallBigInt.toNumber(SmallBigInt.subtract(SmallBigInt.exponentiate(n._integerNthRoot(2).toBigInt(), SmallBigInt.BigInt(2)), n.toBigInt())) === 0;
   }
   var makeRoot = function (i, n) {
     return n === 1 ? i : (n === 2 ? new SquareRoot(i) : (n === 3 ? new CubeRoot(i) : new NthRoot(n + "-root", i, n)));
@@ -3922,7 +3994,7 @@ if (simplifyIdentityMatrixPower) {
           // a = sqrt(v+t)/sqrt(2)
           // b = sqrt(v-t)/sqrt(2)
           var tt = v.multiply(v).subtract(u.multiply(u));
-          if (tt instanceof Integer && !isPerfectSquare(tt.abs().value)) {
+          if (tt instanceof Integer && !isPerfectSquare(tt.abs())) {
             tt = null;
           }
           var t = tt instanceof Integer && tt.compareTo(Expression.ZERO) >= 0 ? tt.squareRoot() : undefined;
@@ -3962,7 +4034,7 @@ if (simplifyIdentityMatrixPower) {
             var f1 = function (aa) {
               var tmp = aa.divide(getConstant(aa));
               var c = Expression.getConjugate(tmp);
-              return c != null && c.multiply(tmp) instanceof Integer && isPerfectSquare(c.multiply(tmp).abs().toBigInt());
+              return c != null && c.multiply(tmp) instanceof Integer && isPerfectSquare(c.multiply(tmp).abs());
             };
             if (D instanceof Integer || f1(D)) {//TODO: FIX
               var sD = D.squareRoot();
@@ -3987,7 +4059,7 @@ if (simplifyIdentityMatrixPower) {
           var u = x.a;
           var v = x.b;
           var d = u.multiply(u).subtract(v.multiply(v));
-          if (isPerfectCube(d.toBigInt())) {//?
+          if (isPerfectCube(d)) {//?
             // (a+b)^3 = aaa+3aab+3bba+bbb = u+v
             // aaa+3bba = v, bb=(v-aaa)/(3a)
             // 3aab+bbb = u, b(3aa+bb)=u, b=u/(3aa+bb), bb=u**2/(3aa+bb)**2
@@ -4120,7 +4192,7 @@ if (simplifyIdentityMatrixPower) {
           var s = d.norm();
           // https://brownmath.com/alge/nestrad.htm#SurveyDoable
           //TODO: s >= 0 - ?
-          if (Number(d.b.toString()) !== 0 && Number(d.a.toString()) !== 0 && Number(s.toString()) >= 0 && isPerfectSquare(s)) {
+          if (Number(d.b.toString()) !== 0 && Number(d.a.toString()) !== 0 && Number(s.toString()) >= 0 && isPerfectSquare(Integer.fromBigInt(s))) {
             if (n === 2) {
             return x.toExpression().divide(d.toExpression())._nthRoot(2).multiply(d.toExpression()._nthRoot(2));
             }
@@ -4955,18 +5027,18 @@ if (simplifyIdentityMatrixPower) {
   Expression.Integer.prototype._nthRoot = function (n) {
     // for performance (?)
     //TODO: fix (more cases)
-    if (typeof n === "number" && n === 2 && this.equals(this.abs()) && isPerfectSquare(this.value)) {
-      return Integer.fromBigInt(nthRoot(this.toBigInt(), 2));
+    if (typeof n === "number" && n === 2 && this.equals(this.abs()) && isPerfectSquare(this)) {
+      return this._integerNthRoot(2);
     }
-    if (typeof n === "number" && n === 3 && isPerfectCube(this.value)) {
-      return Integer.fromBigInt(nthRoot(this.toBigInt(), 3));
+    if (typeof n === "number" && n === 3 && isPerfectCube(this)) {
+      return this._integerNthRoot(3);
     }
     //TODO: move !!!
     if (typeof n === "number" && n === 2 && this.equals(this.abs())) {
       var x = this;
       var a = Expression.ONE;
       var s = Expression.ONE;
-      while (!isPerfectSquare(x.value)) {
+      while (!isPerfectSquare(x)) {
         var f = Integer.fromBigInt(primeFactor(x.toBigInt()));
         var multiplicity = primeFactor._countTrailingZeros(x.toBigInt(), f.toBigInt());
         x = x.divide(f._pow(multiplicity));
@@ -4991,7 +5063,10 @@ if (simplifyIdentityMatrixPower) {
     if (this.sign() < 0) {
       return false;
     }
-    return isPerfectSquare(this.value);
+    return isPerfectSquare(this);
+  };
+  Integer.prototype._integerNthRoot = function (n) {
+    return new Integer(SmallBigInt.BigInt(primeFactor._integerNthRoot(this.toBigInt(), n)));
   };
   Integer.prototype.bitLength = function () {
     return primeFactor._bitLength(this.toBigInt());
@@ -5261,14 +5336,14 @@ if (simplifyIdentityMatrixPower) {
     } else if (e instanceof Expression.Radians) {
       return isConstant(e.value);
     //TODO:
-    //} else if (e instanceof Expression.Logarithm) {
-    //  return isConstant(e.a);//TODO: test
+    } else if (e instanceof Expression.Logarithm) {
+      return isConstant(e.a);//TODO: test
     } else if (e === Expression.E || e === Expression.PI) {
       return true;
     }
     return false;
   };
-
+  
   Expression.isConstant = isConstant;
 
   Expression.getMultivariatePolynomial = function (e) {
@@ -5480,6 +5555,7 @@ if (simplifyIdentityMatrixPower) {
   Expression.I = new Expression.Symbol("\u2148"); // ImaginaryUnit
 
   Expression.CIRCLE = new Expression.Symbol("○");
+  Expression.INFINITY = new Expression.Symbol("∞");
 
   Expression.prototype.addPosition = function () {
     return this;
@@ -5776,6 +5852,9 @@ Expression.Function.prototype.pow = function (y) {
       return new Expression.Exponentiation(this, y);
     }
     return Expression.prototype.pow.call(this, y);
+  }
+  if (isIntegerOrN(y) && y instanceof Expression.Symbol) {//TODO: !?
+    return new Expression.Exponentiation(this, y);
   }
   throw new RangeError("NotSupportedError");
 };
@@ -6245,7 +6324,7 @@ Expression.Exponentiation.prototype.complexConjugate = function () {
     return getBase(this).pow(getExponent(this).complexConjugate());
   }
   // complexConjugate(z**n) = complexConjugate(z)**n
-  if (getExponent(this) instanceof Expression.Integer) {//?
+  if (isIntegerOrN(getExponent(this))) {//?
     return getBase(this).complexConjugate().pow(getExponent(this));
   }
   if (isMatrixSymbolTranspose(this)) {
@@ -6281,7 +6360,7 @@ Expression.Logarithm.prototype.complexConjugate = function () {
   };
 
   Expression.Abs = function (a) {
-    Expression.Function.call(this, "argument", a);
+    Expression.Function.call(this, "abs", a);
   };
   Expression.Abs.prototype = Object.create(Expression.Function.prototype);
   Expression.Abs.prototype.toMathML = function (options) {

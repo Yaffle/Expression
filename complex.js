@@ -1,6 +1,5 @@
   import Expression from './Expression.js';
   import QuadraticInteger from './QuadraticInteger.js';
-  import nthRoot from './nthRoot.js';
 
   var Integer = Expression.Integer;
 
@@ -164,8 +163,18 @@
       if (f == undefined) {
         c = c.add(x);
       } else {
-        var fc = f.conjugate();
-        c = c.add(x.multiply(fc).divide(f.multiply(fc)).multiply(fc));
+        //var fc = f.conjugate();
+        //c = c.add(x.multiply(fc).divide(f.multiply(fc)).multiply(fc));
+        // faster:
+        var n = Expression.ONE;
+        for (var y of x.factors()) {
+          if (y instanceof Complex && f === y) {
+            n = n.multiply(y.conjugate());
+          } else {
+            n = n.multiply(y);
+          }
+        }
+        c = c.add(n);
       }
     }
     //!?
@@ -203,8 +212,8 @@
     var n = y instanceof Expression.Integer ? x : x.multiply(y.conjugate());
     var d = y instanceof Expression.Integer ? y : y.multiply(y.conjugate());
     //TODO: fix
-    var q1 = n instanceof Complex ? roundDivision(n.real, d) : roundDivision(n, d);
-    var q2 = n instanceof Complex ? roundDivision(n.imaginary, d) : Expression.ZERO;
+    var q1 = roundDivision(n instanceof Complex ? n.real : n, d);
+    var q2 = roundDivision(n instanceof Complex ? n.imaginary : Expression.ZERO, d);
     var q = q2.compareTo(Expression.ZERO) === 0 ? q1 : new Complex(q1, q2);
     var r =  x.subtract(y.multiply(q));
     if (norm(r).compareTo(norm(y)) >= 0) {

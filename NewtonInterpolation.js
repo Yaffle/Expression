@@ -10,8 +10,8 @@ const DefaultYField = {
   ONE: 1,
   sub: function (a, b) { return a - b; },
   mul: function (a, b) { return a * b; },
-  scale: function (a, s) { return a * Number(s); },
-  unscale: function (a, s) { return a / Number(s); }
+  div: function (a, b) { return a / b; },
+  scale: function (a, s) { return a * Number(s); }
 };
 
 let yField = DefaultYField;
@@ -23,7 +23,7 @@ function NewtonInterpolation() {
     let x = [];
     let diagonal = []; // [y_k], [y_(k-1), y_k], ..., [y_0, y_1, ..., y_k]
     let equidistantly = true;
-    let hInKTimeskFactorial = 1n; // h**k * k!
+    let hInKTimeskFactorial = yField.ONE; // h**k * k!
     let c = yField.ONE;
     let firstTime = true;
     const iterator = {
@@ -37,10 +37,10 @@ function NewtonInterpolation() {
           if (equidistantly && x.length >= 2 && x[x.length - 1] - x[x.length - 2] !== xi - x[x.length - 1]) {
             // https://en.wikipedia.org/wiki/Divided_differences#:~:text=The%20relationship%20between%20divided%20differences%20and%20forward%20differences%20is[4]
             const h = x[x.length - 1] - x[x.length - 2];
-            hInKTimeskFactorial = 1n;
+            hInKTimeskFactorial = yField.ONE;
             for (let k = 1; k < diagonal.length; k += 1) {
-              hInKTimeskFactorial *= BigInt(h) * BigInt(k);
-              diagonal[k] = yField.unscale(diagonal[k], hInKTimeskFactorial);
+              hInKTimeskFactorial = yField.scale(hInKTimeskFactorial, h * k);
+              diagonal[k] = yField.div(diagonal[k], hInKTimeskFactorial);
             }
             equidistantly = false;
           }
@@ -49,7 +49,7 @@ function NewtonInterpolation() {
             // https://en.wikipedia.org/wiki/Divided_differences#Example
             let difference = yField.sub(value, diagonal[i]);
             if (!equidistantly) {
-              difference = yField.unscale(difference, xi - x[x.length - 1 - i]);
+              difference = yField.div(difference, yField.scale(yField.ONE, xi - x[x.length - 1 - i]));
             }
             diagonal[i] = value;
             value = difference;
@@ -60,8 +60,8 @@ function NewtonInterpolation() {
           if (equidistantly && x.length >= 2) {
             const k = diagonal.length - 1;
             const h = x[x.length - 1] - x[x.length - 2];
-            hInKTimeskFactorial *= BigInt(h) * BigInt(k);
-            c = yField.unscale(c, hInKTimeskFactorial);
+            hInKTimeskFactorial = yField.scale(hInKTimeskFactorial, h * k);
+            c = yField.div(c, hInKTimeskFactorial);
           }
           return {value: c, done: false};
         }
@@ -114,4 +114,5 @@ NewtonInterpolation.setField = function (newYField) {
   yField = newYField || DefaultYField;
 };
 
+globalThis.NewtonInterpolation = NewtonInterpolation;
 export default NewtonInterpolation;

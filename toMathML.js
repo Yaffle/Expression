@@ -100,19 +100,6 @@ Expression._decimalToMathML = decimalToMathML;
 Expression._complexToMathML = complexToMathML;
 
   function isConstant(e) {
-    if (e instanceof Expression.PolynomialRootSymbol) {
-      return true;
-    }
-    if (e instanceof Expression.ExpressionPolynomialRoot) {
-      return true;
-    }
-    if (e instanceof Expression.ExpressionWithPolynomialRoot) {
-      return isConstant(e.e);
-    }
-    if (e instanceof Expression.Symbol) {
-      //return false;
-      return e === Expression.E || e === Expression.PI;
-    }
     if (e instanceof Expression.NonSimplifiedExpression) {
       return false;
     }
@@ -122,20 +109,7 @@ Expression._complexToMathML = complexToMathML;
     if (e instanceof Expression.Polynomial) {
       return false;
     }
-    if (e instanceof Expression.BinaryOperation) {
-      //return ((e.a === Expression.E || e.a === Expression.PI) || isConstant(e.a)) && isConstant(e.b);
-      return isConstant(e.a) && isConstant(e.b);
-    }
-    if (e instanceof Expression.Negation) {
-      return isConstant(e.b);
-    }
-    if (e instanceof Expression.Function) {
-      return isConstant(e.a);
-    }
-    if (e instanceof Expression.Radians) {
-      return isConstant(e.value);
-    }
-    return true;
+    return Expression.isConstant(e);
   }
 
 var groupByTerm = function (e) {

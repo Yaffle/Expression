@@ -355,17 +355,7 @@ Matrix.fromVectors = function (vectors) {
   return Matrix.Zero(dimensions, vectors.length).map((e, i, j) => vectors[j].e(i));
 };
 
-Expression.SVDDecomposition =
-Expression.SVDecomposition = function (matrix) {
-  //TODO: use T - for real, * - for complex
-  var link1 = 'https://people.math.carleton.ca/~kcheung/math/notes/MATH1107/wk12/12_singular_value_decomposition.html';
-  var link3 = 'https://www.youtube.com/watch?v=yA66KsFqUAE';
-  var link2 = 'https://en.wikipedia.org/wiki/Matrix_decomposition';
-  console.info('[Singular Value Decomposition](' + link1 + ')[*](' + link3 + ') is a [decomposition](' + link2 + ') `A = U*Σ*V^T`, where `U` and `V` are unitary matrices (`U*U^T=U^T*U=I` and `V*V^T=V^T*V=I`), `Σ` - a diagonal matrix with non-negative entries');
-  console.info('`A^T*A*V=(U*Σ*V^T)^T*U*Σ*V^T*V=V*Σ^2`, which means, that `A^T*A*v_i=v_i*σ_i^2` (where `v_i` - is a column vector of `V`), which means `v_i` is an eigenvector of `A^T*A`');//TODO: !?
-  console.info('A=%s', matrix);
-  console.info('1. Find eigenvalues and eigenvectors of `A^T*A`:');
-
+Expression.SVD = function (matrix) {
   // TODO: see email 
   // https://en.wikipedia.org/wiki/Singular_value_decomposition#Calculating_the_SVD
   // TODO: see https://web.mit.edu/be.400/www/SVD/Singular_Value_Decomposition.htm
@@ -408,40 +398,23 @@ Expression.SVDecomposition = function (matrix) {
     var geometricMultiplicity = V.length - diagonal.length;
     diagonal = diagonal.concat(new Array(geometricMultiplicity).fill(entry));
   }
-  console.info('   Orthonormalized eigenvectors:'); // v_1 = ..., v_2 = ... - column vectors
-  for (var i = 0; i < V.length; i += 1) {
-    console.info('   - v_' + (i + 1) + ' = %s', V[i]);
-  }
-  //TODO: property that distict eigenvalues have orthogonalized eigenvalues for symmetric matrices is used (link)
-
-  console.info('2. Construct matrix `Σ` from square roots of the eigenvalues corresponding to eigenvectors: ');
   var Sigma = Matrix.Zero(matrix.rows(), matrix.cols()).map((e, i, j) => (i === j && i < diagonal.length ? diagonal[i] : Expression.ZERO));
-  console.info('   Σ = %s ', Sigma);//TODO: [sqrt(lambda_i)]
 
   // see https://www.d.umn.edu/~mhampton/m4326svd_example.pdf
   //TODO: compute V or U using the property instead of the current variant of computation (?)
   
-  console.info('3. Find column vectors of `U`:');
-  console.info('   `A = U*Σ*V^T`, if we multiply both sides by `V`, then `A*V = U*Σ` (as `V^T*V=I`), so `A*v_i = u_i*σ_i`, and `u_i = A*v_i/σ_i`'); //TODO: link to better explanation (or just use the "column" vectors to show better)
   console.time('U');
   var U = [];
   for (var i = 0; i < Sigma.rows() && i < Sigma.cols() && !Sigma.e(i, i).equals(Expression.ZERO); i += 1) {
     //TODO: another method when multiplicity is 1 - ? (for performance)
     var u_i = matrix.multiply(V[i]).col(0).scale(Sigma.e(i, i).inverse());
     U.push(u_i);
-    console.info('   - u_' + (i + 1) + ' = %s', u_i);
   }
-  if (U.length < matrix.rows()) {
-    console.info('   We need to find few more vectors to build matrix `U`:');//?
-    console.info('   We find eigenvectors of `A*A^T` for zero eigenvalue:');
+  if (U.length < matrix.rows()) { // not enough vectors
     //TODO: details
     console.time('U1');
     var MMstar = matrix.multiply(matrix.conjugateTranspose());
     var U2b = helper(MMstar, Expression.ZERO);
-    console.info('   Orthonormalized eigenvectors:'); // u_1 = ..., u_2 = ... - column vectors
-    for (var i = 0; i < U2b.length; i += 1) {
-      console.info('   - u_' + (U.length + i + 1) + ' = %s', U2b[i]);
-    }
     console.timeEnd('U1');
     console.assert(U.length + U2b.length === matrix.rows());
     U = U.concat(U2b);
@@ -453,20 +426,21 @@ Expression.SVDecomposition = function (matrix) {
   //console.log(U.multiply(U.conjugateTranspose()).toString());
   //console.log(Vstar.multiply(Vstar.conjugateTranspose()).toString());
 
-  console.info('   It can be shown that the vectors of `U` are orthonormalized.');//?
   U = Matrix.fromVectors(U);
   V = Matrix.fromVectors(V);
-  console.info('U = %s, Σ = %s, V = %s', U, Sigma, V);
   return {U: U, Sigma: Sigma, Vstar: V.conjugateTranspose()};
 };
 
 Expression.QRDecomposition = function (matrix) {
   var A = matrix;
   // https://en.wikipedia.org/wiki/QR_decomposition#Example
-  var columnVectors = new Array(A.cols()).fill(undefined).map((e, i) => A.col(i));
+  var columnVectors = new Array(A.cols());
+  for (var i = 0; i < A.cols(); i += 1) {
+    columnVectors[i] = A.col(i);
+  }
   var U = GramSchmidtOrthogonalization(columnVectors).filter(vector => !vector.eql(Matrix.Vector.Zero(vector.dimensions())));
   var Q = Matrix.fromVectors(U.map(vector => vector.toUnitVector()));
-  var R = Q.transpose().multiply(A);
+  var R = Q.conjugateTranspose().multiply(A);
   console.log(Q);
   return {
     Q: Q,

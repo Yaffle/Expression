@@ -13,6 +13,7 @@ Condition.GTZ = " > 0";
 //Condition.GTEZ = " >= 0";
 
 Condition.prototype._and = function (operator, e) {
+  //console.log('_and', e.toString(), this === Condition.FALSE || this === Condition.TRUE ? '' : this.toString());
   if (operator !== Condition.NEZ && operator !== Condition.EQZ && operator !== Condition.GTZ) {
     throw new TypeError();
   }
@@ -490,8 +491,11 @@ Condition.prototype._and = function (operator, e) {
             }
             //return x.compare4Addition(y);
             //TODO: change Expression#compare4Addition - ?
-            var i = Array.from(x.divide(Expression.getConstant(x)).factors()).reverse().values();
-            var j = Array.from(y.divide(Expression.getConstant(y)).factors()).reverse().values();
+            var reversedFactors = function (e) {
+              return Array.from(e.divide(Expression.getConstant(e)).factors()).reverse().filter(e => !Expression.isConstant(e)).values();
+            };
+            var i = reversedFactors(x);
+            var j = reversedFactors(y);
             var a = i.next().value;
             var b = j.next().value;
             while (a != null && b != null) {
@@ -534,7 +538,12 @@ Condition.prototype._and = function (operator, e) {
           pivot = collapse(y.expression, pivot);
           for (var a of x.expression.summands()) {
             if (a.gcd(p)._abs().equals(p)) {
-              return addRest(add(newArray, {expression: x.expression.subtract(a.divide(pivot).multiply(y.expression)), operator: x.operator}), oldArray, i, y);
+              var newXExpression = x.expression.subtract(a.divide(pivot).multiply(y.expression));
+              //trying to avoid infinite recursion:
+              if (x.operator === Condition.EQZ) {//?
+                return addRest(add(newArray, {expression: newXExpression, operator: x.operator}), oldArray, i, y);
+              }
+              return addRest(add(newArray, y), oldArray, i, {expression: newXExpression, operator: x.operator});
             }
           }
         }
@@ -558,7 +567,7 @@ Condition.prototype._and = function (operator, e) {
                     //! 2020-07-05
                     var flag = false;
                     for (var ii = 0; ii < oldArray.length; ii++) {
-                      var n = oldArray[ii]
+                      var n = oldArray[ii];
                       if (n.operator === Condition.EQZ) {
                         var g = n.expression.gcd(rr.expression);
                         if (!g.equals(Expression.ONE) && !g.equals(Expression.ONE.negate())) {

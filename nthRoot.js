@@ -1,23 +1,23 @@
+
 // floor(S**(1/n)), S >= 1, n >= 2
 // https://en.wikipedia.org/wiki/Methods_of_computing_square_roots#Babylonian_method
 // https://stackoverflow.com/a/15979957/839199y
 function nthRoot(S, n) {
-  n = Number(n);
-  if (Math.floor(n) !== n || n < 1 || n > Number.MAX_SAFE_INTEGER) {
+  if (typeof S !== 'bigint' || typeof n !== 'number' || Math.floor(n) !== n || n < 1 || n > Number.MAX_SAFE_INTEGER) {
     throw new RangeError();
   }
   if (n === 1) {
     return S;
   }
-  const s = Math.floor(Number(S));
+  const s = Math.floor(Number(BigInt(S)));
   if (s === 0) {
-    return s;
+    return BigInt(s);
   }
   if (s < 0) {
     if (n % 2 === 0) {
       throw new RangeError();
     }
-    return -nthRoot(-S, n);
+    return -BigInt(nthRoot(-S, n));
   }
   const B = Number.MAX_SAFE_INTEGER + 1;
   const E = Math.floor(B / Math.pow(2, n === 2 ? 1 : (n === 3 ? 2 : (1 + Math.ceil(Math.log2(Math.log2(B)))))));
@@ -35,23 +35,23 @@ function nthRoot(S, n) {
       return Math.floor(g);
     }
     let y = Math.floor(g + 0.5);
-    if (BigInt(S) < BigInt(y)**BigInt(n)) {
+    if (S < BigInt(y)**BigInt(n)) {
       y -= 1;
     }
-    return y;
+    return BigInt(y);
   }
-  const size = BigInt(S).toString(16).length * 4; // TODO: bitLength(BigInt(S))
+  const size = S.toString(16).length * 4; // TODO: bitLength(S)
   if (size <= n) {
     return 1;
   }
   const half = Math.floor((Math.floor(size / n) + 1) / 2);
-  let x = (BigInt(nthRoot(BigInt(S) >> BigInt(half * n), n)) + 1n) << BigInt(half);
+  let x = (BigInt(nthRoot(S >> BigInt(half * n), n)) + 1n) << BigInt(half);
   let xprev = x + 1n;
   while (x < xprev) {
     xprev = x;
-    x = (BigInt(n - 1) * x + BigInt(S) / x**BigInt(n - 1)) / BigInt(n);
+    x = (BigInt(n - 1) * x + S / x**BigInt(n - 1)) / BigInt(n);
   }
-  return Number(xprev) <= Number.MAX_SAFE_INTEGER ? Number(xprev) : xprev;
+  return xprev;
 }
 
 export default nthRoot;

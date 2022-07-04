@@ -56,7 +56,7 @@ function MakeMath(BigDecimal, BASE) {
     return y;
   };
   return BigDecimalMath;
-};
+}
 
 const BigDecimalMath = MakeMath(BigDecimal, 10);
 const BigFloatMath = MakeMath(BigFloat, 2);

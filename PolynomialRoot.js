@@ -1,5 +1,4 @@
 import primeFactor from './primeFactor.js';
-import nthRoot from './nthRoot.js';
 
 import Expression from './Expression.js'; //TODO: ?
 import Polynomial from './Polynomial.js';//TODO: !?
@@ -120,23 +119,13 @@ SimpleInterval.intersection = function (a, b) {
   };
 };
 
-var toSimpleIntervalOld = function (e, precision) {
-  if (isRational(e)) {//TODO: REMOVE
-    return new SimpleInterval(e.getNumerator(), e.getNumerator()).scale(e.getDenominator().inverse());
-  }
-  var tmp = ExpressionParser.parse(toDecimalStringInternal(e, {significantDigits: precision}));
-  var epsilonInterval = new SimpleInterval(ExpressionParser.parse('1-5*10**-' + precision), ExpressionParser.parse('1+5*10**-' + precision));
-  var result = epsilonInterval.scale(tmp);
-  return result;
-};
-
 // TODO:
-var toSimpleIntervalNew = function (e, precision) { // precision - precision of the computation (?)
+const toSimpleInterval = function (e, precision) { // precision - precision of the computation (?)
   if (e instanceof Expression.Integer) {
     return new SimpleInterval(e, e);
   } else if (e instanceof Expression.BinaryOperation) {
-    var a = toSimpleIntervalNew(e.a, precision);
-    var b = toSimpleIntervalNew(e.b, precision);
+    var a = toSimpleInterval(e.a, precision);
+    var b = toSimpleInterval(e.b, precision);
     var s = e.getS();
     if (s === "+") {
       return a.add(b);
@@ -160,22 +149,22 @@ var toSimpleIntervalNew = function (e, precision) { // precision - precision of 
     if (e.a instanceof Expression.Integer && e.a.sign() > 0) {
       var a = e.a;
       var scale = Expression.TWO._pow(precision);
-      var numerator = Expression.Integer.fromBigInt(nthRoot(a.multiply(scale._pow(n)).toBigInt(), n));
+      var numerator = a.multiply(scale._pow(n))._integerNthRoot(n);
       return new SimpleInterval(numerator.divide(scale), numerator.add(Expression.ONE).divide(scale));
     }
-    var a = toSimpleIntervalNew(e.a, precision);
+    var a = toSimpleInterval(e.a, precision);
     if (n % 2 === 0) {
       //TODO: !?!?!
       var i = 2;
       while (a.a.getNumerator().sign() < 0 && a.b.getNumerator().sign() > 0) {
-        a = toSimpleIntervalNew(e.a, precision * i);
+        a = toSimpleInterval(e.a, precision * i);
         i *= 2;
       }
     }
     var f = function (x, n, rounding) {
       var scale = Expression.TWO._pow(precision);
       var e = rounding === 'floor' ? (x.getNumerator().sign() >= 0 ? Expression.ZERO : Expression.ONE.negate()) : (x.getNumerator().sign() < 0 ? Expression.ZERO : Expression.ONE);
-      return Expression.Integer.fromBigInt(nthRoot(x.getNumerator().multiply(x.getDenominator()._pow(n - 1)).multiply(scale._pow(n)).toBigInt(), n)).add(e).divide(scale.multiply(x.getDenominator()));
+      return x.getNumerator().multiply(x.getDenominator()._pow(n - 1)).multiply(scale._pow(n))._integerNthRoot(n).add(e).divide(scale.multiply(x.getDenominator()));
     };
     return new SimpleInterval(f(a.a, n, 'floor'), f(a.b, n, 'ceil'));
   } else {
@@ -189,17 +178,6 @@ var toSimpleIntervalNew = function (e, precision) { // precision - precision of 
   }
   debugger;
   throw new TypeError("?");
-};
-
-const toSimpleInterval = function (e, precision) {
-  //return toSimpleIntervalOld(e, precision);
-  return toSimpleIntervalNew(e, precision);
-  //var result = toSimpleIntervalOld(e, precision);
-  //var result2 = toSimpleIntervalNew(e, precision);
-  //if (SimpleInterval.intersection(result, result2) == null) {
-  //  debugger;
-  //}
-  //return result2;
 };
 
 function Helper(polynomial) {
@@ -360,9 +338,9 @@ PolynomialRoot.prototype.translate = function (k) {
 };
 
 PolynomialRoot.prototype.multiply = function (other) {
+  var that = this;
   //TODO: remove
 if (true) {
-  var that = this;
   let g = Math.gcd(that.polynomial.getGCDOfTermDegrees(), other.polynomial.getGCDOfTermDegrees());
   if (g > 1) {
     var tmp = that._pow(g).multiply(other._pow(g))._nthRoot(g);
@@ -386,7 +364,7 @@ if (true) {
 
 PolynomialRoot.prototype.add = function (other) {
   var that = this;
-  if (that.polynomial.isEven() && that.polynomial.equals(other.polynomial) && that.interval.a.equals(other.interval.b.negate()) && that.interval.b.equals(other.interval.a.negate())) {
+  if (that.polynomial.isEven() && that.polynomial.equals(other.polynomial) && that.equals(other.negate())) {
     return new PolynomialRoot(Polynomial.of(Expression.ONE).shift(1), new SimpleInterval(Expression.ONE.negate(), Expression.ONE));
   }
   // z = x + y, y = z - x
@@ -485,8 +463,18 @@ PolynomialRoot.prototype.equals = function (other) {
   if (this.polynomial.equals(other.polynomial) && this.interval.a.equals(other.interval.a) && this.interval.b.equals(other.interval.b)) {
     return true;
   }
-  if (SimpleInterval.intersection(this.interval, other.interval) == null) {
+  const intersection = SimpleInterval.intersection(this.interval, other.interval);
+  if (intersection == null) {
     return false;
+  }
+  if (this.polynomial.equals(other.polynomial)) {
+    const c = this.polynomial.numberOfRoots(intersection);
+    if (c === 1) {
+      return true;
+    } else if (c === 0) {
+      return false;
+    }
+    throw new TypeError();
   }
   //TODO: ?
   //return this.polynomial.equals(other.polynomial) && intersection(this.interval, other.interval) != null && this.add(other.negate()).equals(Expression.ZERO);
@@ -780,7 +768,7 @@ LazyPolynomialRoot.prototype.sign = function () {
       return -1;
     }
     precision *= 2;
-    console.info('hm...');
+    console.debug('hm...');
   }
 };
 LazyPolynomialRoot.prototype._pow = function (n) {
@@ -834,8 +822,7 @@ LazyPolynomialRoot.prototype.upgrade = function () {
 globalThis.testables = globalThis.testables || {};
 globalThis.testables.LazyPolynomialRoot = LazyPolynomialRoot;
 globalThis.testables.PolynomialRoot = PolynomialRoot;
-globalThis.testables.toSimpleIntervalOld = toSimpleIntervalOld;
-globalThis.testables.toSimpleIntervalNew = toSimpleIntervalNew;
+globalThis.testables.toSimpleInterval = toSimpleInterval;
 
 if (false) {//TODO: move to tests
   console.assert(Object.keys(PolynomialRoot).join(' ') === Object.keys(LazyPolynomialRoot).join(' '));

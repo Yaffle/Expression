@@ -200,6 +200,9 @@ var map = function (f, u) {
   if (u instanceof Expression.Inequality) {
     return f(map(f, u.a).transformInequality(map(f, u.b), u.sign));
   }
+  if (u instanceof Expression.ComplexConjugate) {
+    return f(map(f, u.a).complexConjugate());
+  }
   throw new TypeError();
 };
 
@@ -1086,7 +1089,7 @@ Expression.prototype.arctan = function () {
   if (x.isNegative()) {
     return x.negate().arctan().negate();
   }
-  if (Expression.isConstant(x)) {
+  if (Expression.isConstant(x) && !(x instanceof Expression.Logarithm)) {
     var value = Number(toDecimalStringInternal(x, {fractionDigits: 15}));
     console.assert(!Number.isNaN(value));
     var tmp = getlowestfraction(Math.atan(value) / Math.PI).split("/");

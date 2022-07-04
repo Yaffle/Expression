@@ -30,7 +30,7 @@ function abs(a) {
 }
 
   function ngcd(a, b) {
-    return BigInt(bigIntGCD(a, b));
+    return BigInt(bigIntGCD(BigInt(a), BigInt(b)));
   }
 
 // (a + b*sqrt(D))/(overTwo ? 2 : 1)
@@ -100,7 +100,7 @@ QuadraticInteger.prototype.norm = function () {
   if (typeof norm === "number" && Math.abs(norm) > Number.MAX_SAFE_INTEGER) {
     throw new TypeError();
   }
-  if (typeof this.a === "number" && norm >= -Number.MAX_SAFE_INTEGER && norm <= +Number.MAX_SAFE_INTEGER) {
+  if (typeof a === "number" && norm >= -Number.MAX_SAFE_INTEGER && norm <= +Number.MAX_SAFE_INTEGER) {
     norm = Number(norm);
   }
   return norm;
@@ -243,7 +243,7 @@ QuadraticInteger._factors = function (n) {
       var c = p;
       while (c > 0n) {
         if (canBePerfectSquare(c)) {
-          var a = BigInt(nthRoot(c, 2));
+          var a = BigInt(nthRoot(BigInt(c), 2));
           if (a * a === c) {
             if (norm(a, b) > 1n && hasDivisor(r, i, a, b)) {
               return b === 0n ? new Expression.Complex(Expression.ZERO, Expression.Integer.fromBigInt(a)) : new Expression.Complex(Expression.Integer.fromBigInt(a), Expression.Integer.fromBigInt(b));
@@ -310,14 +310,14 @@ function LegendreSymbol(a, p) {
       //}
       var guess = guess1;
       if (guess >= 0n) {
-        var a = BigInt(nthRoot(guess, 2));
+        var a = BigInt(nthRoot(BigInt(guess), 2));
         if (guess === a**2n) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D, overTwo);
         }
       }
       var guess = guess2;
       if (guess >= 0n) {
-        var a = BigInt(nthRoot(guess, 2));
+        var a = BigInt(nthRoot(BigInt(guess), 2));
         if (guess === a**2n) { // && ngcd(a, b) === 1
           return new QuadraticInteger(a, b, D, overTwo);
         }

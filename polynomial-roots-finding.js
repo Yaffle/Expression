@@ -4,7 +4,6 @@ import Polynomial from './Polynomial.js';
 import toDecimalStringInternal from './toDecimalString.js';
 import primeFactor from './primeFactor.js';
 import './polynomialFactorization.js';
-import nthRoot from './nthRoot.js';
 import ExpressionParser from './ExpressionParser.js';
 import ExpressionWithPolynomialRoot from './ExpressionWithPolynomialRoot.js';
 import LazyPolynomialRoot from './PolynomialRoot.js';
@@ -20,7 +19,7 @@ function ExpressionPolynomialRoot(root) {
     return root.e;
   }
   if (polynomial.getDegree() === 1 || polynomial.getDegree() === 2 || (polynomial.getDegree() === 4 && false) || polynomial.getDegree() === polynomial.getGCDOfTermDegrees()) {//TODO: other - ? like biqudratic - ?
-    var roots = polynomial.getroots();
+    var roots = polynomial.getDegree() === polynomial.getGCDOfTermDegrees() && polynomial.getDegree() % 2 === 1 ? [polynomial.getCoefficient(0).negate().divide(polynomial.getLeadingCoefficient())._nthRoot(polynomial.getDegree())] : polynomial.getroots();
     for (var rr of roots) {
       if (!Expression.has(rr, ExpressionPolynomialRoot)) {//?
         if (Expression._isPositive(rr.subtract(interval.a)) && Expression._isPositive(rr.subtract(interval.b).negate()) || rr.equals(interval.b) || rr.equals(interval.a)) {
@@ -473,7 +472,7 @@ Expression.toPolynomialRoot = function (e) {
     for (let i = 0; i <= this.getDegree() - 1; i += 1) {
       const v = this.getCoefficient(i).negate().truncatingDivide(an);
       if (v.sign() >= 0) {
-        const c = Expression.TWO.multiply(Expression.Integer.fromBigInt(nthRoot(v.toBigInt(), n - i)).add(Expression.ONE));
+        const c = Expression.TWO.multiply(v._integerNthRoot(n - i).add(Expression.ONE));
         if (M == null || M.compareTo(c) < 0) {
           M = c;
         }
@@ -615,6 +614,15 @@ Expression.toPolynomialRoot = function (e) {
       return f.map(c => c instanceof Expression.Integer ? c : c.real).hasRoot(polynomialRoot) && f.map(c => c instanceof Expression.Integer ? Expression.ZERO : c.imaginary).hasRoot(polynomialRoot);
     }
     //!
+    
+    if (!f.hasIntegerCoefficients() &&
+        !f.hasComplexCoefficients() &&
+        !f._testCoefficients(c => !Expression.has(c, Expression.Complex)) &&
+        f._testCoefficients(c => Expression.isConstant(c))) { // x-i^n
+      return f.map(c => Expression.getComplexNumberParts(c).real).hasRoot(polynomialRoot) &&
+             f.map(c => Expression.getComplexNumberParts(c).imaginary).hasRoot(polynomialRoot);
+    }
+
     var p = polynomialRoot.polynomial;
     var g = null;
     //!
@@ -744,7 +752,7 @@ Expression.toPolynomialRoot = function (e) {
 
     if (!f.hasIntegerCoefficients()) {
       //?new
-      var variable = new Expression.Symbol('$$')
+      var variable = new Expression.Symbol('$$');
       var e = f.calcAt(variable);
       var c = Expression.getConjugateExpression(e);
       if (c != null && !e.equals(c)) {
@@ -755,7 +763,7 @@ Expression.toPolynomialRoot = function (e) {
           var zero = tmp[i];
           if (zero instanceof ExpressionPolynomialRoot && zero.root.e.equals(new Expression.Symbol('α')) ? f.hasRoot(zero.root._root) :
               zero instanceof ExpressionWithPolynomialRoot && zero.e === zero.root ? f.hasRoot(zero.root) :
-              f.calcAt(zero).equals(Expression.ZERO)) {
+              (zero instanceof ExpressionWithPolynomialRoot ? zero._calc(f) : f.calcAt(zero)).equals(Expression.ZERO)) {
             result.push(zero);
           } else {
             //TODO:?
@@ -783,6 +791,7 @@ Expression.toPolynomialRoot = function (e) {
       }
       //!
       //?
+      console.debug('not all roots were found!!!');
       return [];
     }
 
@@ -902,14 +911,14 @@ Expression.toPolynomialRoot = function (e) {
               var B1 = B.map(c => c.calcAt(b));
               g = Polynomial.polynomialGCD(A1, B1);
             } else {
-              const bRootPolynomial = b.root.polynomial
+              const bRootPolynomial = b.root.polynomial;
               if (!previousPolynomial.equals(bRootPolynomial)) {
                 gp = polynomialGCDModuloPolynomial(A, B, bRootPolynomial);
                 gp = gp.map(c => c.polynomial);
                 previousPolynomial = bRootPolynomial;
               }
               //g = gp.map(c => c.calcAt(b));
-              g = gp.map(c => b._calc(c))
+              g = gp.map(c => b._calc(c));
               
               //debugger;
               //var res = Polynomial.toPolynomial(Polynomial.resultant(gp.map(c => new Expression.Polynomial(c)).calcAt(new Expression.Polynomial(Polynomial.of(RPN('a')))).polynomial.primitivePart(), bRootPolynomial), new Expression.Symbol("a")).primitivePart();
@@ -1151,14 +1160,10 @@ Polynomial._resultantUsingSubresultantPseudoRemainderSequence = function (A, B) 
 
 Expression._FIELD = {
   ONE: Expression.ONE,
-  add: function (a, b) { return a.add(b); },
   sub: function (a, b) { return a.subtract(b); },
   mul: function (a, b) { return a.multiply(b); },
-  scale: function (a, s) { return a.multiply(Expression.Integer.fromBigInt(s)); },
-  unscale: function (a, s) { return a.divide(Expression.Integer.fromBigInt(s)); },
   div: function (a, b) { return a.divide(b); },
-  parse: function (a) { return Expression.Integer.fromNumber(a); },
-  equals: function (a, b) { return a.equals(b); }
+  scale: function (a, s) { return a.multiply(Expression.Integer.fromBigInt(s)); }
 };
 
 Polynomial.resultant = function (p, q) {
@@ -1175,9 +1180,9 @@ Polynomial.resultant = function (p, q) {
 //  return Polynomial.toPolynomial(this.calcAt(variableMapFunction(variable)).getNumerator(), variable);
 //};
 
-
 function GramSchmidtOrthogonalization(vectors) {
   if (false) {
+    //TODO: remove (?)
     const V = vectors;
     const n = V[0].dimensions();
     const k = V.length;
@@ -1186,7 +1191,7 @@ function GramSchmidtOrthogonalization(vectors) {
     for (let i = 1; i < k; i += 1) {
         U[i] = V[i];
         for (let j = 0; j < i; j += 1) {
-            U[i] = U[i].subtract(U[j].scale(U[j].dot(U[i]).divide(U[j].dot(U[j]))));
+            U[i] = U[i].subtract(U[j].scale(U[i].dot(U[j]).divide(U[j].dot(U[j]))));
         }
     }
     return U;
@@ -1194,7 +1199,7 @@ function GramSchmidtOrthogonalization(vectors) {
   // https://en.wikipedia.org/wiki/Gram%E2%80%93Schmidt_process#Via_Gaussian_elimination
   var rowVectorsMatrix = Matrix.fromVectors(vectors).transpose();
   var A = rowVectorsMatrix;
-  var matrix = A.multiply(A.transpose()).augment(A).toRowEchelon(Matrix.Gauss, "row-reduction").matrix;
+  var matrix = A.multiply(A.conjugateTranspose()).augment(A).toRowEchelon(Matrix.Gauss, "row-reduction").matrix;
   var tmp = matrix.slice(0, matrix.rows(), A.rows(), matrix.cols());
   var result = new Array(tmp.rows());
   for (var i = 0; i < tmp.rows(); i += 1) {
@@ -1218,6 +1223,9 @@ Expression.prototype.abs = function () {//TODO: remove - ?
   }
   if (this instanceof Expression.Multiplication) {
     return this.a.abs().multiply(this.b.abs());
+  }
+  if (this instanceof Expression.Abs) {
+    return this;
   }
   if (this.compareTo(Expression.ZERO) < 0) {
     return this.negate();
@@ -1350,6 +1358,6 @@ function polynomialGCDModuloPolynomial(A, B, M) {
   return toMonic(modulo(A, M), M);
 }
 
-globalThis.testables = globalThis.testables || {}
+globalThis.testables = globalThis.testables || {};
 globalThis.testables.polynomialGCDModuloPolynomial = polynomialGCDModuloPolynomial;
 

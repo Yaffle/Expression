@@ -430,11 +430,11 @@
       if (w != undefined) {
         if (q instanceof Expression.Division) {
           if (w === "throw") {
-            throw new RangeError(); // AssertionError
+            throw new TypeError(this.toString() + " " + p.toString()); // AssertionError
           } else if (w === "undefined") {
             return undefined;
           } else {
-            throw new RangeError();
+            throw new TypeError();
           }
         }
       }
@@ -801,7 +801,7 @@
     if (true) {
       const g = Math.gcd(a.getGCDOfTermDegrees(), b.getGCDOfTermDegrees());
       if (g > 1) {
-        console.info('g > 1');
+        console.debug('g > 1');
         return gcdByModularAlgorithm(a._exponentiateRoots(g), b._exponentiateRoots(g))._exponentiateRoots(1 / g);
       }
     }
@@ -898,7 +898,7 @@
     if (true) {
       const g = Math.gcd(a.getGCDOfTermDegrees(), b.getGCDOfTermDegrees());
       if (g > 1) {
-        console.info('g > 1');
+        console.debug('g > 1');
         return gcdByMultivariateModularAlgorithm(a._exponentiateRoots(g), b._exponentiateRoots(g))._exponentiateRoots(1 / g);
       }
     }
@@ -935,7 +935,8 @@
     const cgcd = aByY.getContent().gcd(bByY.getContent()).polynomial.primitivePart();
     if (!cgcd.equals(Polynomial.of(Expression.ONE))) {
       const divide = function (p) {
-        return p.map(c => new Expression.Polynomial(c.polynomial.divideAndRemainder(cgcd, "throw").quotient))
+        const w = cgcd._hasIntegerLikeCoefficients(); //!new 2022-06-28
+        return p.map(c => new Expression.Polynomial(c.polynomial.divideAndRemainder(cgcd, w ? "throw" : undefined).quotient))
                 .calcAt(new Expression.Polynomial(Polynomial.of(y))).polynomial;
       };
       return gcdByMultivariateModularAlgorithm(divide(aByY), divide(bByY)).multiply(cgcd);
@@ -1004,11 +1005,14 @@
           if (!integerLikeCoefficientsPolynomials || g._hasIntegerLikeCoefficients()) {
             //TODO: multiply by d instead:
             g = toPolynomialByAnotherVar(toPolynomialByAnotherVar(g).primitivePart());
-            if (g.getContent().equals(Expression.ONE)) { // Polynomial#isDivisibleBy is not checking for integer division (?)
+            if (!integerLikeCoefficientsPolynomials || g.getContent().equals(Expression.ONE)) { // Polynomial#isDivisibleBy is not checking for integer division (?)
               if (a.isDivisibleBy(g) && b.isDivisibleBy(g)) {
                 g = g.map(c => c.polynomial.calcAt(y));
                 if (g.getLeadingCoefficient().isNegative()) {
                   g = g.negate();
+                }
+                if (!integerLikeCoefficientsPolynomials) {
+                  g = g.primitivePart();
                 }
                 return g;
               }
@@ -2072,19 +2076,23 @@
           };
         }
         continueWithNewPolynomial(depressedRoots, depressed, new Expression.Symbol('t'));//TODO: ?
+        if (depressedRoots.length > 0) {
           for (const depressedRoot of depressedRoots) {
             roots.push(depressedRoot.subtract(h));
           }
-          if (depressedRoots.length = depressed.getDegree()) {
+          if (depressedRoots.length === depressed.getDegree()) {
             np = Polynomial.of(np.getLeadingCoefficient());
           } else {
             //?
-            throw new TypeError();
+            console.warn('TODO:')
+            //throw new TypeError();
+            //TODO: !!!
           }
           //TODO: back substitution:
           //if (callback != undefined) {
           //  callback({content: content, roots: roots, newPolynomial: np, type: "t = x - b/(n*a)", g: "?"});//TODO: ?
           //}
+        }
           return roots;
       }
     }

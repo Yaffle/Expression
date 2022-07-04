@@ -360,7 +360,7 @@
     return ExpressionParser._getDecimalFraction(this.integer, this.transient, this.repetend, this.exponent);
   };
   Expression.DecimalFraction.prototype.toString = function () {
-    return (this.integer || '0') + '.' + (this.transient || '') + (this.repetend != undefined ? '(' + this.repetend + ')' : '') + (this.exponent != undefined ? 'E' + this.exponent : '')
+    return (this.integer || '0') + '.' + (this.transient || '') + (this.repetend != undefined ? '(' + this.repetend + ')' : '') + (this.exponent != undefined ? 'E' + this.exponent : '');
   };
 
   NonSimplifiedExpression.prototype.augment = function (other) {
