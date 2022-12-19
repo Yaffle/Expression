@@ -384,6 +384,14 @@ Expression.ComplexConjugate.prototype.toMathML = function (options) {
          "<mo>¯</mo>" +
          "</mover>";
 };
+Expression.Pseudoinverse.prototype.toMathML = function (options) {
+  var x = this;
+  var f = this.getPrecedence() >= x.a.getPrecedence();
+  return "<msup>" +
+         (f ? "<mrow><mo>(</mo>" : "") + x.a.toMathML(options) + (f ? "<mo>)</mo></mrow>" : "") +
+         "<mi><span title=\"pseudoinverse\">+</span></mi>" +
+         "</msup>";
+};
 Expression.SquareRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
   if (d != undefined) {
@@ -392,9 +400,6 @@ Expression.SquareRoot.prototype.toMathML = function (options) {
   return "<msqrt>" +
          this.a.toMathML(Expression.setTopLevel(true, options)) +
          "</msqrt>";
-};
-Expression.CubeRoot.prototype.toMathML = function (options) {
-  return Expression.NthRoot.prototype.toMathML.call(this, options);
 };
 Expression.NthRoot.prototype.toMathML = function (options) {
   var d = Expression.toDecimalString(this, options);
@@ -460,6 +465,12 @@ const replaceSimpleDigit = function (codePoint) {
   return i === 0 ? -1 : (i - 1) % 10;
 };
 
+let cachedFormatData = {
+  format: null,
+  decimalSeparator: '.',
+  decimalZeroOffset: 0
+};
+
 // only for non-negative integers without groupping, but large
 var numberFormat = {
   format: function (string) {
@@ -481,13 +492,20 @@ var numberFormat = {
       }
       return codePoint - "0".charCodeAt(0);
     };
+    if (cachedFormatData.format !== Expression.numberFormat) {
+      cachedFormatData = {
+        format: Expression.numberFormat,
+        decimalSeparator: getDecimalSeparator(),
+        decimalZeroOffset: getDecimalZeroOffset()
+      };
+    }
     // This method is needed as native Intl.NumberFormat cannot format strings.
     // https://github.com/tc39/ecma402/issues/334
     var decimalSeparator = string.indexOf('.');
     if (decimalSeparator !== -1) {
-      return numberFormat.format(string.slice(0, decimalSeparator)) + getDecimalSeparator() + numberFormat.format(string.slice(decimalSeparator + '.'.length));
+      return numberFormat.format(string.slice(0, decimalSeparator)) + cachedFormatData.decimalSeparator + numberFormat.format(string.slice(decimalSeparator + '.'.length));
     }
-    var decimalZeroOffset = getDecimalZeroOffset();
+    var decimalZeroOffset = cachedFormatData.decimalZeroOffset;
     if (decimalZeroOffset === 0) {
       return string;
     }
@@ -585,7 +603,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
   fb = fb || b.isUnaryPlusMinus();
   fb = fb || (this.unwrap() instanceof Expression.Exponentiation && b.unwrap() instanceof Expression.Exponentiation);// 2^3^4
   fa = fa || (this.unwrap() instanceof Expression.Exponentiation && a.unwrap() instanceof Expression.Function); // cos(x)^(2+3)
-  fa = fa || (options.rounding != null && isConstant(a) && Expression.has(a, Expression.Complex)); // sqrt(2)*(1+i)*x
+  fa = fa || (options.rounding != null && isConstant(a.unwrap()) && Expression.has(a.unwrap(), Expression.Complex)); // sqrt(2)*(1+i)*x
   var s = isSubtraction ? "-" : this.getS();
 
   if (this instanceof Expression.Exponentiation) {
@@ -629,6 +647,9 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       }
       if (factor instanceof Expression.ExpressionWithPolynomialRoot) {
         f = false; // like a+b*i
+      }
+      if (factor instanceof Expression.ExpressionPolynomialRoot) {
+        f = false;
       }
     }
     if (f) {

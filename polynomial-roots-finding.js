@@ -8,26 +8,38 @@ import ExpressionParser from './ExpressionParser.js';
 import ExpressionWithPolynomialRoot from './ExpressionWithPolynomialRoot.js';
 import LazyPolynomialRoot from './PolynomialRoot.js';
 
+
+/*
+Expression.PolynomialRootSymbol = function () {
+  throw new TypeError();
+};
+function ExpressionWithPolynomialRoot() {
+  throw new TypeError();
+}
+*/
+
 Expression.ExpressionWithPolynomialRoot = ExpressionWithPolynomialRoot;
 
 
 // wrapper around PolynomialRoot
 function ExpressionPolynomialRoot(root) {
-  const polynomial = root instanceof LazyPolynomialRoot ? root._root.polynomial : root.polynomial;
-  const interval = root instanceof LazyPolynomialRoot ? root._root.interval : root.interval;
-  if (root.e != null && Expression.isConstant(root.e)) {
-    return root.e;
+  const alpha = root.getAlpha();
+  const [p1, p2] = root.getAlphaPolynomial();
+  const polynomial = alpha.polynomial;
+  const interval = alpha.interval;
+  if (p1.getDegree() <= 0 && p2.getDegree() <= 0) {
+    return p1.getCoefficient(0).divide(p2.getCoefficient(0));
   }
   if (polynomial.getDegree() === 1 || polynomial.getDegree() === 2 || (polynomial.getDegree() === 4 && false) || polynomial.getDegree() === polynomial.getGCDOfTermDegrees()) {//TODO: other - ? like biqudratic - ?
     var roots = polynomial.getDegree() === polynomial.getGCDOfTermDegrees() && polynomial.getDegree() % 2 === 1 ? [polynomial.getCoefficient(0).negate().divide(polynomial.getLeadingCoefficient())._nthRoot(polynomial.getDegree())] : polynomial.getroots();
     for (var rr of roots) {
       if (!Expression.has(rr, ExpressionPolynomialRoot)) {//?
         if (Expression._isPositive(rr.subtract(interval.a)) && Expression._isPositive(rr.subtract(interval.b).negate()) || rr.equals(interval.b) || rr.equals(interval.a)) {
-          if (root.e == null || root.e instanceof Expression.Symbol && root.e.symbol === 'α') {//TODO: ???
+          if (p1.getDegree() === 1 && p1.getCoefficient(0).equals(Expression.ZERO) && p1.getCoefficient(1).equals(Expression.ONE) && p2.getDegree() === 0 && p2.getCoefficient(0).equals(Expression.ONE)) {//TODO: ???
             return rr;//TODO: MOVE!
           } else {
-            var n = Polynomial.toPolynomial(root.e.getNumerator(), new Expression.Symbol('α')).calcAt(rr);
-            var d = Polynomial.toPolynomial(root.e.getDenominator(), new Expression.Symbol('α')).calcAt(rr);
+            var n = p1.calcAt(rr);
+            var d = p2.calcAt(rr);
             return n.divide(d);
           }
         }
@@ -37,22 +49,17 @@ function ExpressionPolynomialRoot(root) {
   if (polynomial.getDegree() < 3) {
     throw new TypeError();
   }
-  if (polynomial.getDegree() > 64 * 2) {
+  if (polynomial.getDegree() / polynomial.getGCDOfTermDegrees() > 64 * 2 * 32) {
     throw new Error();//TODO: too long
   }
-  Expression.Symbol.call(this, root.toString());
+  Expression.Symbol.call(this, null); // root.toString() - slow
   this.root = root;
   Object.freeze(this);
 }
 ExpressionPolynomialRoot.prototype = Object.create(Expression.Symbol.prototype);
 
-ExpressionPolynomialRoot.SimpleInterval = LazyPolynomialRoot.SimpleInterval;
-
-ExpressionPolynomialRoot._create = function (polynomial, interval) {
-  return new ExpressionPolynomialRoot(LazyPolynomialRoot.create(polynomial, new LazyPolynomialRoot.SimpleInterval(interval.a, interval.b)));
-  //TODO: WHY NOT TO CREATE LAZYPOLYNOMIALROOT - ?
-  //debugger;
-  //return new ExpressionPolynomialRoot(new LazyPolynomialRoot.PolynomialRoot(polynomial, new LazyPolynomialRoot.SimpleInterval(interval.a, interval.b)));
+ExpressionPolynomialRoot.create = function (polynomial, interval, options) {
+  return new ExpressionPolynomialRoot(LazyPolynomialRoot.create(polynomial, interval, options));
 };
 
 ExpressionPolynomialRoot.prototype.multiplyInteger = function (x) {
@@ -78,6 +85,9 @@ ExpressionPolynomialRoot.prototype.multiplyAddition = function (e) { // for perf
   }
   return Expression.Symbol.prototype.multiplyAddition.call(this, e);
 };
+ExpressionPolynomialRoot.prototype.multiplyComplex = function (x) {
+  return this.multiply(x);
+};
 Expression.prototype.multiplyPolynomialRoot = function (root) {
   if (Expression.isRealAlgebraicNumber(this) &&
       !Expression.has(this, Expression.ExpressionWithPolynomialRoot)) {
@@ -91,7 +101,7 @@ Expression.prototype.multiplyPolynomialRoot = function (root) {
     return new ExpressionPolynomialRoot(root.root.scale(k));
   }
   if (this instanceof Expression.Complex && !this.imaginary.equals(Expression.ONE)) {
-    return this.divide(this.imaginary).multiply(this.imaginary.multiply(root));
+    return this.imaginary.multiply(root).multiply(Expression.I).add(this.real.multiply(root));
   }
   //TODO: ?
   //throw new Error();
@@ -104,6 +114,7 @@ ExpressionPolynomialRoot.prototype.pow = function (e) {
   if (e instanceof Expression.Integer) {
     return this._pow(e.toNumber());
   }
+  //TODO: upgrade (?)
   //TODO: ?
   if (e instanceof Expression.Division && e.getDenominator() instanceof Expression.Integer) {
     //TODO: verify
@@ -162,7 +173,10 @@ ExpressionPolynomialRoot.prototype.inverse = function () {
 ExpressionPolynomialRoot.prototype.sign = function () {
   return this.root.sign();
 };
-var toRadicalExpression = function (polynomialRoot) {
+var toRadicalExpression = function (root) {
+  root = root.upgrade();
+  const polynomialRoot = root.getAlpha();
+  //TODO: root.getAlphaExpression()
   if (polynomialRoot.polynomial.getDegree() === 1) {
     //TODO: ???
     return polynomialRoot.polynomial.getroots()[0];
@@ -170,32 +184,30 @@ var toRadicalExpression = function (polynomialRoot) {
   //TODO: ?
   var g = polynomialRoot.polynomial.getGCDOfTermDegrees();
   if (g > 1) {
-    var v = toRadicalExpression(polynomialRoot._pow(g));
+    const v = toRadicalExpression(root._pow(g));
     if (v != null) {
-      if (g % 2 === 1 || polynomialRoot.sign() > 0) {
-        return Expression.NthRoot.makeRoot(v, g);
-      } else {
-        return new Expression.Negation(Expression.NthRoot.makeRoot(v, g));
-      }
+      const vg = Expression.NthRoot.makeRoot(v, g);
+      return g % 2 === 1 || root.sign() > 0 ? vg : new Expression.Negation(vg);
     }
   }
   // convert to depressed:
   var h = polynomialRoot.polynomial._getShiftToDepressed();
   if (!h.equals(Expression.ZERO)) {
-    var tmp = toRadicalExpression(polynomialRoot.translate(h));
+    var tmp = toRadicalExpression(root.translate(h));
     if (tmp != null) {
       return new Expression.Addition(tmp, h.negate());
     }
   }
   return null;
 };
+
 ExpressionPolynomialRoot.prototype.toString = function (options) {
   //return new ExpressionWithPolynomialRoot(this, this).toString(options);
   options = options || {};
   if (options.rounding == null) {
-    var p = (this.root instanceof LazyPolynomialRoot ? this.root._root : this.root).polynomial;
-    if (p.getDegree() / p.getGCDOfTermDegrees() < 10) { //TODO: REMOVE !!!
-      var re = toRadicalExpression(this.root.toPolynomialRoot());
+    var p = this.root.getAlpha().polynomial;
+    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
+      var re = toRadicalExpression(this.root);
       if (re != null) {
         return re.toString(options);
       }
@@ -209,7 +221,9 @@ ExpressionPolynomialRoot.prototype.equals = function (other) {
   }
   // optimization
   if (other instanceof Expression.Integer) {
-    return false;
+    if (other.equals(Expression.ZERO)) {
+      return false;
+    }
   }
   if (!Expression.isRealAlgebraicNumber(other)) {//to avoid bugs with i**n
     return false;
@@ -278,7 +292,10 @@ ExpressionPolynomialRoot.prototype.compare4AdditionNthRoot = function (x) {
 };
 
 ExpressionPolynomialRoot.prototype._nthRoot = function (n) {//?
-  if (this.root.sign() < 0) {
+  if (this.root.sign() < 0 && n % 2 === 0) {
+    if (n !== 2) {
+      throw new RangeError("NotSupportedError");
+    }
     //TODO: check
     return Expression.I.multiply(this.negate()._nthRoot(n));
   }
@@ -313,9 +330,9 @@ ExpressionPolynomialRoot.prototype.simplifyExpression = function () {//TODO: rem
 ExpressionPolynomialRoot.prototype.toMathML = function (options) {
   options = options || {};
   if (options.rounding == null) {
-    var p = (this.root instanceof LazyPolynomialRoot ? this.root._root : this.root).polynomial;
-    if (p.getDegree() / p.getGCDOfTermDegrees() < 10) { //TODO: REMOVE !!!
-      var re = toRadicalExpression(this.root.toPolynomialRoot());
+    var p = this.root.getAlpha().polynomial;
+    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
+      var re = toRadicalExpression(this.root);
       if (re != null) {
         return re.toMathML(options);
       }
@@ -326,6 +343,16 @@ ExpressionPolynomialRoot.prototype.toMathML = function (options) {
 
 //TODO: ?????
 ExpressionPolynomialRoot.prototype.getPrecedence = function () {
+  //TODO: avoid (?)
+  if (true) {
+    var p = this.root.getAlpha().polynomial;
+    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
+      var re = toRadicalExpression(this.root);
+      if (re != null) {
+        return re.getPrecedence();
+      }
+    }
+  }
   return 1000;
 };
 ExpressionPolynomialRoot.prototype.isRightToLeftAssociative = function () {
@@ -338,6 +365,10 @@ ExpressionPolynomialRoot.prototype.isUnaryPlusMinus = function () {
 //ExpressionPolynomialRoot.prototype.complexConjugate = function () {//TODO: test
 //  return this;
 //};
+
+ExpressionPolynomialRoot.prototype._calc = function (polynomial) {
+  return new ExpressionPolynomialRoot(this.root._calc(polynomial));
+};
 
 Expression.ExpressionPolynomialRoot = ExpressionPolynomialRoot;
 
@@ -362,14 +393,15 @@ Expression.toPolynomialRoot = function (e) {
       }
     }
   }
-  if (true) {
+  while (p.getDegree() > 0) {
     //var root = Expression.toPolynomialRoot(x)._nthRoot(n);
     
     //TODO: Expression#toPolynomialRoot() - ?
     //TODO: move up (!?)
-    p = p.squareFreeFactors().a1;//TODO: which one (?)
+    //p = p.squareFreeFactors().a1;//TODO: which one (?)
+    var factor = p.factorize() || p;
     const isComplex = n === 2 && Expression.has(e.radicand, Expression.Complex);
-    var zeros = p.getZeros(undefined, isComplex);
+    var zeros = factor.getZeros(isComplex);
     if (n % 2 === 0 && zeros.length === 2) {
       //TODO: remove
       if (Expression._isPositive(zeros[1]) && Expression._isPositive(x)) {
@@ -385,6 +417,7 @@ Expression.toPolynomialRoot = function (e) {
       }
     }
     //TODO: ?
+    p = p.divideAndRemainder(factor, "throw");
   }
   console.error(e.toString());
   return undefined;
@@ -525,7 +558,7 @@ Expression.toPolynomialRoot = function (e) {
 
       var n = this.getDegree();
       var p = this._scaleRoots(e);
-      //p = p.primitivePart();//?
+      p = p.primitivePart();//?
       const sa = roundFloor(a, e).add(Expression.ONE); // a.getNumerator().multiply(e).truncatingDivide(a.getDenominator()).add(Expression.ONE);//?
       const sb = roundFloor(b, e); // b.getNumerator().multiply(e).truncatingDivide(b.getDenominator());//?
       console.assert(sa.multiply(a.getDenominator()).subtract(a.getNumerator().multiply(e)).compareTo(Expression.ZERO) >= 0); // sa/e >= a
@@ -648,9 +681,9 @@ Expression.toPolynomialRoot = function (e) {
       //?new
       var variable = new Expression.Symbol('$$');
       var e = g.calcAt(variable);
-      var c = Expression.getComplexConjugate(e);
-      if (c != null) {
-        g = Polynomial.toPolynomial(c.multiply(e), variable).getSquareFreePolynomial();
+      var c = Expression.getComplexNumberParts(e);
+      if (c != null && !c.imaginary.equals(Expression.ZERO)) {
+        g = Polynomial.toPolynomial(c.real.subtract(c.imaginary.multiply(Expression.I)).multiply(e), variable).getSquareFreePolynomial();
       }
       //?
     }
@@ -703,8 +736,8 @@ Expression.toPolynomialRoot = function (e) {
             ._getNonNegativeRealRootIntervals().length;
   };
 
-  // Polynomial.toPolynomial(ExpressionParser.parse("x^3-8x^2+21x-18"), ExpressionParser.parse("x")).getZeros(3).toString()
-  Polynomial.prototype.getZeros = function (precision = 0, complex = false) {
+  // Polynomial.toPolynomial(ExpressionParser.parse("x^3-8x^2+21x-18"), ExpressionParser.parse("x")).getZeros().toString()
+  Polynomial.prototype.getZeros = function (complex = false) {
     if (this.getCoefficient(0).equals(Expression.ZERO)) {
       if (this.getLeadingCoefficient().equals(Expression.ZERO)) {
         throw new TypeError();
@@ -713,7 +746,7 @@ Expression.toPolynomialRoot = function (e) {
       while (this.getCoefficient(i).equals(Expression.ZERO)) {
         i += 1;
       }
-      var tmp = this.divideAndRemainder(Polynomial.of(Expression.ONE).shift(i)).quotient.getZeros(precision, complex);
+      var tmp = this.divideAndRemainder(Polynomial.of(Expression.ONE).shift(i)).quotient.getZeros(complex);
       return tmp.concat(new Array(i).fill(Expression.ZERO));
     }
     //TODO: test
@@ -726,8 +759,8 @@ Expression.toPolynomialRoot = function (e) {
     var a1 = tmp.a1;
 
     if (a0.getDegree() !== 0) {
-      var tmp1 = a1.getZeros(precision, complex); // roots with multiplicity = 1 (?)
-      var tmp2 = a0.getZeros(precision, complex);
+      var tmp1 = a1.getZeros(complex); // roots with multiplicity = 1 (?)
+      var tmp2 = a0.getZeros(complex);
       var result = [];
       var previous = undefined;
       for (var i = 0; i < tmp2.length; i += 1) {
@@ -751,17 +784,48 @@ Expression.toPolynomialRoot = function (e) {
     //!
 
     if (!f.hasIntegerCoefficients()) {
+      
+      var toPolynomialWithIntegerCoefficients = function (polynomial) {
+        if (!polynomial.hasIntegerCoefficients()) {
+          var variable = new Expression.Symbol('$$');
+          var e = polynomial.calcAt(variable);
+          var c = Expression.getConjugateExpression(e);
+          if (c != null && !c.equals(e)) {
+            //TODO: what if multiple (?) - ?
+            return Polynomial.toPolynomial(c, variable);
+          }
+          
+          //!new 2022-08-28
+          // p_1(x, alpha) = 0
+          // p_2(alpha) = 0
+          // Res_alpha(p_1, p_2) = 0
+          var root = null;
+          for (var i = 0; i < polynomial.getDegree(); i += 1) {
+            var c = polynomial.getCoefficient(i);
+            if (c instanceof Expression.ExpressionPolynomialRoot) {
+              debugger;
+              var alpha = c.root.upgrade().getAlpha();
+              var v = new Expression.Symbol("$a");
+              var p_1 = Polynomial.toPolynomial(polynomial.map(cc => cc === c ? v : cc).calcAt(new Expression.Symbol('$$')), v);
+              var p_2 = alpha.polynomial;
+              var res = Polynomial.toPolynomial(Polynomial.resultant(p_1, p_2), new Expression.Symbol("$$")).primitivePart();
+              return toPolynomialWithIntegerCoefficients(res);
+            }
+          }
+        }
+        return polynomial;
+      };
+
       //?new
-      var variable = new Expression.Symbol('$$');
-      var e = f.calcAt(variable);
-      var c = Expression.getConjugateExpression(e);
-      if (c != null && !e.equals(c)) {
+      const f1 = toPolynomialWithIntegerCoefficients(f);
+      if (!f1.equals(f)) {
         var result = [];
-        var tmp = Polynomial.toPolynomial(c, variable).getZeros(precision, complex);
+        var tmp = f1.getZeros(complex);
         console.time('checking roots');
+        //TODO: do not check conjugate pairs (?) when polynomial has no integer factor
         for (var i = 0; i < tmp.length; i += 1) {
           var zero = tmp[i];
-          if (zero instanceof ExpressionPolynomialRoot && zero.root.e.equals(new Expression.Symbol('α')) ? f.hasRoot(zero.root._root) :
+          if (zero instanceof ExpressionPolynomialRoot && zero.root.getAlphaExpression().equals(new Expression.Symbol('α')) ? f.hasRoot(zero.root.getAlpha()) :
               zero instanceof ExpressionWithPolynomialRoot && zero.e === zero.root ? f.hasRoot(zero.root) :
               (zero instanceof ExpressionWithPolynomialRoot ? zero._calc(f) : f.calcAt(zero)).equals(Expression.ZERO)) {
             result.push(zero);
@@ -784,7 +848,7 @@ Expression.toPolynomialRoot = function (e) {
         var x = new Expression.Symbol('$$');//?
         var pt = Polynomial.toPolynomial(p.calcAt(x.subtract(v).divide(u)).getNumerator(), x);
         if (pt.hasIntegerCoefficients()) {//TODO: ?
-          return pt.getZeros(precision, complex).map(function (zero) {
+          return pt.getZeros(complex).map(function (zero) {
             return zero.subtract(v).divide(u);
           });
         }
@@ -807,9 +871,9 @@ Expression.toPolynomialRoot = function (e) {
     // https://math.stackexchange.com/questions/309178/polynomial-root-finding
     // "it is guaranteed that there is a sign change inside every interval (because there are no repeated zeroes)"
     var result = new Array(intervals.length);
-    var enableNewClass = false;//TODO: ?
+    var enableNewClass = true;//TODO: ?
     for (var i = 0; i < intervals.length; i += 1) {
-      var zero = p.getZero(intervals[i], precision);
+      var zero = p.getZero(intervals[i], 0);//TODO: !?
       if (zero.a.equals(zero.b)) {
         result[i] = zero.a;//TODO: fix
       } else {
@@ -818,7 +882,8 @@ Expression.toPolynomialRoot = function (e) {
           var root = new Expression.PolynomialRootSymbol(p, zero);
           result[i] = new ExpressionWithPolynomialRoot(root, root);
         } else {
-          var root = new ExpressionPolynomialRoot(LazyPolynomialRoot.create(p, new LazyPolynomialRoot.SimpleInterval(zero.a, zero.b), {skipFactorization: true}));
+          //TODO: why skipFactorization if getZeros does not check for primitive polynomial
+          const root = ExpressionPolynomialRoot.create(p, zero, {skipFactorization: true});
           //result[i] = new ExpressionWithPolynomialRoot(new Expression.Symbol('$α'), root);
           result[i] = root;
         }
@@ -834,13 +899,13 @@ Expression.toPolynomialRoot = function (e) {
         var factor = p.factorize();
         if (factor != null) {
           //TODO: remove double work
-          return factor.getZeros(precision, complex).concat(p.divideAndRemainder(factor, "throw").quotient.getZeros(precision, complex));
+          return factor.getZeros(complex).concat(p.divideAndRemainder(factor, "throw").quotient.getZeros(complex));
         }
       }
       //!
       if (p.isEven()) {
         //debugger;
-        const zeros = p._exponentiateRoots(2).getZeros(precision, complex);
+        const zeros = p._exponentiateRoots(2).getZeros(complex);
         for (var zero of zeros) {
           //var z = zero.squareRoot();
           // https://en.wikipedia.org/wiki/Complex_number#Square_root
@@ -868,9 +933,9 @@ Expression.toPolynomialRoot = function (e) {
       //var p = stringToPolynomial("x^5+2*x^2+2*x+3");
 
       var e = p.calcAt(new Expression.Symbol("a").add(new Expression.Symbol("b").multiply(Expression.I)));
-      var ce = Expression.getComplexConjugate(e);
-      const cpa = ce.add(e);//TODO: ?
-      const cpb = ce.subtract(e).multiply(Expression.I).divide(new Expression.Symbol('b'));
+      var ce = Expression.getComplexNumberParts(e);
+      const cpa = ce.real;//TODO: ?
+      const cpb = ce.imaginary.divide(new Expression.Symbol('b'));
       const getZeros1 = function (p) {//TODO: !? use everywhere (?)
         var tmp = p.squareFreeFactors();
         if (tmp.a0.getDegree() !== 0) {
@@ -879,9 +944,15 @@ Expression.toPolynomialRoot = function (e) {
         var factor = p.factorize();
         if (factor != null) {
           //TODO: remove double work
-          return factor.getZeros(undefined, false).concat(p.divideAndRemainder(factor, "throw").quotient.getZeros(undefined, false));
+          //return factor.getZeros(false).concat(p.divideAndRemainder(factor, "throw").quotient.getZeros(false));
+          var tmp = getZeros1(factor);
+          var t = p.divideAndRemainder(factor, "throw").quotient;
+          if (0 === t._getNonNegativeRealRootIntervals().length) {
+            return tmp// do not call factorize as it is slow for large polynomials
+          }
+          return tmp.concat(getZeros1(t));
         }
-        return p.getZeros(undefined, false);
+        return p.getZeros(false);
       };
 
       //!TODO: 
@@ -906,12 +977,14 @@ Expression.toPolynomialRoot = function (e) {
           var previousPolynomial = Polynomial.ZERO;//TODO: !?
           for (var b of bCandidates) {
             var g = null;
-            if (!(b instanceof ExpressionWithPolynomialRoot && b.e.equals(b.root))) { //TODO: ?
+            //TODO: fix access to private properties (!!!)
+            if ((!(b instanceof ExpressionWithPolynomialRoot) || !b.e.equals(b.root)) &&
+                (!(b instanceof ExpressionPolynomialRoot) || !b.root.getAlphaExpression().equals(new Expression.Symbol('α')))) { //TODO: ?
               var A1 = A.map(c => c.calcAt(b));
               var B1 = B.map(c => c.calcAt(b));
               g = Polynomial.polynomialGCD(A1, B1);
             } else {
-              const bRootPolynomial = b.root.polynomial;
+              const bRootPolynomial = (b instanceof ExpressionPolynomialRoot ? b.root.upgrade().getAlpha() : b.root).polynomial;
               if (!previousPolynomial.equals(bRootPolynomial)) {
                 gp = polynomialGCDModuloPolynomial(A, B, bRootPolynomial);
                 gp = gp.map(c => c.polynomial);
@@ -953,14 +1026,14 @@ Expression.toPolynomialRoot = function (e) {
                 }
               }
             } else {
-              debugger;
+              //debugger;
               //TODO: ?
             }
           }
         }
         
         if (result.length < p.getDegree()) {
-          debugger;
+          //debugger;
           result = result.filter(root => Expression.isReal(root));
         var aCandidates = getZeros1(resultant('b', 'a'));
           
@@ -1000,7 +1073,7 @@ function pseudoRemainderSequence(A, B, type = "primitive", produceSturmSequence 
       if (!B.equals(Polynomial.ZERO)) {
         const d = A.getDegree() - B.getDegree();
         const scale = B.getLeadingCoefficient()._pow(d + 1);
-        const tmp = A.scale(produceSturmSequence ? scale.abs() : scale).divideAndRemainder(B, "throw");
+        const tmp = A.scale(produceSturmSequence ? scale.abs() : scale).divideAndRemainder(B, B._hasIntegerLikeCoefficients() ? "throw" : undefined);
         const q = tmp.quotient;
         const r = tmp.remainder;
         let α = Expression.ONE;
@@ -1220,6 +1293,9 @@ Expression.Division.prototype.abs = function () {
 Expression.prototype.abs = function () {//TODO: remove - ?
   if (this instanceof Expression.Symbol) {
     return new Expression.Abs(this);//TODO: !?
+  }
+  if (this instanceof Expression.ComplexConjugate) {
+    return this.a.abs();
   }
   if (this instanceof Expression.Multiplication) {
     return this.a.abs().multiply(this.b.abs());

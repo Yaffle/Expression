@@ -9,7 +9,7 @@ import isPrime from './node_modules/quadraticsievefactorization/isPrime.js';
 // bitLength(a) = floor(log2(a)) + 1 if a > 0
 function bitLength(a) {
   const s = a.toString(16);
-  const c = s.charCodeAt(0) - '0'.charCodeAt(0);
+  const c = 0 + s.charCodeAt(0) - '0'.charCodeAt(0);
   if (c <= 0) {
     throw new RangeError();
   }
@@ -36,6 +36,9 @@ function fma(a, b, p) {
 }
 
 function modMultiplySmall(a, b, m) {
+  if (typeof a !== 'number' || typeof b !== 'number' || typeof m !== 'number') {
+    throw new TypeError();
+  }
   if (!(a >= 0 && b >= 0 && a < m && b < m && m <= Number.MAX_SAFE_INTEGER)) {
     throw new RangeError();
   }
@@ -85,14 +88,16 @@ function range(start, end) {
 // https://github.com/peterolson/BigInteger.js
 // https://en.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test#Deterministic_variants
 function isPrimeSmall(n) {
-  n = Number(n);
+  if (typeof n !== 'number') {
+    throw new TypeError();
+  }
   if (n > Number.MAX_SAFE_INTEGER) {
     throw new RangeError();
   }
   if (n < 2) {
     throw new RangeError();
   }
-  if (primeFactorUsingWheel(n, 2 * 1024) < n) {
+  if (+primeFactorUsingWheel(n, 2 * 1024) < n) {
     return false;
   }
   if (n < Math.pow(1024, 2)) {
@@ -134,11 +139,6 @@ function isPrimeSmall(n) {
 }
 
 
-function abs(a) {
-  return a < a - a ? -a : a;
-}
-
-
 // Pollard's rho implementation is stolen from:
 // https://github.com/jiggzson/nerdamer/blob/master/nerdamer.core.js
 // https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm#C_code_sample
@@ -147,6 +147,10 @@ function factorByPollardRho(n, x0 = 2n, c = 1n, maxIterations = 1 / 0) {
   
   const zero = n - n;
   const one = n / n;
+
+  function abs(a) {
+    return a < a - a ? -a : a;
+  }
 
   function modMultiply(a, b, mod) {
     if (typeof mod === "number") {
@@ -317,13 +321,17 @@ if (x > 5) {
     };
     //TODO: estimate new limit
     var limit = Math.floor(Math.log(L(n)));
-    if (Number(n) <= 2**64) {
+    if (Number(n) < 2**64) {
       limit = 1 / 0;
     }
-    if (Number(n) > 2**128) {
+    if (Number(n) >= 2**128) {
       // try 2n**128n + 1n (large factors)
       // try 516580063688473107036756944316883068479010630159425669n (small factor)
-      limit = limit - 2;
+      limit -= 3;
+    } else if (Number(n) >= 2**96) {
+      limit -= 2;
+    } else {
+      limit -= 1;
     }
     var factor = factorByPollardRhoWrapper(n, limit);
     if (factor !== 1n) {
@@ -529,7 +537,7 @@ function primeFactor(n) {
 function eGCD_N(a, b) {
   const zero = a - a;
   const one = a / a;
-  var [oldR, r] = [abs(a), abs(b)];
+  var [oldR, r] = [a < zero ? zero - a : a, b < zero ? zero - b : b];
   var [oldX, x] = [one, zero];
   var [oldY, y] = [zero, one];
   while (r !== zero) {

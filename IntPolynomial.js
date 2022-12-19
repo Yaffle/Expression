@@ -41,8 +41,7 @@ function multiply(A, B) {
   return schoolbook(A, B);
 }
 
-class IntPolynomial {
-  constructor(coefficients) {
+  function IntPolynomial(coefficients) {
     let k = coefficients.length;
     while (k > 0 && coefficients[k - 1] == 0) {
       k -= 1;
@@ -51,7 +50,7 @@ class IntPolynomial {
     check(absMax(coefficients));
     this.coefficients = coefficients;
   }
-  add(other) {
+  IntPolynomial.prototype.add = function (other) {
     const a = this.coefficients;
     const b = other.coefficients;
     const c = new Array(Math.max(a.length, b.length));
@@ -65,16 +64,16 @@ class IntPolynomial {
       }
     }
     return new IntPolynomial(c);
-  }
-  subtract(other) {
+  };;
+  IntPolynomial.prototype.subtract = function (other) {
     return this.add(other.negate());
-  }
-  multiply(other) {
+  };
+  IntPolynomial.prototype.multiply = function (other) {
     const a = this.coefficients;
     const b = other.coefficients;
     return new IntPolynomial(multiply(a, b));
-  }
-  divideAndRemainderModP(other, m) {
+  };
+  IntPolynomial.prototype.divideAndRemainderModP = function (other, m) {
     const a = this.coefficients;
     const b = other.coefficients;
     if (a.length < b.length) {
@@ -122,39 +121,39 @@ class IntPolynomial {
       remainder[j] = modulo(remainder[j], m);
     }
     return {quotient: new IntPolynomial(quotient), remainder: new IntPolynomial(remainder)};
-  }
-  negate(s) {
+  };
+  IntPolynomial.prototype.negate = function (s) {
     return new IntPolynomial(this.coefficients.map(c => (c - c) - c));
-  }
-  scale(s) {
+  };
+  IntPolynomial.prototype.scale = function (s) {
     return new IntPolynomial(this.coefficients.map(c => c * s));
-  }
-  getDegree() {
+  };
+  IntPolynomial.prototype.getDegree = function () {
     return this.coefficients.length - 1;
-  }
-  getLeadingCoefficient() {
+  };
+  IntPolynomial.prototype.getLeadingCoefficient = function () {
     if (this.coefficients.length === 0) {
       throw new RangeError();
     }
     return this.coefficients[this.coefficients.length - 1];
-  }
-  getCoefficient(degree) {
+  };
+  IntPolynomial.prototype.getCoefficient = function (degree) {
     if (degree >= this.coefficients.length) {
       throw new RangeError();
     }
     return this.coefficients[degree];
-  }
-  derive(p) {
+  };
+  IntPolynomial.prototype.derive = function (p) {
     let c = new Array(this.coefficients.length - 1);
     for (let i = 0; i < c.length; i += 1) {
       c[i] = (i + 1) * this.coefficients[i + 1];
     }
     return new IntPolynomial(c);
-  }
-  mod(p) {
+  };
+  IntPolynomial.prototype.mod = function (p) {
     return new IntPolynomial(this.coefficients.map(c => modulo(c, p)));
-  }
-  toString() {
+  };
+  IntPolynomial.prototype.toString = function () {
     let s = '';
     let c = this.coefficients;
     for (let i = c.length - 1; i >= 0; i--) {
@@ -168,10 +167,9 @@ class IntPolynomial {
       }
     }
     return s;
-  }
-  static from(coefficients) {
+  };
+  IntPolynomial.from = function (coefficients) {
     return new IntPolynomial(coefficients);
-  }
-}
+  };
 
 export default IntPolynomial;

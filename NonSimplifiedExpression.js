@@ -91,8 +91,8 @@
   NonSimplifiedExpression.prototype.squareRoot = function () {
     return new NonSimplifiedExpression(new Expression.SquareRoot(this));
   };
-  NonSimplifiedExpression.prototype.cubeRoot = function () {
-    return new NonSimplifiedExpression(new Expression.CubeRoot(this));
+  NonSimplifiedExpression.prototype._nthRoot = function (n) {
+    return new NonSimplifiedExpression(new Expression.NthRoot(n + "-root", this, n));
   };
   NonSimplifiedExpression.prototype.abs = function () {
     return new NonSimplifiedExpression(new Expression.Function("abs", this));
@@ -151,6 +151,14 @@
   NonSimplifiedExpression.prototype.determinant = function () {
     return new NonSimplifiedExpression(new Expression.Determinant(this));
   };
+  
+  Expression.Pseudoinverse.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).pseudoinverse();
+  };
+  NonSimplifiedExpression.prototype.pseudoinverse = function () {
+    return new NonSimplifiedExpression(new Expression.Pseudoinverse(this));
+  };
+
   NonSimplifiedExpression.prototype.rowReduce = function () {
     return new NonSimplifiedExpression(new Expression.RowReduce(this));
   };
@@ -214,9 +222,6 @@
   };
   Expression.SquareRoot.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).squareRoot();
-  };
-  Expression.CubeRoot.prototype.simplifyInternal = function (holder) {
-    return prepare(this.a, holder).cubeRoot();
   };
   Expression.NthRoot.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder)._nthRoot(this.n);

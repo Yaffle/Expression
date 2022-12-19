@@ -148,43 +148,6 @@
     return this.toStringInternal(options, "", "i", "-", "+", "", "", function (x, options) { return x.toString(options); });
   };
 
-  Expression.getComplexConjugate = function (e) {
-    if (!Expression.has(e, Complex)) {
-      return undefined;
-    }
-    var c = Expression.ZERO;
-    for (var x of e.summands()) {
-      var f = undefined;
-      for (var y of x.factors()) {
-        if (y instanceof Complex) {
-          f = y;
-        }
-      }
-      if (f == undefined) {
-        c = c.add(x);
-      } else {
-        //var fc = f.conjugate();
-        //c = c.add(x.multiply(fc).divide(f.multiply(fc)).multiply(fc));
-        // faster:
-        var n = Expression.ONE;
-        for (var y of x.factors()) {
-          if (y instanceof Complex && f === y) {
-            n = n.multiply(y.conjugate());
-          } else {
-            n = n.multiply(y);
-          }
-        }
-        c = c.add(n);
-      }
-    }
-    //!?
-    if (c.equals(e)) {
-      return undefined;
-    }
-    //!?
-    return c;
-  };
-
   Complex.prototype.compare4MultiplicationInteger = function (x) {
     return +1;
   };

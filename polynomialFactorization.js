@@ -227,6 +227,7 @@ function isFactorizationOverZpSquareFree(u, prime) {
 
 // The art of computer programming. Vol.2: Seminumerical algorithms, page 452
 function factorizeOverTheIntegers(u, useHenselLifting = true) {
+  //if (u.toString() === '1471566513477172834305399948590466009*x^36-211905577940712888139977592597027105296*x^34+13129986163287865167531292496146540399224*x^32-462939766422599809806997255332437328597216*x^30+10362430845905260438547837088962342900036976*x^28-155683443407207896942716489327940147108629120*x^26+1618556951246037407274416866201451391464784384*x^24-11830632228190604908249839266002717097001139200*x^22+61153871177545784578882242689870006264757876480*x^20-223152626999418063421149667823603202136231649280*x^18+570260219818484251015463882930738160317054441472*x^16-1007187648191427638267502108195308402754856378368*x^14+1207581236321353649337451225242701250021029548032*x^12-959457354479765675976827753329438931015039090688*x^10+487489052553389695914981886297548193964734087168*x^8-149263610192452471565789533727206449715567656960*x^6+24608195620710414500859286809189277514021732352*x^4-1679911046068335257837067359574057455871590400*x^2+13348232781789541344412108782227014287360000') debugger;
   const polynomial = u;
   if (u.getCoefficient(0).equals(Expression.ZERO)) {
     return Polynomial.of(Expression.ZERO, Expression.ONE);
@@ -291,6 +292,15 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
     prime = best;
   }
   let factors = factorizeOverTheFiniteField(toIntPolynomial(u, prime), prime).map(factor => useHenselLifting ? fromIntPolynomial(factor) : factor);
+  
+  if (u.isEven() && factors.length > 3) { // https://math.stackexchange.com/a/2894104
+    var f = factorizeOverTheIntegers(u._exponentiateRoots(2));
+    if (f != null) {
+      return f._exponentiateRoots(1 / 2);
+    }
+    // see below
+  }
+
   let q = 0;
   if (useHenselLifting) {
     let e = Math.ceil((1 + log2(u.getLeadingCoefficient().abs()) + B) / Math.log2(prime));
@@ -305,6 +315,38 @@ function factorizeOverTheIntegers(u, useHenselLifting = true) {
   } else {
     q = prime;
   }
+  
+  //!new 2022-07-27
+  if (u.isEven() && factors.length > 3) { // https://math.stackexchange.com/a/2894104
+    // see above
+    for (var i = 0; i < factors.length; i += 1) {
+      if (factors[i] != null) {
+        var f1 = factors[i].mod(q);
+        var f2 = factors[i]._scaleRoots(Expression.ONE.negate()).mod(q);
+        var found = false;
+        for (var j = i + 1; j < factors.length && !found; j += 1) {
+          if (factors[j] != null && factors[j].mod(q).equals(f2)) {
+            factors[j] = null;
+            found = true;
+          }
+        }
+        if (!found) {
+          //debugger;
+          return null;
+        }
+      }
+    }
+    factors = factors.filter(f => f != null);
+    for (var i = 0; i < Math.pow(2, factors.length - 1); i += 1) {
+      var candidate = productModQ(factors.map((f, index) => Math.floor(i / 2**index) % 2 === 0 ? f : f._scaleRoots(Expression.ONE.negate())), q).scale(u.getLeadingCoefficient()).mod2(q).primitivePart();
+      const tmp = u.divideAndRemainder(candidate, "undefined");
+      if (tmp != undefined && tmp.remainder.getDegree() < 0) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
   //!!! (number of factors depends on the choise of prime numbers)
   //TODO: how to reduce number of iterations (?) (see Donald Knuth's book)
   let c = 0;

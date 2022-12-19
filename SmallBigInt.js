@@ -95,8 +95,17 @@ import './node_modules/js-big-integer/BigInteger.js';
   BigIntWrapper.leftShift = function (a, n) {
     return a << n;
   };
+  if (Symbol.hasInstance != undefined) {
+    Object.defineProperty(BigIntWrapper, Symbol.hasInstance, {
+      value: function (a) {
+        return typeof a === 'bigint';
+      }
+    });
+  }
 
-  var supportsBigInt = typeof BigInt !== "undefined" && BigInt(Number.MAX_SAFE_INTEGER) + BigInt(2) - BigInt(2) === BigInt(Number.MAX_SAFE_INTEGER);
+  var supportsBigInt = Symbol.hasInstance != undefined &&
+                       typeof BigInt !== "undefined" &&
+                       BigInt(Number.MAX_SAFE_INTEGER) + BigInt(2) - BigInt(2) === BigInt(Number.MAX_SAFE_INTEGER);
 
   if (supportsBigInt) {
     // https://twitter.com/mild_sunrise/status/1339174371550760961

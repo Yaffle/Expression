@@ -203,6 +203,9 @@ var map = function (f, u) {
   if (u instanceof Expression.ComplexConjugate) {
     return f(map(f, u.a).complexConjugate());
   }
+  if (u instanceof Expression.Abs) {
+    return f(map(f, u.a).abs());
+  }
   throw new TypeError();
 };
 
@@ -579,8 +582,8 @@ if (fraction.multiply(Expression.TWO).getDenominator().equals(Expression.ONE)) {
     var approximate = Math.cos((d + fraction.getNumerator().toNumber() / fraction.getDenominator().toNumber()) / 180 * Math.PI);
     var tmp = Math.floor(approximate * 2**24 + 0.5);
     var scale = Expression.Integer.fromNumber(2**24);
-    var interval = new Expression.ExpressionPolynomialRoot.SimpleInterval(Expression.Integer.fromNumber(tmp - 1).divide(scale), Expression.Integer.fromNumber(tmp + 1).divide(scale));
-    return Expression.ExpressionPolynomialRoot._create(polynomial, interval);
+    var interval = {a: Expression.Integer.fromNumber(tmp - 1).divide(scale), b: Expression.Integer.fromNumber(tmp + 1).divide(scale)};
+    return Expression.ExpressionPolynomialRoot.create(polynomial, interval);
   }
   
   return undefined;
@@ -1121,7 +1124,7 @@ Expression.prototype.arctan = function () {
     // y = (ln((i-x)/(i+x)/i)+ln(i))/(2i)
     //TODO: details (a link or a formula - ?)
     var b = Expression.I.subtract(x).divide(Expression.I.add(x)).matrix;
-    //var tmp = Expression.getFormaDeJordan(b, Expression.getEigenvalues(b).eigenvalues, Expression.getEigenvalues(b).multiplicities);
+    //var tmp = Expression.getFormaDeJordan(b, Expression.getEigenvalues(b));
     //var J = tmp.J;
     var c = b.map(function (e, i, j) {
       return i === j ? e : Expression.ZERO;
@@ -1131,10 +1134,10 @@ Expression.prototype.arctan = function () {
       if (e instanceof Division) {
         return complexLogarithm(e.a).subtract(e.b.logarithm());
       }
-      var c = Expression.getComplexConjugate(e);
-      if (c != undefined) {
-        var real = e.add(c).divide(Expression.TWO);
-        var imaginary = e.subtract(c).multiply(Expression.I.negate()).divide(Expression.TWO);
+      var c = Expression.getComplexNumberParts(e);
+      if (c != undefined && !c.imaginary.equals(Expression.ZERO)) {
+        var real = c.real;
+        var imaginary = c.imaginary;
         var phi = real.equals(Expression.ZERO) ? Expression.PI.divide(Expression.TWO) : imaginary.divide(real).arctan();
         if (real.isNegative()) {//?
           phi = phi.add(Expression.PI);
@@ -1178,22 +1181,12 @@ Expression.prototype.cot = function () {
   return a2.cos().add(Expression.ONE).divide(a2.sin());
 };
 
-
+Expression.Radians.prototype.complexConjugate = function () {
+  return new Expression.Radians(this.value.complexConjugate());
+};
 Expression.Sin.prototype.complexConjugate = function () {
-  var a = this.a;
-  if (a instanceof Expression.Radians) {
-    a = a.value; //TODO: !!!
-  }
-  var i = Expression.I;
-  // Euler's formula + complex conjugation
-  return i.multiply(a).complexConjugate().exp().subtract(i.multiply(a).negate().complexConjugate().exp()).divide(Expression.TWO.multiply(i).complexConjugate());
+  return this.a.complexConjugate().sin();
 };
 Expression.Cos.prototype.complexConjugate = function () {
-  var a = this.a;
-  if (a instanceof Expression.Radians) {
-    a = a.value; //TODO: !!!
-  }
-  var i = Expression.I;
-  // Euler's formula + complex conjugation
-  return i.multiply(a).complexConjugate().exp().add(i.multiply(a).negate().complexConjugate().exp()).divide(Expression.TWO);
+  return this.a.complexConjugate().cos();
 };

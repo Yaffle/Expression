@@ -56,7 +56,8 @@ Condition.prototype._and = function (operator, e) {
       Expression.has(e, Expression.Cos) ||
       Expression.has(e, Expression.Exponentiation) ||
       Expression.has(e, Expression.Arctan) ||
-      Expression.has(e, Expression.Logarithm)) {
+      Expression.has(e, Expression.Logarithm) ||
+      Expression.has(e, Expression.Abs)) {
     if (oldArray.length > 0) {//TODO: test, fix
     e = Expression._map(function (x) {
       if (x instanceof Expression.Function && !(x instanceof Expression.NthRoot) ||
@@ -90,6 +91,8 @@ Condition.prototype._and = function (operator, e) {
                   return yy.arctan();
                 } else if (x instanceof Expression.Logarithm) {
                   return yy.logarithm();
+                } else if (x instanceof Expression.Abs) {
+                  return yy.abs();
                 } else {
                   yy = Expression.isConstant(yy) && !(yy.equals(Expression.ZERO)) && !(yy instanceof Expression.Radians) && !Expression.has(yy, Expression.Symbol) ? new Expression.Radians(yy) : yy;
                   if (x instanceof Expression.Sin) {

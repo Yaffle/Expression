@@ -7,10 +7,10 @@
   },
   "bundleDependencies": [],
   "dependencies": {
-    "@yaffle/bigdecimal": "^1.0.25",
+    "@yaffle/bigdecimal": "^1.0.26",
     "bigint-gcd": "^1.0.19",
     "js-big-integer": "^3.0.20",
-    "quadraticsievefactorization": "^1.0.6",
+    "quadraticsievefactorization": "^1.0.44",
     "seedrandom": "^3.0.5"
   },
   "deprecated": false,
@@ -48,5 +48,5 @@
     "install": "node ./post-install.js"
   },
   "type": "module",
-  "version": "0.0.37"
+  "version": "0.0.38"
 }

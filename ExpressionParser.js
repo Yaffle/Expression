@@ -55,16 +55,25 @@
     if (a instanceof Expression.Integer) {
       return new Expression.Degrees(a);
     }
-    if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Integer) {
-      return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
-    }
-    if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Negation && a.e.b instanceof Expression.NonSimplifiedExpression && a.e.b.e instanceof Expression.Integer) {
-      return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
-    }
-    if (a instanceof Expression.NonSimplifiedExpression && a.e instanceof Expression.Multiplication &&
-        a.e.a instanceof Expression.NonSimplifiedExpression && a.e.a.e instanceof Expression.Integer &&
-        a.e.b instanceof Expression.Integer) {
-      return new Expression.NonSimplifiedExpression(new Expression.Degrees(a));
+    if (a instanceof Expression.NonSimplifiedExpression) {
+      const isGood = function (a) {
+        if (a instanceof Expression.NonSimplifiedExpression) {
+          return isGood(a.e);
+        }
+        if (a instanceof Expression.Integer) {
+          return true;
+        }
+        if (a instanceof Expression.Negation) {
+          return isGood(a.b);
+        }
+        if (a instanceof Expression.Multiplication || a instanceof Expression.Addition) {
+          return isGood(a.a) && isGood(a.b);
+        }
+        return false;
+      };
+      if (isGood(a)) {
+        return toDegrees(a);
+      }
     }
     return a;
   };
@@ -150,13 +159,13 @@
       return a.squareRoot();
     }),
     new Operator("\u221B", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
-      return a.cubeRoot();
+      return a._nthRoot(3);
     }),
     new Operator("cbrt", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
-      return a.cubeRoot();
+      return a._nthRoot(3);
     }),
     new Operator("\u221C", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
-      return a.pow(Expression.ONE.divide(Expression.TWO.add(Expression.TWO)));
+      return a._nthRoot(4);
     }),
     new Operator("rank", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.rank();
@@ -234,6 +243,17 @@
     new Operator("abs", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.abs();
     }),
+
+    new Operator("min", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.min();
+    }),
+    new Operator("max", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.max();
+    }),
+    new Operator("gcd", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.gcd();
+    }),
+
     new Operator("conjugate", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.complexConjugate();
     }),
@@ -262,7 +282,12 @@
       return a.factorial();
     }),
     new Operator("!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported), // to not parse 3!! as (3!)!, see https://en.wikipedia.org/wiki/Double_factorial
-    new Operator("!!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported)
+    new Operator("!!!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, notSupported),
+    
+    
+    new Operator("pseudoinverse", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
+      return a.pseudoinverse();
+    })
   ];
 
   function OperationSearchCache() {
@@ -296,7 +321,8 @@
         // longest is lesser then shortest when one of strings is a prefix of another
         return a < b && b.lastIndexOf(a, 0) !== 0 || a.lastIndexOf(b, 0) === 0 ? -1 : +1;
       });
-      this.re = new RegExp('^(?:' + escapeRegExp(names.join('\uFFFF')).replace(/\uFFFF/g, '|').replace(/\|ch\|/g, '|ch(?!i)|').replace(/\|th\|/g, '|th(?!eta)|') + ')', 'i');
+      const separator = String.fromCharCode(0x0000);
+      this.re = new RegExp('^(?:' + escapeRegExp(names.join(separator)).split(separator).join('|').replace(/\|ch\|/g, '|ch(?!i)|').replace(/\|th\|/g, '|th(?!eta)|') + ')', 'i');
     }
     return this.re;
   };

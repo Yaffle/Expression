@@ -1,8 +1,11 @@
 import Expression from './Expression.js';
 import Matrix from './Matrix.js';
 import Polynomial from './Polynomial.js';
+import SomePolynomialRoot from './SomePolynomialRoot.js';
 
-Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, callback) {
+globalThis.factorsMap = new Map();
+
+Expression.getPolynomialRootsWithSteps = function (polynomial, callback) {
   var roots = polynomial.getroots(callback);
 
   //TODO: tests
@@ -16,8 +19,50 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
       p = p.multiply(Polynomial.of(roots[i].negate(), Expression.ONE));
     }
     var r = polynomial.divideAndRemainder(p).quotient;
-    var precision = Math.max(fractionDigits || 0, 5);
-    zeros = r.getZeros(precision, true);
+    globalThis.factorsMap = new Map();
+    const getZerosTricky = function (f) {
+      var pp = f.primitivePart();
+      if (!pp.hasIntegerCoefficients()) {//TODO: !?
+        return f.getZeros(true);
+      }
+      f = pp;
+      
+      // https://en.wikipedia.org/wiki/Square-free_polynomial
+      var tmp = f.squareFreeFactors();
+      var a0 = tmp.a0;
+      var a1 = tmp.a1;
+
+      if (a0.getDegree() !== 0) {
+        var tmp1 = getZerosTricky(a1); // roots with multiplicity = 1 (?)
+        var tmp2 = getZerosTricky(a0);
+        var result = [];
+        var previous = undefined;
+        for (var i = 0; i < tmp2.length; i += 1) {
+          var zero = tmp2[i];
+          if (zero !== previous) {
+            result.push(zero);
+            previous = zero;
+          }
+          result.push(zero);
+        }
+        return tmp1.concat(result);
+      }
+      
+      var factor = f.factorize();
+      if (factor == null) {
+        factor = f;
+      }
+      if (!factor.equals(f)) {
+        return getZerosTricky(factor).concat(getZerosTricky(f.divideAndRemainder(factor, "throw").quotient));
+      }
+      const zeros = factor.getZeros(true);
+      for (const zero of zeros) {
+        globalThis.factorsMap.set(zero, factor);
+      }
+      return zeros;
+    };
+    //zeros = r.getZeros(true);
+    zeros = getZerosTricky(r);
     if (callback != undefined) {
       if (zeros.length === r.getDegree()) {//TODO: !!!
         callback({content: Expression.ONE, roots: roots.concat(zeros), newPolynomial: Polynomial.of(polynomial.getLeadingCoefficient()), type: "realRootIsolationAndNewton'sMethod"});
@@ -27,43 +72,19 @@ Expression.getPolynomialRootsWithSteps = function (polynomial, fractionDigits, c
   //!
 
   // removing of duplicates
-  var uniqueRoots = [];
-  var multiplicities = [];
   for (var i = 0; i < roots.length; i += 1) {
     var root = roots[i];
-    var isDuplicate = false;
-    var j = -1;
-    while (++j < uniqueRoots.length) {
-      if (uniqueRoots[j].equals(root)) {
-        isDuplicate = true;
-        multiplicities[j] += 1;
+    for (var j = 0; j < roots.length; j += 1) {
+      if (roots[j].equals(root)) {
+        roots[j] = root;
       }
     }
-    if (!isDuplicate) {
-      uniqueRoots.push(root);
-      multiplicities.push(1);
-    }
   }
 
-  var m = 0;
-  for (var i = 0; i < zeros.length; i += 1) {
-    m += 1;
-    var zero = zeros[i];
-    var next = i + 1 < zeros.length ? zeros[i + 1] : undefined;
-    if (next !== zero) {
-      uniqueRoots.push(zero);
-      multiplicities.push(m);
-      m = 0;
-    }
-  }
-
-  return {
-    uniqueRoots: uniqueRoots,
-    multiplicities: multiplicities
-  };
+  return roots.concat(zeros);
 };
 
-Expression.getEigenvalues = function (matrix, fractionDigits, callback) {
+Expression.getEigenvalues = function (matrix, callback) {
 
   if (!matrix.isSquare()) {
     throw new RangeError("NonSquareMatrixException");
@@ -81,42 +102,113 @@ Expression.getEigenvalues = function (matrix, fractionDigits, callback) {
   determinant = determinant.map(function (e) { return e.simplifyExpression(); });
 
   var characteristicPolynomial = determinant;//!TODO: fix
+  if (callback != null) {
+    callback(characteristicPolynomial);//TODO: !?
+  }
 
-  var tmp = Expression.getPolynomialRootsWithSteps(characteristicPolynomial, fractionDigits, callback);
-  var uniqueRoots = tmp.uniqueRoots;
-  var multiplicities = tmp.multiplicities;
+//TODO:
+  var eigenvalues = Expression.getPolynomialRootsWithSteps(characteristicPolynomial, callback);
 
-  var eigenvalues = uniqueRoots;
-  return {
-    characteristicPolynomial: characteristicPolynomial,
-    eigenvalues: eigenvalues,
-    multiplicities: multiplicities
-  };
+  return eigenvalues;
 };
 
-Expression.getEigenvectors = function (matrix, eigenvalues) {
-  var eigenvectors = [];
-  for (var i = 0; i < eigenvalues.length; i += 1) {
-    var n = matrix.cols();
-    // matrix - E * eigenvalue
-    var fullMatrix = matrix.subtract(Matrix.I(n).scale(eigenvalues[i])).augment(Matrix.Zero(n, 1));
-    //TODO: Matrix.GaussMontante
-    var result = fullMatrix.toRowEchelon(Matrix.GaussJordan, "solving", undefined);
-    var tmp = Matrix.solveByGaussNext(result.matrix);
-    var currentEigenvectors = Matrix.getSolutionSet(tmp).basisVectors;
-    eigenvectors = eigenvectors.concat(currentEigenvectors);//?
+// a/b, where a and b are integers
+Expression.isRational = function (e) {
+  return e instanceof Expression.Integer || e instanceof Expression.BinaryOperation && Expression.isRational(e.a) && Expression.isRational(e.b);
+};
+Expression.isRationalMatrix = function (A) {
+  for (var i = 0; i < A.rows(); i += 1) {
+    for (var j = 0; j < A.cols(); j += 1) {
+      if (!Expression.isRational(A.e(i, j))) {
+        return false;
+      }
+    }
   }
-  return {
-    eigenvectors: eigenvectors
+  return true;
+};
+
+Expression.getEigenvectors = function (matrix, eigenvalues, internal = false) {
+  if (eigenvalues == undefined) {
+    throw new TypeError();//TODO: remove
+    eigenvalues = Expression.getEigenvalues(matrix);
+  }
+
+  const eigenvectors = new Array(eigenvalues.length).fill(null);
+  const uniqueEigenvalues = Expression.unique(eigenvalues);
+  
+  const setResults = function (eigenvalue, currentEigenvectors) {
+    var j = 0;
+    for (var k = 0; k < eigenvalues.length && j < currentEigenvectors.length; k += 1) {
+      if (eigenvalues[k] === eigenvalue) {
+        eigenvectors[k] = currentEigenvectors[j];
+        j += 1;
+      }
+    }
+    if (j < currentEigenvectors.length) {
+      throw new TypeError("wrong eigenvalues argument: the eigenvalue should appear multiple times");
+    }
   };
+
+  if (!internal && matrix.isSquare() && Expression.isRationalMatrix(matrix)) {//todo: complex (?)
+    const map = new Map();
+    for (const eigenvalue of uniqueEigenvalues) {
+      const factor = globalThis.factorsMap.get(eigenvalue);
+      if (factor == null || factor.getDegree() <= 1) {
+        const currentEigenvectors = Expression.getEigenvectors(matrix, eigenvalues.filter(e => e === eigenvalue), true);
+        setResults(eigenvalue, currentEigenvectors);
+      } else {
+        var currentEigenvectors = map.get(factor);
+        if (currentEigenvectors == null) {
+          const root = SomePolynomialRoot.create(factor);
+          currentEigenvectors = Expression.getEigenvectors(matrix, eigenvalues.filter(e => e === eigenvalue).map(e => root), true);
+          map.set(factor, currentEigenvectors);
+        }
+        var zeroPows = [];
+        zeroPows.push(Expression.ONE);
+        const subs = function (x) {
+          return x instanceof SomePolynomialRoot ? x.calcAt(eigenvalue, zeroPows) : x;
+        };
+        setResults(eigenvalue, currentEigenvectors.map(v => new Matrix.Vector(v.elements.map(e => subs(e)))));
+      }
+    }
+    
+    return eigenvectors;
+  }
+  
+  for (var i = 0; i < uniqueEigenvalues.length; i += 1) {
+    const eigenvalue = uniqueEigenvalues[i];
+    var n = matrix.cols();
+    // matrix - I * eigenvalue
+    var currentEigenvectors = Expression.getSolutionSet(matrix.subtract(Matrix.I(n).scale(eigenvalue)));
+    setResults(eigenvalue, currentEigenvectors);
+    
+    let cc = null;
+    if (i + 1 < uniqueEigenvalues.length) {
+      try {
+        cc = eigenvalue.complexConjugate();
+      } catch (error) {
+        //TODO: remove
+        console.error(error);
+      }
+    }
+    //TODO: REMOVE (use the code above)
+    if (i + 1 < uniqueEigenvalues.length && cc != null && cc.equals(uniqueEigenvalues[i + 1]) && matrix.eql(matrix.map(e => e.complexConjugate()))) {
+      //TODO:!
+      const complexConjugate = function (vector) {
+        return new Matrix.Vector(vector.elements.map(e => e.complexConjugate()));
+      };
+      setResults(uniqueEigenvalues[i + 1], currentEigenvectors.map(vector => complexConjugate(vector)));
+      i += 1;//TODO: !?
+    }
+  }
+  return eigenvectors;
 };
 
 var getInverse = function (A, eigenvalues, T) {
   // https://en.wikipedia.org/wiki/Diagonalizable_matrix : The row vectors of P^−1 are the left eigenvectors of A
   // https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors#Left_and_right_eigenvectors :  a left eigenvector of A is the same as the transpose of a right eigenvector of A^T, with the same eigenvalue
   var AT = A.transpose();
-  var tmp2 = Expression.getEigenvectors(AT, eigenvalues);
-  var eigenvectors = tmp2.eigenvectors;
+  var eigenvectors = Expression.getEigenvectors(AT, eigenvalues);
   var T_INVERSED = Matrix.fromVectors(eigenvectors).transpose();
   return _unscaleInverseMatrix(T_INVERSED, T);
 };
@@ -150,14 +242,17 @@ Expression._unscaleInverseMatrix = _unscaleInverseMatrix;//TODO: make private
 
 // A = T^-1 L T ,T-matrix of own vectors, L - matrix of own values
 
-Expression.diagonalize = function (matrix, eigenvalues, multiplicities, eigenvectors) {
+Expression.diagonalize = function (matrix, eigenvalues, eigenvectors) {
+  if (arguments.length > 3) {
+    throw new TypeError();
+  }
   if (!matrix.isSquare()) {
     throw new RangeError("NonSquareMatrixException");
   }
-  if (Expression.sum(multiplicities) !== matrix.cols()) {
+  if (eigenvalues.length !== matrix.cols()) {
     throw new RangeError();
   }
-  if (eigenvectors.length !== matrix.cols()) {
+  if (eigenvectors.filter(v => v != null).length !== matrix.cols()) {
     throw new RangeError();
   }
   // https://en.wikipedia.org/wiki/Jordan_normal_form
@@ -165,12 +260,8 @@ Expression.diagonalize = function (matrix, eigenvalues, multiplicities, eigenvec
 
   // TODO: text
   //!!!
-  var diagonal = [];
-  for (var i = 0; i < eigenvalues.length; i += 1) {
-    diagonal = diagonal.concat(new Array(multiplicities[i]).fill(eigenvalues[i]));
-  }
   var L = Matrix.I(matrix.cols()).map(function (element, i, j) {
-    return (i === j ? diagonal[i] : Expression.ZERO);
+    return (i === j ? eigenvalues[i] : Expression.ZERO);
   });
   var T = Matrix.fromVectors(eigenvectors);
 
@@ -360,9 +451,7 @@ Expression.SVD = function (matrix) {
   // https://en.wikipedia.org/wiki/Singular_value_decomposition#Calculating_the_SVD
   // TODO: see https://web.mit.edu/be.400/www/SVD/Singular_Value_Decomposition.htm
   // The left-singular vectors of M are a set of orthonormal eigenvectors of MM*.
-  var helper = function (matrix, eigenvalue) {
-    var tmp = Expression.getEigenvectors(matrix, [eigenvalue]);
-    var eigenvectors = tmp.eigenvectors;
+  var helper = function (matrix, eigenvectors) {
     //console.info('We need to orthonormalize eigenvectors so the matrix with those vectors as columns will be unitary:');
     if (eigenvectors.length > 1) {//TODO: https://math.stackexchange.com/questions/82467/eigenvectors-of-real-symmetric-matrices-are-orthogonal#answer-82471
       eigenvectors = GramSchmidtOrthogonalization(eigenvectors);
@@ -372,13 +461,18 @@ Expression.SVD = function (matrix) {
     return eigenvectors.map(vector => vector.toUnitVector());
   };
   var MstarM = matrix.conjugateTranspose().multiply(matrix);
-  var tmp = Expression.getEigenvalues(MstarM); // use MstarM to have zero eigenvalues to make the set of eigenvectors full for V
-  var eigenvalues = tmp.eigenvalues;
+  var eigenvalues = Expression.getEigenvalues(MstarM); // use MstarM to have zero eigenvalues to make the set of eigenvectors full for V
   //!
   eigenvalues = eigenvalues.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot || eigenvalue instanceof Expression.ExpressionPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
   //!
 
-  eigenvalues = eigenvalues.slice(0).reverse().sort((a, b) => a.subtract(b).compareTo(Expression.ZERO) > 0 ? -1 : 1);
+  eigenvalues = eigenvalues.slice(0).reverse().sort(function (a, b) {
+    var diff = a.subtract(b);
+    if (!Expression.isReal(diff)) {
+      return NaN;//TODO: !?
+    }
+    return diff.compareTo(Expression.ZERO) > 0 ? -1 : 1;
+  });
 
   //var Vstar = ExpressionParser.parse(matrix.toString()).transformEquality(ExpressionParser.parse(U.multiply(Sigma).toString() + '*' + 'X', ExpressionParser.parse.c).simplify());
   
@@ -387,8 +481,11 @@ Expression.SVD = function (matrix) {
   var diagonal = [];
   //TODO:
   //console.info('   eigenvectors: ');
-  for (var eigenvalue of eigenvalues) {
-    V = V.concat(helper(MstarM, eigenvalue));
+  const uniqueEigenvalues = Expression.unique(eigenvalues);
+  var eigenvectors = Expression.getEigenvectors(MstarM, eigenvalues);
+  for (var eigenvalue of uniqueEigenvalues) {
+    var eigenvalueEigenvectors = eigenvectors.filter((v, i) => eigenvalues[i] === eigenvalue);
+    V = V.concat(helper(MstarM, eigenvalueEigenvectors));
     var entry = eigenvalue.squareRoot();
     // https://en.wikipedia.org/wiki/Eigenvalues_and_eigenvectors#Eigenspaces,_geometric_multiplicity,_and_the_eigenbasis_for_matrices
     // https://people.math.carleton.ca/~kcheung/math/notes/MATH1107/wk12/12_singular_value_decomposition.html
@@ -414,7 +511,8 @@ Expression.SVD = function (matrix) {
     //TODO: details
     console.time('U1');
     var MMstar = matrix.multiply(matrix.conjugateTranspose());
-    var U2b = helper(MMstar, Expression.ZERO);
+    var eigenvectors = Expression.getEigenvectors(MMstar, new Array(matrix.rows()).fill(Expression.ZERO), true).filter(v => v != null);
+    var U2b = helper(MMstar, eigenvectors);
     console.timeEnd('U1');
     console.assert(U.length + U2b.length === matrix.rows());
     U = U.concat(U2b);
