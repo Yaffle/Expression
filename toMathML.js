@@ -215,7 +215,7 @@ Expression.escapeHTML = function (s) {
 };
 
 Expression.defaultOptions = {
-  useMatrixContainer = false;
+  useMatrixContainer: false
 };
 
 Expression.Matrix.prototype.toMathML = function (options) {
