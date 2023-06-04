@@ -56,14 +56,22 @@
 <body>
 <form>
 <textarea wrap="off" autocapitalize="off" autocomplete="off">
-  var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
+  const matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
 
-  var eigenvalues = Expression.getEigenvalues(matrix);
+  const eigenvalues = Expression.getEigenvalues(matrix);
 
-  var y = Expression.getFormaDeJordan(matrix, eigenvalues);
+  const y = Expression.getFormaDeJordan(matrix, eigenvalues);
 
-  var po = {useMatrixContainer: false};
-  document.getElementById("output").innerHTML = "<math>" + new Expression.Matrix(matrix).toMathML(po) + "<mo>=</mo>" + new Expression.Matrix(y.P).toMathML(po) + "<mo>&times;</mo>" + new Expression.Matrix(y.J).toMathML(po) + "<mo>&times;</mo>" + new Expression.Matrix(y.P_INVERSED).toMathML(po) + "</math>";
+  document.getElementById('output').innerHTML = '' +
+    '<math>' +
+    new Expression.Matrix(matrix).toMathML() +
+    '<mo>=</mo>' +
+    new Expression.Matrix(y.P).toMathML() +
+    '<mo>&times;</mo>' +
+    new Expression.Matrix(y.J).toMathML() +
+    '<mo>&times;</mo>' +
+    new Expression.Matrix(y.P_INVERSED).toMathML() +
+    '</math>';
 </textarea>
 <button type="submit">eval</button>
 <div id="output">
