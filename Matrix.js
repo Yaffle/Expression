@@ -700,6 +700,12 @@
         position += t.length;
       }
     }
+    //!new 2023-05-07
+    for (var i = 0; i < result.length; i++) {
+      if (result[i].length === 1 && /,/.test(result[i][0])) {
+        result[i] = result[i][0].split(',');
+      }
+    }
     return result;
   };
 

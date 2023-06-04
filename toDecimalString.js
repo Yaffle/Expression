@@ -563,7 +563,7 @@ var toDecimalStringInternal = function (expression, rounding, decimalToStringCal
     }
     if (x !== "CANNOT_DIVIDE" && result == undefined && rounding.fractionDigits != undefined && guessedPrecision === 1) {//TODO: ?
       var log10OfValue = BigFloat.max(BigFloat.abs(x.a), BigFloat.abs(x.b)).toFixed(0).length;
-      guessedPrecision = Math.ceil(Math.max(log10OfValue * Math.log2(10), 2) / 2 + Math.log2(10) * rounding.fractionDigits / 2 * 2);
+      guessedPrecision = Math.max(Math.ceil((log10OfValue + rounding.fractionDigits + 1) * Math.log2(10) / 2), 2);
     }
     if (x !== "CANNOT_DIVIDE" && result == undefined && rounding.significantDigits != undefined && guessedPrecision === 1) {//TODO: ?
       if (BigFloat.sign(x.a) === BigFloat.sign(x.b)) { // zero is not part of the interval, so we know the minimal value

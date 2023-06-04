@@ -256,24 +256,15 @@ Expression.Matrix.prototype.toMathML = function (options) {
   var containerId = options.idPrefix + "-" + Expression.id();
   if (useMatrixContainer) {
     result += "<munder accentunder=\"true\">";
-    // <menclose href="#"> will not be supported by MathML Core, so using <mrow>
     result += '<mrow id="' + containerId + '" data-matrix="' + Expression.escapeHTML(x.toString()) + '" draggable="true" tabindex="0" contextmenu="matrix-menu">';
   }
 
   result += braces == undefined ? '<mrow><mo>(</mo>' : '<mrow>' + (braces[0] === ' ' ? '' : '<mo>' + braces[0] + '</mo>');
-  var columnlinesAttribute = "";
-  if (columnlines !== 0 && cols - 1 > 0) {
-    var k = -1;
-    while (++k < cols - 1) {
-      columnlinesAttribute += (cols - 1 + columnlines === k ? "solid " : "none ");
-    }
-    // whitespace
-    columnlinesAttribute = columnlinesAttribute.slice(0, -1);
-  }
   //! 2017-07-06 rowspacing="0ex" was added to make it look better with Native MathML (when it is supported) and to have the same style as in mathml.css
-  //  rowspacing="0ex" is also needed when verticalStrike !== -1
-  var useColumnspacing = verticalStrike !== -1 || horizontalStrike !== -1 || pivotCell != undefined || cellIdGenerator != undefined;
-  result += "<mtable" + " rowspacing=\"0ex\"" + (useColumnspacing ? " columnspacing=\"0em\"" : "") + (variableNames != undefined ? " columnalign=\"right\"" : "") + (columnlinesAttribute !== "" ? " columnlines=\"" + columnlinesAttribute + "\"" : "") + ">";
+  //!  rowspacing="0ex" is also needed when verticalStrike !== -1 and <menclose> is used inside
+  //var useColumnspacing = verticalStrike !== -1 || horizontalStrike !== -1 || pivotCell != undefined || cellIdGenerator != undefined;
+  //TODO: a11y for menclose[notation="circle"] (?)
+  result += '<mtable' + (variableNames != undefined ? ' columnalign="right"' : '') + '>';
   while (++i < rows) {
     var j = -1;
     if (variableNames != undefined) {// TODO: fix?
@@ -296,41 +287,40 @@ Expression.Matrix.prototype.toMathML = function (options) {
     } else {
       result += "<mtr>";
       while (++j < cols) {
-        result += "<mtd" + (cellIdGenerator != undefined ? " id=\"" + cellIdGenerator(i, j) + "\"" : "") + ">";
+        var ariaHidden = '';
+        var style = '';
+        if (columnlines !== 0 && cols - 1 > 0) {
+          style += (cols + columnlines === j ? "border-left: 1px solid;" : "");
+        }
         if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
-          result += "<mrow style=\"font-weight: bolder\">";
-          result += "<menclose notation=\"circle\">";
+          style += 'border: 1px solid; border-radius: 50%;';
+          style += 'font-weight: bolder';
         }
-        if (horizontalStrike === i) {
-          result += "<menclose notation=\"horizontalstrike\">";
+        if (horizontalStrike === i && verticalStrike === j) {
+          style += 'background: linear-gradient(currentColor, currentColor) no-repeat 50% 0 / 2px auto, linear-gradient(currentColor, currentColor) no-repeat 0 50% / auto 2px; opacity: 0.5';
+          ariaHidden = 'true';
+        } else {
+          if (verticalStrike === j) {
+            style += 'background: linear-gradient(currentColor, currentColor) no-repeat 50% 0 / 2px auto; opacity: 0.5';
+            ariaHidden = 'true';
+          }
+          if (horizontalStrike === i) {
+            style += 'background: linear-gradient(currentColor, currentColor) no-repeat 0 50% / auto 2px; opacity: 0.5;';
+            ariaHidden = 'true';
+          }
         }
-        if (verticalStrike === j) {
-          result += "<menclose notation=\"verticalstrike\">";
-        }
+        var id = (cellIdGenerator != undefined ? cellIdGenerator(i, j) : '');
+        result += ('<mtd id="' + id + '" aria-hidden="' + ariaHidden + '" style="' + style + '">').replace(/\s+[a-z\-]+\=""/g, '');
+
         // <mpadded> is an extra element, it is too many elements if to use it, which can cause performance problems
-        if (useColumnspacing) {
-          result += "<mpadded width=\"+0.8em\" lspace=\"+0.4em\">";
-        }
+        // padding is not supported on <mrow> in Firefox
         var highlight = j < i && isLUDecomposition2 ||
                         highlightRow === i && (columnlines === 0 || j <= cols - 1 + columnlines) || highlightCol === j;
         if (highlight) {
-          result += "<mrow mathbackground=\"#80FF80\" mathcolor=\"#3C78C2\">";
+          result += '<mrow style="background: #80FF80; color: #3C78C2">'; //TODO: dark mode
         }
         result += x.e(i, j).toMathML(options);
         if (highlight) {
-          result += "</mrow>";
-        }
-        if (useColumnspacing) {
-          result += "</mpadded>";
-        }
-        if (verticalStrike === j) {
-          result += "</menclose>";
-        }
-        if (horizontalStrike === i) {
-          result += "</menclose>";
-        }
-        if (pivotCell != undefined && i === pivotCell.i && j === pivotCell.j) {
-          result += "</menclose>";
           result += "</mrow>";
         }
         result += "</mtd>";
@@ -345,7 +335,7 @@ Expression.Matrix.prototype.toMathML = function (options) {
     result += '</mrow>';
 
     result += "<mtext>";
-    result += "<button type=\"button\" class=\"matrix-menu-show\" data-for-matrix=\"" + containerId + "\" aria-haspopup=\"true\"></button>";
+    result += '<button type="button" class="matrix-menu-show" data-for-matrix="' + containerId + '" aria-haspopup="true" title="' + i18n.matrixMenu.title + '"></button>';
     result += "</mtext>";
 
     result += "</munder>";
@@ -656,6 +646,7 @@ Expression.BinaryOperation.prototype.toMathML = function (options) {
       var s = [];
       for (var x = this; x != null; x = x instanceof Expression.Multiplication ? x.a.unwrap() : null) {
         var factor = x instanceof Expression.Multiplication ? x.b.unwrap() : x;
+        //TODO: fence(?)
         s.push(factor.toMathML(Expression.setTopLevel(fence, options)));
       }
       s = s.reverse().join('<mo>&it;</mo>');

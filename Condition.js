@@ -201,6 +201,22 @@ Condition.prototype._and = function (operator, e) {
     if (y.expression instanceof Expression.NthRoot) {
       return add(oldArray, {expression: y.expression.a, operator: y.operator});
     }
+    if (Expression.has(y.expression, Expression.Abs)) {
+      if (y.expression instanceof Expression.Abs && (y.operator === Condition.EQZ || y.operator === Condition.NEZ)) {
+        return add(oldArray, {expression: y.expression.a, operator: y.operator});
+      }
+      if (y.expression instanceof Expression.Abs && (y.operator === Condition.GTZ)) {
+        return oldArray;
+      }
+      if (y.expression.negate() instanceof Expression.Abs && (y.operator === Condition.GTZ)) {
+        return null;
+      }
+    }
+    if (Expression.has(y.expression, Expression.ComplexConjugate)) {
+      if (!Expression.has(y.expression.complexConjugate(), Expression.ComplexConjugate)) {
+        return add(oldArray, {expression: y.expression.complexConjugate(), operator: y.operator});
+      }
+    }
     if (y.expression instanceof Expression.Multiplication) {
       if (y.operator === Condition.EQZ) {
         if (y.expression.a instanceof Expression.Integer && !y.expression.a.equals(Expression.ZERO)) {

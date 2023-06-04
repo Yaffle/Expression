@@ -1184,7 +1184,7 @@
     };
 
     //!new 2020-01-13
-    if (hasIntegerCoefficients) {
+    if (hasIntegerCoefficients && an.abs().bitLength() + a0.abs().bitLength() > 8) {
       //var tmp = np.squareFreeFactors();
       //if (tmp.a0.getDegree() > 0) {
       //  return tmp.a0.doRationalRootTest() || tmp.a1.doRationalRootTest();
@@ -2304,6 +2304,55 @@
         hit({getroots: {other: np.getDegree()}});
       }
     }
+
+
+    //!2023-05-08 new TODO: !?
+    if (np.hasIntegerCoefficients() && np.getDegree() >= 4 && np.getDegree() % 2 === 0 && np.getDegree() <= 12) {//TODO: !?
+      var u = new Expression.Symbol('u');
+      var v = new Expression.Symbol('v');
+      var p1 = np.calcAt(u.add(v));
+      var p2 = np.calcAt(u.subtract(v));
+      var res = Polynomial.resultant(Polynomial.toPolynomial(p1, u), Polynomial.toPolynomial(p2, u));
+      res = Polynomial.toPolynomial(res, v);
+      var f = function (res) {
+        var a = [];
+        var x = res.factorize();
+        while (x != null && res.getDegree() > 1) {
+          if (x.getDegree() <= 2) {//TODO: !?
+            a = a.concat(x.getroots());
+          }
+          res = res.divideAndRemainder(x).quotient;
+          x = res.factorize();
+        }
+        return a;//TODO: ?
+      };
+      var vs = Expression.unique(f(res.primitivePart()));
+      for (var i = 0; i < vs.length; i++) {
+        var v = vs[i];
+        var g = Polynomial.polynomialGCD(np._translateRoots(v), np._translateRoots(v.negate()));
+        if (g.getDegree() <= 3) {//TODO: ?
+          var us = g.getroots();
+          if (us.length > 0) {
+            var pp = Polynomial.of(Expression.ONE);
+            for (var i = 0; i < us.length; i += 1) {
+              var u = us[i];
+              var root = u.add(v);
+              roots.push(root);
+              pp = pp.multiply(Polynomial.of(root.negate(), Expression.ONE));
+            }
+            var tmp = np.divideAndRemainder(pp);
+            if (!tmp.remainder.equals(Polynomial.ZERO)) {
+              throw new TypeError();
+            }
+            np = tmp.quotient;//TODO: optimize somehow - ?
+            //TODO: details (?)
+            continueWithNewPolynomial(roots, np);
+            return roots;
+          }
+        }
+      }
+    }
+
 
     return roots;
   };

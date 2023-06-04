@@ -266,7 +266,11 @@ Expression.diagonalize = function (matrix, eigenvalues, eigenvectors) {
   var T = Matrix.fromVectors(eigenvectors);
 
   //var T_INVERSED = T.inverse();
-  var T_INVERSED = T.isExact() ? T.inverse() : getInverse(matrix, eigenvalues, T);
+  var ok = function () {
+    //TODO: !?
+    return eigenvalues.map(e => !Expression.has(e, Expression.Exponentiation)).reduce((p, a) => p || a);
+  };
+  var T_INVERSED = T.isExact() && ok() ? T.inverse() : getInverse(matrix, eigenvalues, T);
 
   return {T: T, L: L, T_INVERSED: T_INVERSED};
 };
@@ -331,7 +335,9 @@ Expression.isReal = function (e) {
       return isReal(e.a);
     }
     if (e instanceof Expression.BinaryOperation) {
-      return isReal(e.a) && isReal(e.b);
+      if (isReal(e.a) && isReal(e.b)) {
+        return true;
+      }
     }
     if (e === Expression.E || e === Expression.PI) {
       return true;
@@ -347,6 +353,11 @@ Expression.isReal = function (e) {
     }
     if (e instanceof Expression.ExpressionPolynomialRoot) {
       return true;
+    }
+    if (!(e instanceof Expression.Symbol)) {
+      if (e.complexConjugate().equals(e)) {
+        return true;
+      }
     }
     return false;
   };
@@ -463,7 +474,10 @@ Expression.SVD = function (matrix) {
   var MstarM = matrix.conjugateTranspose().multiply(matrix);
   var eigenvalues = Expression.getEigenvalues(MstarM); // use MstarM to have zero eigenvalues to make the set of eigenvectors full for V
   //!
-  eigenvalues = eigenvalues.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot || eigenvalue instanceof Expression.ExpressionPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
+  // "===" should still work after Array#map:
+  var ks = Expression.unique(eigenvalues);
+  var vs = ks.map(eigenvalue => eigenvalue instanceof Expression.ExpressionWithPolynomialRoot || eigenvalue instanceof Expression.ExpressionPolynomialRoot ? eigenvalue.upgrade() : eigenvalue);
+  eigenvalues = eigenvalues.map(e => vs[ks.indexOf(e)]);
   //!
 
   eigenvalues = eigenvalues.slice(0).reverse().sort(function (a, b) {
@@ -471,7 +485,8 @@ Expression.SVD = function (matrix) {
     if (!Expression.isReal(diff)) {
       return NaN;//TODO: !?
     }
-    return diff.compareTo(Expression.ZERO) > 0 ? -1 : 1;
+    //return diff.compareTo(Expression.ZERO) > 0 ? -1 : 1;
+    return !Expression._isPositive(diff.negate()) ? -1 : +1;
   });
 
   //var Vstar = ExpressionParser.parse(matrix.toString()).transformEquality(ExpressionParser.parse(U.multiply(Sigma).toString() + '*' + 'X', ExpressionParser.parse.c).simplify());

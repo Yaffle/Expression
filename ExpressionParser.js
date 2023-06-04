@@ -1,6 +1,7 @@
 /*jslint plusplus: true, vars: true, indent: 2 */
   import Expression from './Expression.js';
   import Matrix from './Matrix.js';
+  import SomePolynomialRoot from './SomePolynomialRoot.js';
 
   //var isAlpha = function (code) {
   //  return (code >= "a".charCodeAt(0) && code <= "z".charCodeAt(0)) ||
@@ -277,6 +278,15 @@
     new Operator("frac", 2, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a, b) {
       return a.divide(b);
     }),
+    new Operator("\\cdot", 2, LEFT_TO_RIGHT, MULTIPLICATIVE_PRECEDENCE, function (a, b) {
+      return a.multiply(b);
+    }),
+    new Operator("\\times", 2, LEFT_TO_RIGHT, MULTIPLICATIVE_PRECEDENCE, function (a, b) {
+      return a.multiply(b);
+    }),
+    //new Operator("\\:", 0, RIGHT_TO_LEFT, 42, function (a, b) {
+    //  return a;
+    //}),
 
     new Operator("!", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
       return a.factorial();
@@ -287,6 +297,41 @@
     
     new Operator("pseudoinverse", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE, function (a) {
       return a.pseudoinverse();
+    }),
+    new Operator("root of", 1, RIGHT_TO_LEFT, EQUALITY_PRECEDENCE, function (a) {
+      //TODO: !?
+      var tmp = Expression.getMultivariatePolynomial(a.simplify());
+      return SomePolynomialRoot.create(tmp.p);
+    }),
+    new Operator("near", 2, RIGHT_TO_LEFT, COMMA_PRECEDENCE, function (a, b) {
+      //TODO: !?
+      //TODO: optimize, use in tests
+      if (a instanceof Expression.Integer) {
+        return a;
+      }
+      if (a instanceof SomePolynomialRoot && a.e.toString() === 'alpha') {
+        const point = b.simplify();
+        const p = a.polynomial;
+        var zeros = p.getZeros();
+        var min = 1 / 0;
+        var candidate = null;
+        var distance = function (x, y) {
+          return x.subtract(y);
+        };
+        for (var zero of zeros) {
+          var d = Math.abs(Number(distance(point, zero).toString({rounding: {fractionDigits: 2 * p.getDegree() + Math.ceil(p._log2hypot())}})));//TODO: ?
+          if (candidate == null || d < min) {
+            min = d;
+            candidate = zero;
+          }
+        }
+        const result = candidate.upgrade();
+        if (b instanceof Expression.NonSimplifiedExpression) {//TODO: !?
+          return new Expression.NonSimplifiedExpression(result);
+        }
+        return result;
+      }
+      throw new TypeError();
     })
   ];
 
@@ -735,7 +780,10 @@
           operand = context.wrap(operand);
           token = nextToken(tokenizer);
         } else if (token.type === 'punctuator' && token.value === "|") {
-          if (left == undefined || Expression.isScalar(left) && precedence < COMMA_PRECEDENCE) {//!
+          if (left == undefined || Expression.isScalar(left)) {//!
+            if (left != undefined && precedence >= COMMA_PRECEDENCE) {
+              debugger;
+            }
             token = parsePunctuator(tokenizer, token, "|");
             tmp = parseExpression(tokenizer, token, context, COMMA_PRECEDENCE, undefined);
             operand = tmp.result;
@@ -954,15 +1002,21 @@
   };
 
   var config = [
-    {type: 'integerLiteral', re: null},
-    {type: 'numericLiteral', re: null},
-    {type: 'whitespace', re: whiteSpaces},
-    {type: 'punctuator', re: punctuators},
-    {type: 'operator', re: null},
-    {type: 'symbol', re: symbols},
-    {type: 'vulgarFraction', re: vulgarFractions},
-    {type: 'superscript', re: superscripts},
-    {type: 'OTHER', re: other}
+    {type: 'integerLiteral', re: integerLiteral, state: 0},
+    {type: 'integerLiteral', re: integerLiteralWithoutComma, state: 1},
+    {type: 'numericLiteral', re: decimalFraction, state: 0},
+    {type: 'numericLiteral', re: decimalFractionWithoutComma, state: 1},
+    {type: 'whitespace', re: whiteSpaces, state: -1},
+    {type: 'punctuator', re: punctuators, state: -1},
+    {type: 'operator', re: null, state: -1},
+    {type: 'symbol', re: symbols, state: -1},
+    {type: 'vulgarFraction', re: vulgarFractions, state: -1},
+    {type: 'superscript', re: superscripts, state: -1},
+    {type: 'OTHER', re: other, state: -1}
+  ];
+  var stateConfigs = [
+    {start: '(', end: ')'},
+    {start: '{', end: '}'}
   ];
 
   function Token(type, value) {
@@ -991,46 +1045,30 @@
       var c = config[i];
       var type = c.type;
       var re = c.re;
-      if (re == null) {
-        if (type === 'integerLiteral') {
-          if (this.states != null && this.states.value === '{}') {
-            re = integerLiteralWithoutComma;
-          } else {
-            re = integerLiteral;
-          }
-        } else if (type === 'numericLiteral') {
-          if (this.states != null && this.states.value === '{}') {
-            re = decimalFractionWithoutComma;
-          } else {
-            re = decimalFraction;
-          }
-        } else if (type === 'operator') {
-          re = operationSearchCache.getRegExp();//?TODO:
-        }
+      var state = c.state;
+      if (re == null && type === 'operator') {
+        re = operationSearchCache.getRegExp();//?TODO:
       }
-      var tmp = re.exec(this._preparedInput.slice(this._preparedInputPosition));
-      if (tmp != null) {
-        var value = tmp[0];
-        if (type === 'punctuator') {
-          if (value === '(') {
-            this.states = {previous: this.states, value: '()'};
-          } else if (value === ')') {
-            if (this.states != null && this.states.value === '()') {
-              this.states = this.states.previous;
-            }
-          } else if (value === '{') {
-            this.states = {previous: this.states, value: '{}'};
-          } else if (value === '}') {
-            if (this.states != null && this.states.value === '{}') {
-              this.states = this.states.previous;
+      if (state === -1 || state === (this.states == null ? 0 : this.states.value)) {
+        var tmp = re.exec(this._preparedInput.slice(this._preparedInputPosition));
+        if (tmp != null) {
+          var value = tmp[0];
+          if (type === 'punctuator') {
+            for (var j = 0; j < stateConfigs.length; j += 1) {
+              var state = stateConfigs[j];
+              if (value === state.start) {
+                this.states = {previous: this.states, value: j};
+              } else if (value === state.end && this.states != null && this.states.value === j) {
+                this.states = this.states.previous;
+              }
             }
           }
+          for (var j = 0; j < value.length; j += (value.codePointAt(j) <= 0xFFFF ? 1 : 2)) {
+            this.position += this.input.codePointAt(this.position) <= 0xFFFF ? 1 : 2;
+          }
+          this._preparedInputPosition += value.length;
+          return new Token(type, value);
         }
-        for (var j = 0; j < value.length; j += (value.codePointAt(j) <= 0xFFFF ? 1 : 2)) {
-          this.position += this.input.codePointAt(this.position) <= 0xFFFF ? 1 : 2;
-        }
-        this._preparedInputPosition += value.length;
-        return new Token(type, value);
       }
     }
     throw new TypeError();

@@ -14,7 +14,8 @@
 // Expression.prototype.addInteger
 
   //import BigInteger from './BigInteger.js';
-  import SmallBigInt from './SmallBigInt.js';
+  //import SmallBigInt from './SmallBigInt.js';
+  import './node_modules/js-big-integer/SmallBigInt.js';
   import Polynomial from './Polynomial.js';
   import Matrix from './Matrix.js';
   import primeFactor from './primeFactor.js';
@@ -366,6 +367,9 @@
     if (x instanceof Expression.ExpressionWithPolynomialRoot) {
       return isPositiveQuick(x.e);
     }*/
+    if (x instanceof Expression.Abs) {
+      return true;
+    }
     return false;
   };
 
@@ -2000,6 +2004,34 @@
     }
 
     var r = getReplacement(a, getReplacement(b, v));
+    
+    //!new 2023-03-11
+    //TODO: !?
+    var r = getReplacement(a, getReplacement(b, v, "any"), "any");
+    if (r instanceof Replacement) {
+      var a1 = r.apply(a);
+      var b1 = r.apply(b);
+      if (!a1.getDenominator().equals(Expression.ONE)) {
+        if (!(a1.getDenominator() instanceof Expression.Integer)) {
+          throw new TypeError();
+        }
+        a1 = a1.getNumerator();
+      }
+      if (!b1.getDenominator().equals(Expression.ONE)) {
+        if (!(b1.getDenominator() instanceof Expression.Integer)) {
+          throw new TypeError();
+        }
+        b1 = b1.getNumerator();
+      }
+      var c = Polynomial.polynomialGCD(Polynomial.toPolynomial(a1, v), Polynomial.toPolynomial(b1, v)).calcAt(v);
+      var c1 = r.undo(c);
+      if (getTerm(c1) == null) {
+        return c1;
+      }
+      c1 = getTerm(c1);
+      console.log('c1', c1.toString(), getTerm(c1));
+      return c1;
+    }
     if (!r.equals(v)) {
       return substitute(substitute(a, v, r, inverseReplacement(r, v)).gcd(substitute(b, v, r, inverseReplacement(r, v))), v, inverseReplacement(r, v), r);
     }
@@ -2375,6 +2407,13 @@
       return x;
     }, e);
   };
+  Replacement.prototype.undo1 = function (e) {
+    var from = this.from;
+    var to = this.to;
+    var variable = getBase(this.to);
+    var p1 = Polynomial.toPolynomial(from.subtract(to), variable);
+    return Polynomial.toPolynomial(e, variable).divideAndRemainder(p1).remainder.calcAt(variable);
+  };
   Replacement.prototype.undo = function (e) {
     var variable = getBase(this.to);
     var r = this.from.pow(getExponent(this.to).inverse());
@@ -2416,7 +2455,7 @@
             } else {
               //TODO: test
               //throw new TypeError();
-              if (originalVariable != null && originalVariable.equals(y.a)) {
+              if (originalVariable === "any" || originalVariable != null && originalVariable.equals(y.a)) {
                 return new Replacement(y);
               }
             }
@@ -2641,15 +2680,24 @@ if (simplifyIdentityMatrixPower) {
     if (v != null) { // e**(1/2)
       var originalVariable = v;
       v = getVariable(v);
-      var r = getReplacement(y, getReplacement(x, v, originalVariable), originalVariable);
+      var r = getReplacement(y, getReplacement(x, v, originalVariable), "any");
       if (r instanceof Replacement) {
         //debugger;
         var a = r.apply(x);
         var b = r.apply(y);
         var c = a.divide(b);
-        var n = r.undo(c.getNumerator());
-        var d = r.undo(c.getDenominator());
+        var n = r.undo1(c.getNumerator());
+        var d = r.undo1(c.getDenominator());
         //debugger;
+        //!new 2023-03-11:
+        //TODO: instead do gcd modulo t^n - <from>  - ?
+        var g = n.gcd(d);//TODO:
+        if (!g.equals(Expression.ONE)) {
+          n = n.divide(g);
+          d = d.divide(g);
+        }
+        n = r.undo(n);
+        d = r.undo(d);
         return d.equals(Expression.ONE) ? n : new Expression.Division(n, d);
       }
       if (!r.equals(v)) {
@@ -3467,6 +3515,7 @@ if (simplifyIdentityMatrixPower) {
   BinaryOperation.prototype.compare4MultiplicationExponentiation = function () {
     return -1;//TODO: !?
   };
+
 
   function Multiplication(a, b) {
     BinaryOperation.call(this, a, b);
@@ -4545,6 +4594,13 @@ if (simplifyIdentityMatrixPower) {
         return getBase(x).negate();
       }
     }
+    
+    if (n === 2 && !(x.getDenominator() instanceof Expression.Integer)) {//TODO: other even n (?)
+      var sd = simpleDivisor(x.getDenominator());
+      if (sd.complexConjugate().multiply(sd).equals(x.getDenominator())) {//TODO: any factor
+        return x.getNumerator()._nthRoot(n).divide(sd.abs());
+      }
+    }
 
     var sd = simpleDivisor(x);
     if (!sd.equals(x)) {//TODO: FIX
@@ -4603,6 +4659,13 @@ if (simplifyIdentityMatrixPower) {
     }
     //!
     
+    if (n === 2 && !(this instanceof Expression.Exponentiation)) {//TODO: other even n (?)
+      var d = simpleDivisor(this);
+      if (d.complexConjugate().multiply(d).equals(this)) {//TODO: any factor
+        return d.abs();
+      }
+    }
+
     //TODO: !?
     if (n === 2 && !(this instanceof Expression.Exponentiation)) {
       console.log(this.toString());
@@ -5324,6 +5387,11 @@ if (simplifyIdentityMatrixPower) {
           //?
           if (e1 != null) {
             return getExpressionWithX(e1);
+          }
+        }
+        if (factorBase instanceof Expression.Division) { //! 2023-02-12  (X/9) TODO: ???
+          if (factorBase.getDenominator() instanceof Expression.Integer) {
+            return getExpressionWithX(factorBase.getDenominator().multiply(e));
           }
         }
         //!
@@ -6062,7 +6130,8 @@ Cases.prototype.toMathML = function (printOptions) {
   var s = '';
   s += '<mrow>';
   s += '<mo>{</mo>';
-  s += '<mtable rowspacing="0ex" columnalign="left">';
+  // rowspacing="0ex" 
+  s += '<mtable columnalign="left">';
   for (var i = 0; i < this.cases.length; i += 1) {
     var x = this.cases[i];
     s += '<mtr>';
@@ -6450,6 +6519,12 @@ Expression.Logarithm.prototype.complexConjugate = function () {
   };
   Expression.Abs.prototype.complexConjugate = function () {
     return this;
+  };
+  Expression.Abs.prototype.pow = function (y) {
+    if (y instanceof Expression.Integer) {
+      return this.a.pow(y).abs()
+    }
+    return Expression.Function.prototype.pow.call(this, y);
   };
 
 

@@ -201,19 +201,45 @@ var toRadicalExpression = function (root) {
   return null;
 };
 
-ExpressionPolynomialRoot.prototype.toString = function (options) {
-  //return new ExpressionWithPolynomialRoot(this, this).toString(options);
+function EmptyMap() {
+}
+EmptyMap.prototype.has = function () {return false;};
+EmptyMap.prototype.set = function () {};
+EmptyMap.prototype.get = function () {return null;};
+function weakMap() {
+  return typeof WeakMap !== 'undefined' ? new WeakMap() : new EmptyMap();
+}
+
+let cache2rounding = null;
+let cache2 = weakMap();
+
+ExpressionPolynomialRoot.prototype._toDecimalString = function (options) {
   options = options || {};
-  if (options.rounding == null) {
-    var p = this.root.getAlpha().polynomial;
-    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
-      var re = toRadicalExpression(this.root);
-      if (re != null) {
-        return re.toString(options);
-      }
+  const rounding = options.rounding;
+  if (rounding !== cache2rounding) {
+    console.log('clear', rounding);
+    cache2rounding = rounding;
+    cache2 = weakMap();
+  }
+  var s = cache2.get(this);
+  if (s != null) {
+    return s;
+  }
+  s = toDecimalStringInternal(this, rounding || {fractionDigits: 3});
+  cache2.set(this, s);
+  return s;
+};
+
+ExpressionPolynomialRoot.prototype.toString = function (options) {
+  options = options || null;
+  //return new ExpressionWithPolynomialRoot(this, this).toString(options);
+  if (options == null || options.rounding == null) {
+    var re = this._toRadicalExpression();
+    if (re != null) {
+      return re.toString(options);
     }
   }
-  return toDecimalStringInternal(this, options.rounding || {fractionDigits: 3});
+  return this._toDecimalString(options);
 };
 ExpressionPolynomialRoot.prototype.equals = function (other) {
   if (other instanceof ExpressionPolynomialRoot) {
@@ -316,6 +342,12 @@ Expression.prototype.upgrade = function () { //TODO: remove !!!
 
 ExpressionPolynomialRoot.prototype.isExact = function () {
   //TODO: fix - ?
+  if (true) {//TODO: fix performance
+    var re = this._toRadicalExpression();
+    if (re != null) {
+      return true;
+    }
+  }
   return false;
 };
 
@@ -328,29 +360,40 @@ ExpressionPolynomialRoot.prototype.simplifyExpression = function () {//TODO: rem
 };
 
 ExpressionPolynomialRoot.prototype.toMathML = function (options) {
-  options = options || {};
-  if (options.rounding == null) {
-    var p = this.root.getAlpha().polynomial;
-    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
-      var re = toRadicalExpression(this.root);
-      if (re != null) {
-        return re.toMathML(options);
-      }
+  options = options || null;
+  if (options == null || options.rounding == null) {
+    var re = this._toRadicalExpression();
+    if (re != null) {
+      return re.toMathML(options);
     }
   }
-  return toDecimalStringInternal(this, options.rounding || {fractionDigits: 3}, Expression._decimalToMathML, Expression._complexToMathML);
+  return Expression._decimalToMathML(this._toDecimalString(options));
+  //return toDecimalStringInternal(this, options.rounding || {fractionDigits: 3}, Expression._decimalToMathML, Expression._complexToMathML);
+};
+
+const cache = weakMap();
+ExpressionPolynomialRoot.prototype._toRadicalExpression = function () {
+  if (cache.has(this)) {
+    return cache.get(this);
+  }
+  var p = this.root.getAlpha().polynomial;
+  if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
+    var re = toRadicalExpression(this.root);
+    if (re != null) {
+      cache.set(this, re);
+      return re;
+    }
+  }
+  cache.set(this, null);
 };
 
 //TODO: ?????
 ExpressionPolynomialRoot.prototype.getPrecedence = function () {
   //TODO: avoid (?)
   if (true) {
-    var p = this.root.getAlpha().polynomial;
-    if (p.getDegree() / p.getGCDOfTermDegrees() < 10 && LazyPolynomialRoot._isSimpleForUpgrade(this.root.getAlphaExpression(), new Expression.Symbol('α'))) { //TODO: REMOVE !!!
-      var re = toRadicalExpression(this.root);
-      if (re != null) {
-        return re.getPrecedence();
-      }
+    var re = this._toRadicalExpression();
+    if (re != null) {
+      return re.getPrecedence();
     }
   }
   return 1000;
@@ -1291,6 +1334,19 @@ Expression.Division.prototype.abs = function () {
   return this.getNumerator().abs().divide(this.getDenominator().abs());
 };
 Expression.prototype.abs = function () {//TODO: remove - ?
+  const isSimple = function (e) {
+    if (e instanceof Expression.Addition) {
+      for (var s of e.summands()) {
+        for (var f of s.factors()) {
+          if (!(f instanceof Expression.Symbol && !(f instanceof Expression.MatrixSymbol) || f instanceof Expression.Integer)) {//TODO: other?
+            return false;
+          }
+        }
+      }
+      return true;
+    }
+    return false;
+  };
   if (this instanceof Expression.Symbol) {
     return new Expression.Abs(this);//TODO: !?
   }
@@ -1302,6 +1358,27 @@ Expression.prototype.abs = function () {//TODO: remove - ?
   }
   if (this instanceof Expression.Abs) {
     return this;
+  }
+  if (this.isNegative()) {
+    return this.negate().abs();
+  }
+  if (this instanceof Expression.Exponentiation && (this.a instanceof Expression.Symbol || isSimple(this.a))) {//TODO: !?
+    if (this.b instanceof Expression.Integer) {
+      return this.a.multiply(this.a.complexConjugate()).multiply(this.a.pow(this.b.subtract(Expression.TWO)).abs());
+    }
+  }
+  var d = Expression.simpleDivisor(this);
+  if (d != null && !d.equals(Expression.ONE) && !d.equals(this)) {
+    if (!(this.divide(d).divide(d) instanceof Expression.Division)) {
+      return new Expression.Exponentiation(d, Expression.TWO).abs().multiply(this.divide(d).divide(d).abs());
+    }
+    return d.abs().multiply(this.divide(d).abs()); // property
+  }
+  if (isSimple(this)) {
+    return new Expression.Abs(this);//TODO: !?
+  }
+  if (isSimple(this.complexConjugate())) {
+    return this.complexConjugate().abs();
   }
   if (this.compareTo(Expression.ZERO) < 0) {
     return this.negate();

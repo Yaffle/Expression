@@ -222,3 +222,7 @@ Expression.Complex.prototype.toExpression = function () {
   return this;
 };
 */
+
+Expression.Complex.prototype.compare4MultiplicationExponentiation = function () {
+  return +1;
+};

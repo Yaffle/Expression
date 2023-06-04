@@ -26,7 +26,7 @@ import primeFactor from './primeFactor.js';
 */
 
 function abs(a) {
-  return a < 0n ? -a : a;
+  return a < 0n ? 0n - a : a;
 }
 
   function ngcd(a, b) {
@@ -36,17 +36,10 @@ function abs(a) {
 // (a + b*sqrt(D))/(overTwo ? 2 : 1)
 // a, b, D - integers,
 // D - squarefree integer
-function QuadraticInteger(a, b, D, overTwo = false) {
-  a = typeof a === "number" ? BigInt(a) : a;
-  b = typeof b === "number" ? BigInt(b) : b;
-  D = Number(D);
-  //TODO:
-  if (typeof a === "number" && Math.abs(a) > Number.MAX_SAFE_INTEGER) {
-    throw new RangeError();
-  }
-  if (typeof b === "number" && Math.abs(b) > Number.MAX_SAFE_INTEGER) {
-    throw new RangeError();
-  }
+function QuadraticInteger($a, $b, $D, overTwo = false) {
+  let a = BigInt($a);
+  let b = BigInt($b);
+  const D = typeof $D === "number" ? $D : Number(BigInt($D));
   if (overTwo && D % 4 === 0) {
     throw new RangeError();
   }
@@ -65,11 +58,11 @@ function QuadraticInteger(a, b, D, overTwo = false) {
 }
 QuadraticInteger.prototype.multiply = function (y) {
   var x = this;
-  if (!(x.D === y.D)) {
+  if (+x.D !== +y.D) {
     throw new TypeError();
   }
-  var a = x.a * y.a + x.b * y.b * BigInt(y.D);
-  var b = x.a * y.b + x.b * y.a;
+  var a = BigInt(x.a) * y.a + BigInt(x.b) * y.b * BigInt(y.D);
+  var b = BigInt(x.a) * y.b + BigInt(x.b) * y.a;
   var d = (x.overTwo ? 1 : 0) + (y.overTwo ? 1 : 0);
   while (d > 0 && a % 2n === 0n && b % 2n === 0n) {
     a /= 2n;
@@ -79,15 +72,15 @@ QuadraticInteger.prototype.multiply = function (y) {
   return new QuadraticInteger(a, b, x.D, d === 1);
 };
 QuadraticInteger.prototype.conjugate = function (y) {
-  return new QuadraticInteger(this.a, -this.b, this.D, this.overTwo);
+  return new QuadraticInteger(this.a, -BigInt(this.b), this.D, this.overTwo);
 };
 QuadraticInteger.prototype.norm = function () {
   //var x = this.a * this.a;
   //var y = this.b * this.b;
   //return x % this.D + (((x - x % this.D) / this.D) - y) * this.D;
-  var a = this.a;
-  var b = this.b;
-  var D = this.D;
+  const a = BigInt(this.a);
+  const b = BigInt(this.b);
+  const D = +this.D;
   var aa = a * a;
   var bb = b * b;
   var norm = aa - bb * BigInt(D);
@@ -96,12 +89,6 @@ QuadraticInteger.prototype.norm = function () {
       throw new RangeError("assertion");
     }
     norm /= 4n;
-  }
-  if (typeof norm === "number" && Math.abs(norm) > Number.MAX_SAFE_INTEGER) {
-    throw new TypeError();
-  }
-  if (typeof a === "number" && norm >= -Number.MAX_SAFE_INTEGER && norm <= +Number.MAX_SAFE_INTEGER) {
-    norm = Number(norm);
   }
   return norm;
 };
@@ -116,7 +103,7 @@ QuadraticInteger.prototype.truncatingDivide = function (y) {
     y = new QuadraticInteger(y.toBigInt(), Expression.ZERO.toBigInt(), this.D);
   }
   var x = this;
-  if (!(x.D === y.D)) {
+  if (+x.D !== +y.D) {
     throw new TypeError();
   }
   var n = x.multiply(y.conjugate());
@@ -129,11 +116,11 @@ QuadraticInteger.prototype.truncatingDivide = function (y) {
     n = new QuadraticInteger(n.a, n.b, n.D, true);
     d /= 2n;
   }
-  return n.a % d === 0n && n.b % d === 0n ? new QuadraticInteger(n.a / d, n.b / d, x.D, n.overTwo) : null;
+  return BigInt(n.a) % d === 0n && BigInt(n.b) % d === 0n ? new QuadraticInteger(BigInt(n.a) / d, BigInt(n.b) / d, x.D, n.overTwo) : null;
 };
 
 QuadraticInteger.prototype.negate = function () {
-  return new QuadraticInteger(-this.a, -this.b, this.D, this.overTwo);
+  return new QuadraticInteger(-BigInt(this.a), -BigInt(this.b), this.D, this.overTwo);
 };
 
 /*
@@ -223,9 +210,15 @@ QuadraticInteger._factors = function (n) {
       return result === 1;
     }
     function norm(a, b) {
+      if (typeof a !== 'bigint' || typeof b !== 'bigint') {
+        throw new TypeError();
+      }
       return a * a + b * b;
     }
     function hasDivisor(r, i, a, b) {
+      if (typeof a !== 'bigint' || typeof b !== 'bigint') {
+        throw new TypeError();
+      }
       var d = a * a + b * b;
       var x = r * a + i * b;
       var y = i * a - r * b;
@@ -239,12 +232,12 @@ QuadraticInteger._factors = function (n) {
     //}
 
     for (var p of QuadraticInteger._factors(n)) {
-      var b = 0n;
+      let b = 0n;
       var c = p;
       while (c > 0n) {
         if (canBePerfectSquare(c)) {
-          var a = BigInt(nthRoot(BigInt(c), 2));
-          if (a * a === c) {
+          const a = BigInt(nthRoot(BigInt(c), 2));
+          if (a * a === BigInt(c)) {
             if (norm(a, b) > 1n && hasDivisor(r, i, a, b)) {
               return b === 0n ? new Expression.Complex(Expression.ZERO, Expression.Integer.fromBigInt(a)) : new Expression.Complex(Expression.Integer.fromBigInt(a), Expression.Integer.fromBigInt(b));
             }
@@ -298,11 +291,14 @@ function LegendreSymbol(a, p) {
 }
 
   function quadraticIntegers(norm, D, b) {
-    const overTwo = Number(D) % 4 === 1;
+    if (typeof norm !== 'bigint' || typeof D !== 'bigint' || typeof b !== 'bigint') {
+      throw new TypeError();
+    }
+    const overTwo = Number(BigInt(D)) % 4 === 1;
     while (true) {
-      var bbD = b * b * D;
-      var guess1 = -norm * (overTwo ? 4n : 1n) + bbD;
-      var guess2 = norm * (overTwo ? 4n : 1n) + bbD;
+      var bbD = BigInt(b) * b * D;
+      const guess1 = -norm * (overTwo ? 4n : 1n) + bbD;
+      const guess2 = norm * (overTwo ? 4n : 1n) + bbD;
       //if (typeof norm === "number") {//TODO:
       if (Number(guess2) > Number.MAX_SAFE_INTEGER || Number(guess1) > Number.MAX_SAFE_INTEGER) {
         throw new RangeError(norm);
@@ -374,7 +370,7 @@ QuadraticInteger.prototype.primeFactor = function () {
     var unit = QuadraticInteger._fundamentalUnit(D);
     var uniti = unit.conjugate();
     var x = this;
-    if (x.b * x.a < 1n) {
+    if (BigInt(x.b) * x.a < 1n) {
       return x.a < 0n ? uniti.negate() : uniti;
     }
     return unit;
@@ -398,7 +394,7 @@ QuadraticInteger.prototype.primeFactor = function () {
     }
     //?
     // http://oeis.org/wiki/Quadratic_integer_rings
-    if (isPrime(p) && D % p !== 0n && p !== 2n && LegendreSymbol(Number(D), Number(p)) !== 1) {
+    if (isPrime(p) && D % p !== 0n && p !== 2n && LegendreSymbol(Number(D), Number(BigInt(p))) !== 1) {
       continue;
     }
     //?
@@ -442,18 +438,18 @@ QuadraticInteger.prototype.equals = function (y) {
     }
     throw new TypeError();
   }
-  return x.a === y.a && x.b === y.b && x.D === y.D && x.overTwo === y.overTwo;
+  return BigInt(x.a) === y.a && BigInt(x.b) === y.b && +x.D === +y.D && Boolean(x.overTwo) === Boolean(y.overTwo);
 };
 QuadraticInteger.prototype.subtract = function (y) {
   var x = this;
-  if (!(x.D === y.D)) {
+  if (+x.D !== +y.D) {
     throw new TypeError();
   }
-  var xa = x.a;
-  var xb = x.b;
-  var ya = y.a;
-  var yb = y.b;
-  if (x.overTwo !== y.overTwo) {
+  var xa = BigInt(x.a);
+  var xb = BigInt(x.b);
+  var ya = BigInt(y.a);
+  var yb = BigInt(y.b);
+  if (Boolean(x.overTwo) !== Boolean(y.overTwo)) {
     if (x.overTwo) {
       ya *= 2n;
       yb *= 2n;
@@ -482,7 +478,7 @@ QuadraticInteger.prototype.remainder = function (y) {
     y = new QuadraticInteger(y.toBigInt(), Expression.ZERO.toBigInt(), this.D);
   }
   var x = this;
-  if (!(x.D === y.D)) {
+  if (+x.D !== +y.D) {
     throw new TypeError();
   }
   var n = x.multiply(y.conjugate());
@@ -491,16 +487,18 @@ QuadraticInteger.prototype.remainder = function (y) {
     return x.subtract(x);
   }
 
-  var q1 = (n.a - n.a % d) / d;
-  var q2 = (n.b - n.b % d) / d;
+  var q1 = (n.a - BigInt(n.a) % d) / d;
+  var q2 = (n.b - BigInt(n.b) % d) / d;
+  const xa = BigInt(x.a);
+  const ya = BigInt(y.a);
   if (q1 === 0n && q2 === 0n) {
     //if (abs(x.norm()) >= abs(y.norm())) {
       //?
-      if (x.a > y.a && y.a > 0n) {
-        return x.subtract(y.multiply(new QuadraticInteger((x.a - x.a % y.a) / y.a, 0n, x.D)));
+      if (xa > ya && ya > 0n) {
+        return x.subtract(y.multiply(new QuadraticInteger((xa - xa % ya) / ya, 0n, x.D)));
       }
-      if (x.a > -y.a && y.a < 0n) {
-        return x.subtract(y.multiply(new QuadraticInteger((x.a - x.a % -y.a) / -y.a, 0n, x.D)));
+      if (xa > -ya && ya < 0n) {
+        return x.subtract(y.multiply(new QuadraticInteger((xa - xa % -ya) / -ya, 0n, x.D)));
       }
       if (y.b === 0n) {
         return new QuadraticInteger(1n, 0n, x.D); //?
@@ -599,7 +597,7 @@ QuadraticInteger.gcd = function (x, y) {
   var b = y;
   while (!b.equals(Expression.ZERO)) {
     var r = a.remainder(b);
-    if (!(abs(r.norm()) <= abs(b.norm()))) {
+    if (!(BigInt(abs(r.norm())) <= BigInt(abs(b.norm())))) {
       throw new TypeError("norm");
     }
     a = b;
@@ -766,7 +764,7 @@ throw new Error();
 */
 
 function isPrime(n) {
-  return primeFactor(n) === n;
+  return BigInt(primeFactor(n)) === BigInt(n);
 }
 
 /*
@@ -881,7 +879,7 @@ QuadraticInteger._checkFactorization = function checkFactorization(i) {
   }
   var results = [];
   var x = i;
-  while (Math.abs(Number(x.norm())) > 1) {
+  while (Math.abs(Number(BigInt(x.norm()))) > 1) {
     //debugger;
     var p = x.primeFactor();
     results.push(p);

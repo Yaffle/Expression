@@ -1190,3 +1190,8 @@ Expression.Sin.prototype.complexConjugate = function () {
 Expression.Cos.prototype.complexConjugate = function () {
   return this.a.complexConjugate().cos();
 };
+
+
+Expression.Sin.prototype.compare4MultiplicationExponentiation = function () {
+  return -1;
+};

@@ -37,10 +37,19 @@ function SimpleFloat(significand, exponent) {
 }
 
 SimpleFloat.create = function (e) {
-  if (!isRational(e) || !isPowerOf2(e.getDenominator())) {
+  var n = e.getNumerator();
+  var d = e.getDenominator();
+  if (!(n instanceof Expression.Integer) || !(d instanceof Expression.Integer)) {
     throw new TypeError();
   }
-  return new SimpleFloat(e.getNumerator(), 0 - (e.getDenominator().bitLength() - 1));
+  var exp = 0;
+  if (d !== Expression.ONE) {
+    exp = d.bitLength() - 1;
+    if (!Expression.TWO._pow(exp).equals(d)) {
+      throw new TypeError();
+    }
+  }
+  return new SimpleFloat(n, 0 - exp);
 };
 SimpleFloat.prototype.toExpression = function () {
   return this.significand.multiply(this.exponent >= 0 ? Expression.TWO._pow(this.exponent) : Expression.TWO._pow(-this.exponent).inverse());
@@ -323,7 +332,7 @@ Helper.get = function (that, interval) {
   return that.squareFreeFactors.length === 1 ? that.squareFreeFactors[0] : null;
 };
 
-  var calculateNewInterval = function (newPolynomial, zeroFunction) {
+  var calculateNewInterval = function (newPolynomial, zeroFunction, options) {
     if (!newPolynomial.hasIntegerCoefficients()) {
       throw new RangeError("just a check");
     }
@@ -337,7 +346,7 @@ Helper.get = function (that, interval) {
     }
     var newInterval = guess;
     newPolynomial = Helper.get(newPolynomial, guess);
-    return new PolynomialRoot(newPolynomial, newInterval.toExpressionsInterval());
+    return new PolynomialRoot(newPolynomial, newInterval.toExpressionsInterval(), options);
   };
 
 
@@ -390,6 +399,9 @@ if (!options.skipFactorization) {//!
 }
 
 PolynomialRoot.prototype.toDecimal = function (precision) {
+  if (precision <= 0) {
+    return this.interval;//TODO: ?
+  }
   return this.polynomial.getZero(this.interval, precision);
 };
 
@@ -419,7 +431,7 @@ PolynomialRoot.prototype.scale = function (k) {
     });
   }
   var newInterval = SimpleInterval.from(this.interval).scale(k).toExpressionsInterval();
-  return new PolynomialRoot(newPolynomial, newInterval);
+  return new PolynomialRoot(newPolynomial, newInterval, {skipFactorization: true});
 };
 
 //TODO: remove (?)
@@ -439,7 +451,7 @@ PolynomialRoot.prototype.translate = function (k) {
   // to avoid intervals, which include zero
   return calculateNewInterval(newPolynomial, function (precision) {
     return toSimpleInterval(root, precision).add(toSimpleInterval(k, precision));
-  });
+  }, {skipFactorization: true});
 };
 
 PolynomialRoot.prototype.multiply = function (other) {
