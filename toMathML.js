@@ -214,11 +214,15 @@ Expression.escapeHTML = function (s) {
           .replace(/>/g, "&gt;");
 };
 
+Expression.defaultOptions = {
+  useMatrixContainer = false;
+};
+
 Expression.Matrix.prototype.toMathML = function (options) {
   var x = this.matrix;
   options = Expression.setTopLevel(true, options);
 
-  var useMatrixContainer = options.useMatrixContainer == undefined ? true : options.useMatrixContainer;
+  var useMatrixContainer = options.useMatrixContainer == undefined && Expression.defaultOptions.useMatrixContainer ? true : options.useMatrixContainer;
   //TODO: fix!
   var braces = options.useBraces == undefined ? undefined : options.useBraces;
   var columnlines = options.columnlines == undefined ? 0 : options.columnlines;
@@ -681,7 +685,7 @@ Expression.Symbol.prototype.toMathML = function (options) {
            "</msub>";
   }
   var isVector = this instanceof Expression.MatrixSymbol && /^[a-z]$/.test(s);
-  return "<mi" + (isVector ? " mathvariant=\"bold-italic\"" : "") + ">" + (this instanceof Expression.IdentityMatrix ? '<span class="dotted-underline" title="' + i18n.identityMatrix + '" aria-label="' + i18n.identityMatrix + '">' + s + '</span>' : s) + "</mi>";
+  return "<mi" + (isVector ? " mathvariant=\"bold-italic\"" : "") + ">" + (this instanceof Expression.IdentityMatrix && typeof i18n !== 'undefined' ? '<span class="dotted-underline" title="' + i18n.identityMatrix + '" aria-label="' + i18n.identityMatrix + '">' + s + '</span>' : s) + "</mi>";
 };
 Expression.Negation.prototype.toMathML = function (options) {
   var b = this.b;
