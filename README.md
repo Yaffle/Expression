@@ -193,7 +193,7 @@ Types
 
 DEMO
 ====
-[demo page](https://yaffle.github.io/Expression/demo.html)
+[demo page](https://yaffle.github.io/Expression/)
 
 Similar projects
 ================
