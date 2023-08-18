@@ -9,4 +9,4 @@
 
 import fs from 'fs';
 
-fs.symlink('../../../node_modules', './node_modules', 'dir', (err) => { console.log(err); });
+fs.symlink('../../../node_modules', './node_modules', 'junction', (err) => { console.log(err); });
