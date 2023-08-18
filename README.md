@@ -15,6 +15,7 @@ Usage example
 example.mjs:
 <!-- {% raw %} -->
 ```javascript
+
   import {ExpressionParser, Polynomial, Expression} from './node_modules/@yaffle/expression/index.js';
 
   // Exact polynomial roots can be found for some polynomials:
@@ -23,7 +24,7 @@ example.mjs:
 
   // Polynomial roots:
   var p = Polynomial.toPolynomial(ExpressionParser.parse("x^5−2x^4−11x^3+26x^2−2x−13"), ExpressionParser.parse("x"));
-  console.log(p.getZeros().map(x => x.toString({fractionDigits: 20})).toString()); // -3.41190231035920486644,-0.60930943815581736137,1.07534597839596488553,1.92498144931467217779,3.02088432080438516449
+  console.log(p.getZeros().map(x => x.toString({rounding: {fractionDigits: 20}})).toString()); // -3.41190231035920486644,-0.60930943815581736137,1.07534597839596488553,1.92498144931467217779,3.02088432080438516449
 
   // parse a matrix from a string:
   var matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
@@ -31,7 +32,7 @@ example.mjs:
 
   var eigenvalues = Expression.getEigenvalues(matrix);
   console.log('eigenvalues: ' + eigenvalues.toString()); // eigenvalues: 0,(-3*33^0.5+15)/2,(3*33^0.5+15)/2
-  console.log('eigenvalues: ' + eigenvalues.map(x => x.toMathML({fractionDigits: 10}))); // eigenvalues: <mn>0.0000000000</mn>,<mrow><mo>&minus;</mo><mn>1.1168439698</mn></mrow>,<mn>16.1168439698</mn>
+  console.log('eigenvalues: ' + eigenvalues.map(x => x.toMathML({rounding: {fractionDigits: 10}}))); // eigenvalues: <mn>0</mn>,<mrow><mo>&minus;</mo><mn>1.1168439698</mn></mrow>,<mn>16.1168439698</mn>
 
   var eigenvectors = Expression.getEigenvectors(matrix, eigenvalues);
   console.log('eigenvectors: ' + eigenvectors.toString()); // eigenvectors: {{1},{-2},{1}},{{(-3*33^0.5-11)/22},{(-3*33^0.5+11)/44},{1}},{{(3*33^0.5-11)/22},{(3*33^0.5+11)/44},{1}}
@@ -42,7 +43,7 @@ example.mjs:
   //var y = Expression.getFormaDeJordan(...);
 
   // Compute the first 100 digits of the square root of 2:
-  console.log(ExpressionParser.parse('sqrt(2)').toMathML({fractionDigits: 100})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
+  console.log(ExpressionParser.parse('sqrt(2)').toMathML({rounding: {fractionDigits: 100}})); // <mn>1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727</mn>
 
   // simplify an expression:
   const simplify = ExpressionParser.parse;
@@ -67,6 +68,10 @@ example.mjs:
 
   // Nth-power of a matrix:
   console.log(ExpressionParser.parse('{{33,24},{48,57}}**n').toString()); // {{(3^(4*n)+2*3^(2*n))/3,(3^(4*n)-3^(2*n))/3},{(2*3^(4*n)-2*3^(2*n))/3,(2*3^(4*n)+3^(2*n))/3}}
+
+  // Note: toLaTeX is deprecated
+  import './node_modules/@yaffle/expression/toLaTeX.js';
+  console.log(ExpressionParser.parse('{{1,2},{3,4}}').toLaTeX()); // \begin{pmatrix}1 & 2 \\ 3 & 4\end{pmatrix}
 
 ```
 <!-- {% endraw %} -->

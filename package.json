@@ -9,7 +9,7 @@
   "dependencies": {
     "@yaffle/bigdecimal": "^1.0.27",
     "bigint-gcd": "^1.0.28",
-    "js-big-integer": "^3.0.23",
+    "js-big-integer": "^3.0.25",
     "quadraticsievefactorization": "^1.0.72",
     "seedrandom": "^3.0.5"
   },
@@ -48,5 +48,5 @@
     "install": "node ./post-install.js"
   },
   "type": "module",
-  "version": "0.0.43"
+  "version": "0.0.44"
 }
