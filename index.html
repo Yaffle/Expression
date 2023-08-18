@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8" />
+<title>Demo page for Yaffle/Expression javascript math library</title>
 <script type="module">
   import {
     primeFactor,
@@ -36,7 +37,7 @@
 <style>
   textarea {
     width: 100%;
-    height: 240px;
+    height: 320px;
   }
   #output {
     text-align: center; /* also fixed <mfrac> for mathml.css */
@@ -45,29 +46,34 @@
 </head>
 <body>
 <form>
+  <h1>Expression demo</h1>
+
 <textarea wrap="off" autocapitalize="off" autocomplete="off">
-  const matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
+const matrix = ExpressionParser.parse('{{1,2,3},{4,5,6},{7,8,9}}').matrix;
 
-  const eigenvalues = Expression.getEigenvalues(matrix);
+const eigenvalues = Expression.getEigenvalues(matrix);
 
-  const y = Expression.getFormaDeJordan(matrix, eigenvalues);
+const y = Expression.getFormaDeJordan(matrix, eigenvalues);
 
-  document.getElementById('output').innerHTML = '' +
-    '<math>' +
-    new Expression.Matrix(matrix).toMathML() +
-    '<mo>=</mo>' +
-    new Expression.Matrix(y.P).toMathML() +
-    '<mo>&times;</mo>' +
-    new Expression.Matrix(y.J).toMathML() +
-    '<mo>&times;</mo>' +
-    new Expression.Matrix(y.P_INVERSED).toMathML() +
-    '</math>';
+document.getElementById('output').innerHTML = '' +
+  '<math>' +
+  new Expression.Matrix(matrix).toMathML() +
+  '<mo>=</mo>' +
+  new Expression.Matrix(y.P).toMathML() +
+  '<mo>&times;</mo>' +
+  new Expression.Matrix(y.J).toMathML() +
+  '<mo>&times;</mo>' +
+  new Expression.Matrix(y.P_INVERSED).toMathML() +
+  '</math>';
 </textarea>
 <button type="submit">eval</button>
 <div id="output">
 </div>
 </form>
 
-You could also play with the API in the browser console.
+<footer>
+  <p>You could also play with the API in the browser console.</p>
+  <a href="https://github.com/Yaffle/Expression/blob/master/README.md">documentation and source code</a>
+</footer>
 </body>
 </html>
