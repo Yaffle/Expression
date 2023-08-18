@@ -89,13 +89,37 @@ Expression.getEigenvalues = function (matrix, callback) {
   if (!matrix.isSquare()) {
     throw new RangeError("NonSquareMatrixException");
   }
-  // TODO: remove Polynomial
 
+  var entriesGCD = function (matrix) {
+    var g1 = Expression.ZERO;
+    var g2 = Expression.ONE;
+    matrix.map(function (e) {
+      if (Expression.isScalar(e)) { //TODO: ?
+        g1 = g1.gcd(e.getNumerator());
+        g2 = g2.lcm(e.getDenominator());
+      }
+      return Expression.ZERO;
+    });
+    return g1.divide(g2);
+  };
+  var g = Expression.ONE;
+  var gInv = Expression.ONE;
+  if (callback == null) {//TODO: !?
+    g = entriesGCD(matrix);
+    gInv = g.inverse();
+    matrix = matrix.scale(gInv);
+  }
+
+  // TODO: remove Polynomial
   var determinant = matrix.map(function (e, i, j) {
     var p = i === j ? Polynomial.of(e, Expression.ONE.negate()) : (e.equals(Expression.ZERO) ? Polynomial.ZERO : Polynomial.of(e));
     return new Expression.Polynomial(p);
   }).determinant();
+
   determinant = determinant.polynomial;
+
+  determinant = determinant._scaleRoots(g);
+  determinant = determinant.scale(g._pow(matrix.cols()));
 
   //!new (sin/cos)
   //TODO: fix
@@ -107,7 +131,9 @@ Expression.getEigenvalues = function (matrix, callback) {
   }
 
 //TODO:
+console.time('p3');
   var eigenvalues = Expression.getPolynomialRootsWithSteps(characteristicPolynomial, callback);
+console.timeEnd('p3');
 
   return eigenvalues;
 };
@@ -129,13 +155,13 @@ Expression.isRationalMatrix = function (A) {
 
 Expression.getEigenvectors = function (matrix, eigenvalues, internal = false) {
   if (eigenvalues == undefined) {
-    throw new TypeError();//TODO: remove
+    //throw new TypeError();//TODO: remove
     eigenvalues = Expression.getEigenvalues(matrix);
   }
 
   const eigenvectors = new Array(eigenvalues.length).fill(null);
   const uniqueEigenvalues = Expression.unique(eigenvalues);
-  
+
   const setResults = function (eigenvalue, currentEigenvectors) {
     var j = 0;
     for (var k = 0; k < eigenvalues.length && j < currentEigenvectors.length; k += 1) {
@@ -174,12 +200,31 @@ Expression.getEigenvectors = function (matrix, eigenvalues, internal = false) {
     
     return eigenvectors;
   }
-  
+
+  var entriesGCD = function (matrix) {
+    var g1 = Expression.ZERO;
+    var g2 = Expression.ONE;
+    matrix.map(function (e) {
+      if (Expression.isScalar(e)) { //TODO: ?
+        g1 = g1.gcd(e.getNumerator());
+        g2 = g2.lcm(e.getDenominator());
+      }
+      return Expression.ZERO;
+    });
+    return g1.divide(g2);
+  };
+  var g = Expression.ONE;
+  var gInv = Expression.ONE;
+  if (true) {
+    g = entriesGCD(matrix);
+    gInv = g.inverse();
+  }
+
   for (var i = 0; i < uniqueEigenvalues.length; i += 1) {
     const eigenvalue = uniqueEigenvalues[i];
     var n = matrix.cols();
     // matrix - I * eigenvalue
-    var currentEigenvectors = Expression.getSolutionSet(matrix.subtract(Matrix.I(n).scale(eigenvalue)));
+    var currentEigenvectors = Expression.getSolutionSet(matrix.scale(gInv).subtract(Matrix.I(n).scale(eigenvalue.multiply(gInv))));
     setResults(eigenvalue, currentEigenvectors);
     
     let cc = null;
@@ -332,7 +377,7 @@ Expression.isReal = function (e) {
       return true;
     }
     if (e instanceof Expression.NthRoot) {
-      return isReal(e.a);
+      return isReal(e.a);//TODO: !? complex
     }
     if (e instanceof Expression.BinaryOperation) {
       if (isReal(e.a) && isReal(e.b)) {
@@ -355,8 +400,10 @@ Expression.isReal = function (e) {
       return true;
     }
     if (!(e instanceof Expression.Symbol)) {
-      if (e.complexConjugate().equals(e)) {
-        return true;
+      if (!(e instanceof Expression.Exponentiation)) {
+        if (e.complexConjugate().equals(e)) {
+          return true;
+        }
       }
     }
     return false;

@@ -206,7 +206,7 @@
     return [tmp.quotient, tmp.remainder];
   }
   
-  const KARATSUBA_THRESHOLD = 17;
+  const KARATSUBA_THRESHOLD = 12;
   
   // https://en.wikipedia.org/wiki/Karatsuba_algorithm#Pseudocode
   function karatsuba(p1, p2) {
@@ -215,8 +215,8 @@
     }
     
     /* Calculates the size of the numbers. */
-    const m = Math.min(p1.a.size, p2.a.size)
-    const m2 = (p2.a.size <= p1.a.size ? p2 : p1).a.degree(Math.floor(m / 2)) 
+    //const m = Math.min(p1.a.size, p2.a.size)
+    const m2 = (p2.a.size > p1.a.size ? p2.a.degree(Math.floor(p2.a.size / 2)) : p1.a.degree(Math.floor(p1.a.size / 2))) 
     /* const m2 = Math.ceil(m / 2) will also work */
     
     /* Split the digit sequences in the middle. */
@@ -229,6 +229,165 @@
     const z2 = karatsuba(high1, high2)
     
     return (z2.shift(m2 * 2)).add((z1.subtract(z2).subtract(z0)).shift(m2)).add(z0);
+  }
+
+  function coefficientsBound(p, estimateOnly = false) {
+    function step(i, p) {
+      if (p.a.size < 4) {
+        return i + 1;
+      }
+      const m = Math.floor(p.a.size / 2);
+      if (i === 0) {
+        return m;
+      }
+      if (i === m) {
+        return m + 1;
+      }
+      if (i === m + 1) {
+        return p.a.size - 1;
+      }
+      return i + 1;
+    }
+    let max = Expression.ZERO;
+    let min = Expression.ZERO;
+    for (let i = 0; i < p.a.size; i = (estimateOnly ? step(i, p) : i + 1)) {
+      const c = p.a.coefficient(i);
+      if (c.compareTo(max) > 0) {
+        max = c;
+      } else if (c.compareTo(min) < 0) {
+        min = c;
+      }
+    }
+    const n = (min.negate().compareTo(max) < 0 ? max : min.negate()).bitLength();
+    return n;
+  }
+
+  let supportsLargeBigintCache = undefined;
+  function supportsLargeBigint() {
+      // BigInt is too large to allocate (Firefox, Safari)
+    if (supportsLargeBigintCache == undefined) {
+      try {
+        supportsLargeBigintCache = Expression.ONE.leftShift(2**20).compareTo(Expression.ZERO) > 0;
+      } catch (error) {
+        // ignore
+        supportsLargeBigintCache = false;
+      }
+    }
+    return supportsLargeBigintCache;
+  }
+  function hasFastBigIntMultiplication() {
+    return supportsLargeBigint();
+  }
+
+  function multiplyByKroneckerSubstitution(A, B) {
+
+    function toInteger(p, blockSize) {
+      function toIntegerInternal(coefficients, start, end) {
+        const k = end - start;
+        if (k >= 2) {
+          const m = Math.ceil(k / 2);
+          return (toIntegerInternal(coefficients, start + m, end).leftShift(blockSize * m)).add(toIntegerInternal(coefficients, start, start + m));
+        } else if (k === 1) {
+          return coefficients[start];
+        } else {
+          return Expression.ZERO;
+        }
+      }
+      const coefficients = new Array(p.getDegree() + 1);
+      for (let i = 0; i <= p.getDegree(); i += 1) {
+        coefficients[i] = p.getCoefficient(i);
+      }
+      const M = Expression.ONE.leftShift(blockSize);
+      const MINUS_ONE = Expression.ONE.negate();
+      for (let i = 0; i < coefficients.length; i += 1) {
+        if (coefficients[i].compareTo(Expression.ZERO) < 0) {
+          coefficients[i] = M.add(coefficients[i]);
+          coefficients[i + 1] = coefficients[i + 1].add(MINUS_ONE);
+        }
+      }
+      return toIntegerInternal(coefficients, 0, coefficients.length);
+    }
+
+    function toPolynomial(C, blockSize, blocksCount) {
+      const k = blocksCount;
+      const coefficients = new Array(k);
+      function toPolynomialInternal(C, start, end) {
+        const k = end - start;
+        if (k >= 2) {
+          const m = Math.ceil(k / 2);
+          const q = C.leftShift(0 - blockSize * m);
+          const r = C.asUintN(blockSize * m); // faster then subtraction
+          toPolynomialInternal(r, start, start + m);
+          toPolynomialInternal(q, start + m, end);
+        } else {
+          console.assert(k === 1);
+          coefficients[start] = C;
+        }
+      }
+      toPolynomialInternal(C, 0, k);
+      const M = Expression.ONE.leftShift(blockSize);
+      const MINUS_M = M.negate();
+      const MOver2 = M.leftShift(-1);
+      for (let i = 0; i < coefficients.length; i += 1) {
+        let c = coefficients[i];
+        if (c.compareTo(MOver2) >= 0) {
+          coefficients[i] = c.add(MINUS_M);
+          coefficients[i + 1] = coefficients[i + 1].add(Expression.ONE);
+        }
+      }
+      return Polynomial.from(coefficients);
+    }
+
+    //console.assert(toPolynomial(toInteger(A, blockSize), blockSize, A.getDegree() + 1).toString() === A.toString());
+
+    // see 3.1 Negative Coefficients
+    // https://people.eecs.berkeley.edu/~fateman/papers/polysbyGMP.pdf
+
+    const g = Math.gcd(A.getGCDOfTermDegrees(), B.getGCDOfTermDegrees());
+    if (g > 1) {
+      A = A._exponentiateRoots(g);
+      B = B._exponentiateRoots(g);
+    }
+
+    let negate = false;
+    if (A.getLeadingCoefficient().sign() <= 0) {
+      if (A.getLeadingCoefficient().sign() === 0) {
+        return A.multiply(B);
+      }
+      A = A.negate();
+      negate = !negate;
+    }
+    if (B.getLeadingCoefficient().sign() <= 0) {
+      if (B.getLeadingCoefficient().sign() === 0) {
+        return A.multiply(B);
+      }
+      B = B.negate();
+      negate = !negate;
+    }
+
+    const bA = coefficientsBound(A);
+    const bB = coefficientsBound(B);
+
+    const blockSize = Math.ceil((Math.max(bA, bB) * 2 + Math.ceil(Math.log2(Math.min(A.getDegree() + 1, B.getDegree() + 1))) + 1) / 1) * 1;
+    //console.log('blockSize', blockSize);
+    //globalThis.xxx = [blockSize, A.getDegree(), B.getDegree()];
+
+    let C = Expression.ZERO;
+
+    const es = (A.getDegree() + B.getDegree() + 1) * blockSize;
+    if (es >= 2**30 || es >= 2**20 && !supportsLargeBigint()) {
+      C = karatsuba(A, B);
+    } else {
+      C = toPolynomial(toInteger(A, blockSize).multiply(toInteger(B, blockSize)), blockSize, A.getDegree() + B.getDegree() + 1);
+    }
+
+    if (g > 1) {
+      C = C._exponentiateRoots(1 / g);
+    }
+    if (negate) {
+      C = C.negate();
+    }
+    return C; 
   }
 
   function multiplyInternal(A, B, fromLeft) {
@@ -257,12 +416,37 @@
       return result.toPolynomial();
     }
   }
+
+  globalThis.counter9 = 0;
   Polynomial.prototype.multiply = function (p) {
     if (this.a.size === 0 || p.a.size === 0) {
       return Polynomial.ZERO;
     }
     if (p.a.size === 1 && p.a.coefficient(0) instanceof Expression.Integer) { // commutative multiplication
       return this.shift(p.a.degree(0)).scale(p.a.coefficient(0));
+    }
+    if (this.a.size >= 16 && p.a.size >= 16) {
+      if (this.hasIntegerCoefficients() && p.hasIntegerCoefficients()) {
+        var A = this;
+        var B = p;
+        // maxDegree * maxDensity >= 64 || minDegree * minSize * minDensity ** 3 >=  64 * 1024
+        var g = Math.gcd(A.getGCDOfTermDegrees(), B.getGCDOfTermDegrees());
+        var minDegree = Math.min(A.getDegree(), B.getDegree());
+        var minDensity = Math.min((A.a.size - 1) / A.getDegree(), (B.a.size - 1) / B.getDegree());
+        const cA = coefficientsBound(A, true);
+        const cB = coefficientsBound(B, true);
+        if (Math.max(cA, cB) >= 32 && Math.max(cA, cB) <= 256 && minDensity >= 0.8 && minDegree >= 16 ||
+            hasFastBigIntMultiplication() && minDegree * minDensity >= 64 ||
+            hasFastBigIntMultiplication() && minDegree * minDensity * Math.min(cA, cB) * Math.pow(minDensity * g, 2) >= 64 * 1024) {
+          //TODO: better conditions (+small coefficients - ?)
+          globalThis.counter9 += 1;
+          return multiplyByKroneckerSubstitution(A, B);
+        } else {
+          if (g == 1) {
+            //console.debug('?');
+          }
+        }
+      }
     }
     if (p.a.size >= KARATSUBA_THRESHOLD && this.a.size >= KARATSUBA_THRESHOLD) {
       //debugger;
@@ -665,7 +849,7 @@
   function gcdUsingPseudoRemainderSequence(A, B, type) {
     let g = Math.gcd(A.getGCDOfTermDegrees(), B.getGCDOfTermDegrees());
     if (g > 1) {
-      console.error('g > 1');
+      //console.debug('g > 1');
       return gcdUsingPseudoRemainderSequence(A._exponentiateRoots(g), B._exponentiateRoots(g), type)._exponentiateRoots(1 / g);
     }
     for (var tmp of Polynomial._pseudoRemainderSequence(A, B, type)) {
@@ -2413,6 +2597,10 @@
     return {a1: p.shift(zero === 1 ? 1 : 0), a0: Polynomial.of(Expression.ONE).shift(zero > 1 ? zero - 1 : 0)};
   };
 
+  Polynomial.testables = {
+    multiplyByKroneckerSubstitution: multiplyByKroneckerSubstitution
+  };
+
   export default Polynomial;
   
   // TODO: tests:
@@ -2449,6 +2637,10 @@ Polynomial.prototype._findGoodSubstitution = function () {
   return n.divide(f(this._scaleRoots(n.inverse())._exponentiateRoots(-1)));
 };
 
+Polynomial.prototype._tryGoodSubstitution = function () {
+  return this._scaleRoots(this._findGoodSubstitution());
+};
+
 Polynomial.prototype._getShiftToDepressed = function () { // for testing (?)
   var n = this.getDegree();
   var a = this.getLeadingCoefficient();
@@ -2460,7 +2652,6 @@ Polynomial.prototype._getShiftToDepressed = function () { // for testing (?)
 };
 
 Polynomial.prototype._factorizeOverTheIntegers = function () {
-  //return factorizeOverTheIntegers(this).next().value;
   return factorizeOverTheIntegers(this);
 };
 
@@ -2492,9 +2683,6 @@ Polynomial.prototype.factorize = function () {
   //}
   if (this.getCoefficient(0).equals(Expression.ZERO)) {//?
     return Polynomial.of(Expression.ZERO, Expression.ONE);
-  }
-  if (this.getDegree() === 3) {
-    //console.log(this.toString());
   }
   var content = this.getContent();//?TODO: ?
   if (!content.equals(Expression.ONE) && !content.equals(Expression.ONE.negate())) {
@@ -2584,7 +2772,7 @@ Polynomial.prototype.factorize = function () {
     //?
   }
   //!
-if (this.getDegree() < 4 || !this.hasIntegerCoefficients()) {//? avoid Polynomial#getZeros(...)
+if (!this.hasIntegerCoefficients() || this.getDegree() < 4 && this.getLeadingCoefficient().abs().bitLength() + this.getCoefficient(0).abs().bitLength() < 9) {//? avoid Polynomial#getZeros(...)
   var root = this.doRationalRootTest();
   if (root != null) {
     return Polynomial.of(root.getNumerator(), root.getDenominator().negate());
@@ -2606,7 +2794,7 @@ if (this.getDegree() < 4 || !this.hasIntegerCoefficients()) {//? avoid Polynomia
     //return np._factorByKroneckersMethod();
     return null;
   }
-  return np._factorizeOverTheIntegers();
+  return np._factorizeOverTheIntegers().next().value;
   //console.timeEnd('Kronecker\'s method');
 };
 

@@ -2,9 +2,10 @@ import Expression from './Expression.js';
 import Polynomial from './Polynomial.js';//TODO: !?
 
 
-function SomePolynomialRoot(e, polynomial) {
+function SomePolynomialRoot(e, polynomial, rootSymbol) {
   this.e = e; // internal symbolic expression with a "root" as a symbol
   this.polynomial = polynomial;
+  this.rootSymbol = rootSymbol;
 }
 
 SomePolynomialRoot.prototype = Object.create(Expression.Symbol.prototype);
@@ -13,8 +14,13 @@ function alpha() {
   return new Expression.Symbol('alpha');
 }
 
+function isSameRoot(a, b) {
+  return a.polynomial.equals(b.polynomial) && a.rootSymbol === b.rootSymbol;
+}
+
 SomePolynomialRoot.create = function (polynomial) {
-  return new SomePolynomialRoot(alpha(), polynomial);
+  const x = alpha();
+  return new SomePolynomialRoot(x, polynomial, x);
 };
 
 SomePolynomialRoot.prototype.isExact = function () {
@@ -23,13 +29,39 @@ SomePolynomialRoot.prototype.isExact = function () {
 
 function simplifyExpressionWithPolynomialRoot(e, polynomial) {
   
-  var n = Polynomial.toPolynomial(e.getNumerator(), alpha()).divideAndRemainder(polynomial).remainder;
-  var d = Polynomial.toPolynomial(e.getDenominator(), alpha()).divideAndRemainder(polynomial).remainder;
+  if (e instanceof Expression.Integer) {
+    return e;
+  }
+
+  var n = Polynomial.toPolynomial(e.getNumerator(), alpha());
+  var d = Polynomial.toPolynomial(e.getDenominator(), alpha());
+  var changed = false;
+
+  // do not doo all the time so Gauss-Montante can do whole division
+  if (d.getDegree() >= polynomial.getDegree() * 2) {
+    n = n.divideAndRemainder(polynomial).remainder;
+    changed = true;
+  }
+  if (d.getDegree() >= polynomial.getDegree() * 2) {
+    d = d.divideAndRemainder(polynomial).remainder;
+    changed = true;
+  }
+
+  if (n.isDivisibleBy(polynomial)) {
+    return Expression.ZERO;
+  }
+
   if (d.getDegree() > 0) {
     var scale = d.modularInverse(polynomial).primitivePart();
     d = d.multiply(scale).divideAndRemainder(polynomial).remainder;
     n = n.multiply(scale).divideAndRemainder(polynomial).remainder;
+    changed = true;
   }
+  
+  if (!changed) {
+    return new SomePolynomialRoot(e, polynomial);
+  }
+  
   var e1 = n.calcAt(alpha()).divide(d.calcAt(alpha()));
   if (e1 instanceof Expression.Integer) {
     return e1;
@@ -38,7 +70,7 @@ function simplifyExpressionWithPolynomialRoot(e, polynomial) {
 }
 
 SomePolynomialRoot.prototype.negate = function () {
-  return simplifyExpressionWithPolynomialRoot(this.e.negate(), this.polynomial);
+  return new SomePolynomialRoot(this.e.negate(), this.polynomial);
 };
 SomePolynomialRoot.prototype.equals = function (other) {
   if (other === Expression.ZERO) {
@@ -60,7 +92,7 @@ SomePolynomialRoot.prototype.toMathML = function (options) {
 
 SomePolynomialRoot.prototype.multiply = function (other) {
   if (other instanceof SomePolynomialRoot) {
-    if (!this.polynomial.equals(other.polynomial)) {
+    if (!isSameRoot(this, other)) {
       throw new TypeError();
     }
     return simplifyExpressionWithPolynomialRoot(this.e.multiply(other.e), this.polynomial);
@@ -69,7 +101,7 @@ SomePolynomialRoot.prototype.multiply = function (other) {
 };
 SomePolynomialRoot.prototype.add = function (other) {
   if (other instanceof SomePolynomialRoot) {
-    if (!this.polynomial.equals(other.polynomial)) {
+    if (!isSameRoot(this, other)) {
       throw new TypeError();
     }
     return simplifyExpressionWithPolynomialRoot(this.e.add(other.e), this.polynomial);
@@ -81,11 +113,16 @@ SomePolynomialRoot.prototype.inverse = function () {
 };
 
 SomePolynomialRoot.prototype.divide = function (other) {
+  if (other instanceof SomePolynomialRoot) {
+    if (isSameRoot(this, other)) {
+      return simplifyExpressionWithPolynomialRoot(this.e.divide(other.e), this.polynomial);
+    }
+  }
   return this.multiply(other.inverse());
 };
 
 SomePolynomialRoot.prototype.divideExpression = function (other) {
-  return other.multiply(this.inverse());
+  return simplifyExpressionWithPolynomialRoot(other.divide(this.e), this.polynomial);
 };
 SomePolynomialRoot.prototype.multiplyExpression = function (other) {
   return simplifyExpressionWithPolynomialRoot(other.multiply(this.e), this.polynomial);

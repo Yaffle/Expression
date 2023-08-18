@@ -202,6 +202,18 @@
     //  return a.transpose();
     //}),
     new Operator("'", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE, function (a) {
+      if (Expression.isScalar(a)) {
+        var x = null;
+        Expression._map(function f1(e) {
+          if (e instanceof Expression.Symbol && !Expression.isConstant(e)) {
+            x = e;
+          }
+          return e;
+        }, a.simplify());//TODO: !?
+        if (x != null) {
+          return a.simplify().derivative(x);
+        }
+      }
       return a.transpose();
     }),
     //TODO: https://en.wikipedia.org/wiki/Conjugate_transpose
@@ -332,6 +344,37 @@
         return result;
       }
       throw new TypeError();
+    }),
+    new Operator("factor", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.simplify().factor();
+    }),
+    new Operator("derivative", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      a = a.simplify();
+      if (a instanceof Expression.List) {
+        if (a.list.length !== 2) {
+          throw new RangeError();//TODO: !?
+        }
+        return a.list[0].derivative(a.list[1]);
+      }
+      return a.derivative();
+    }),
+    new Operator("\'(x)", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {//TODO: !?
+      return a.derivative(new Expression.Symbol('x'));
+    }),
+    new Operator("\'(t)", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {//TODO: !?
+      return a.derivative(new Expression.Symbol('t'));
+    }),
+    new Operator("resultant", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      a = a.simplify();
+      if (a instanceof Expression.List) {
+        if (a.list.length !== 2) {
+          throw new RangeError();//TODO: !?
+        }
+        var v = new Expression.Symbol('x');//TODO: !?
+        var p1 = Polynomial.toPolynomial(a.list[0], v);
+        var p2 = Polynomial.toPolynomial(a.list[1], v);
+        return new Expression.Polynomial(Polynomial.resultant(p1, p2));
+      }      
     })
   ];
 
@@ -554,8 +597,8 @@
   // TODO: sticky flags - /\s+/y
   var whiteSpaces = /^\s+/;
   var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
-  var integerLiteral = /^\d+(?![\d.])(?![eEЕ]|اس)(?!,(?:\d|\(\d+\)))/; // for performance
-  var integerLiteralWithoutComma = /^\d+(?![\d.])(?![eEЕ]|اس)/; // for performance
+  var integerLiteral = /^\d+(?![\d.])(?!(?:(?:[eEЕ]|اس)[\+\-]?\d+))(?!,(?:\d|\(\d+\)))/; // for performance
+  var integerLiteralWithoutComma = /^\d+(?![\d.])(?!(?:(?:[eEЕ]|اس)[\+\-]?\d+))/; // for performance
   var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|[.,](?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
   var decimalFractionWithoutComma = new RegExp(decimalFraction.source.replace(/,/g, ''));
   // Base Latin, Base Latin upper case, Base Cyrillic, Base Cyrillic upper case, Greek alphabet
@@ -782,7 +825,7 @@
         } else if (token.type === 'punctuator' && token.value === "|") {
           if (left == undefined || Expression.isScalar(left)) {//!
             if (left != undefined && precedence >= COMMA_PRECEDENCE) {
-              debugger;
+              //debugger;
             }
             token = parsePunctuator(tokenizer, token, "|");
             tmp = parseExpression(tokenizer, token, context, COMMA_PRECEDENCE, undefined);

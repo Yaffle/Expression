@@ -192,6 +192,10 @@
     return new NonSimplifiedExpression(new Expression.Comma(this, b));
   };
 
+  NonSimplifiedExpression.prototype.derivative = function (variable) {
+    return new NonSimplifiedExpression(new Expression.Derivative(this, variable));
+  };
+
   NonSimplifiedExpression.prototype.addPosition = function (position, length, input) {
     return new NonSimplifiedExpression(this.e, position, length, input);
   };
@@ -274,6 +278,10 @@
 
   Expression.Comma.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).transformComma(prepare(this.b, holder));
+  };
+
+  Expression.Derivative.prototype.simplifyInternal = function (holder) {
+    return prepare(this.symbol, holder).derivative(this.variable);
   };
 
   Expression.prototype.simplify = function () {

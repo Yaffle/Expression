@@ -1,4 +1,3 @@
-import primeFactor from './primeFactor.js';
 
 import Expression from './Expression.js'; //TODO: ?
 import Polynomial from './Polynomial.js';//TODO: !?
@@ -67,6 +66,29 @@ SimpleFloat.prototype.negate = function () {
 };
 SimpleFloat.prototype.sign = function () {
   return this.significand.sign();
+};
+SimpleFloat.prototype.toString = function () { // for debugging
+  return this.significand.toString() + '*2**' + this.exponent;
+};
+SimpleFloat.prototype.round = function (mode, fractionDigits) {
+  if (this.exponent !== 0 - fractionDigits) {
+    if (mode === 'floor') {
+      var a = new SimpleFloat(this.significand.leftShift(this.exponent + fractionDigits), 0 - fractionDigits);
+      if (a.add(this.negate()).sign() > 0) {
+        throw new Error();
+      }
+      return a;
+    }
+    if (mode === 'ceil') {
+      var a = new SimpleFloat(this.significand.negate().leftShift(this.exponent + fractionDigits).negate(), 0 - fractionDigits);
+      if (a.add(this.negate()).sign() < 0) {
+        throw new Error();
+      }
+      return a;
+    }
+    throw new RangeError();
+  }
+  return this;
 };
 
   var isRational = function (e) {
@@ -197,6 +219,10 @@ SimpleInterval.prototype._pow = function (n) {
 };
 SimpleInterval.prototype.toString = function () {
   return '[' + this.a.toString() + ';' + this.b.toString() + ']';
+};
+
+SimpleInterval.prototype.round = function (precision) {
+  return new SimpleInterval(this.a.round('floor', precision), this.b.round('ceil', precision));
 };
 
 const intersection = function (a, b) {
@@ -337,11 +363,13 @@ Helper.get = function (that, interval) {
       throw new RangeError("just a check");
     }
     newPolynomial = new Helper(newPolynomial);//!?!?TODO: REMOVE
-    var precision = 1;
+    var precision = 8;
     var guess = zeroFunction(precision);
+    guess = guess.round(precision);//?
     while ((guess.a.sign() !== guess.b.sign() && !newPolynomial.calcAt(Expression.ZERO).equals(Expression.ZERO)) || newPolynomial.numberOfRoots(guess) > 1) {
       precision *= 2;
       guess = zeroFunction(precision);
+      guess = guess.round(precision);//?
       if (precision > 1024) throw new Error();//TODO: ?
     }
     var newInterval = guess;
@@ -362,9 +390,18 @@ function PolynomialRoot(polynomial, interval, options = {}) {
     return new PolynomialRoot(polynomial.scale(content.inverse()), interval);
   }
 if (!options.skipFactorization) {//!
-  var factor = polynomial.factorize();
+  var getFactor = function () {
+    const factors = polynomial._factorizeOverTheIntegers();
+    for (let f = factors.next().value; f != null; f = factors.next().value) {
+      if (f.numberOfRoots(interval) !== 0) {
+        return f;
+      }
+    }
+    return null;
+  };
+  let factor = polynomial.isSquareFreePolynomial() ? getFactor() : polynomial.factorize();//TODO: !?
   //TODO: pass the zero to help the factorization to return the correct factor:
-  // var factor = polynomial.factorize({zero: new PolynomialRoot(polynomial, interval)});
+  // var factor = polynomial.factorize({zero: interval});
   if (factor != null && !factor.equals(polynomial)) {
     if (factor.numberOfRoots(interval) !== 0) {
       return new PolynomialRoot(factor, interval);

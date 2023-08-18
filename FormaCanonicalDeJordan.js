@@ -7,8 +7,7 @@ import Matrix from './Matrix.js';
 
 Expression.getSolutionSet = function getSolutionSet(matrix) {
   var fullMatrix = matrix.augment(Matrix.Zero(matrix.cols(), 1));
-  //TODO: Matrix.GaussMontante
-  var result = fullMatrix.toRowEchelon(Matrix.GaussJordan, "solving", undefined);
+  var result = fullMatrix.toRowEchelon(Matrix.GaussMontante, "solving", undefined);
   var tmp = Matrix.solveByGaussNext(result.matrix);
   var basisVectors = Matrix.getSolutionSet(tmp).basisVectors;
   return basisVectors;//?

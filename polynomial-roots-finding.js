@@ -5,18 +5,16 @@ import toDecimalStringInternal from './toDecimalString.js';
 import primeFactor from './primeFactor.js';
 import './polynomialFactorization.js';
 import ExpressionParser from './ExpressionParser.js';
-import ExpressionWithPolynomialRoot from './ExpressionWithPolynomialRoot.js';
+//import ExpressionWithPolynomialRoot from './ExpressionWithPolynomialRoot.js';
 import LazyPolynomialRoot from './PolynomialRoot.js';
 
 
-/*
 Expression.PolynomialRootSymbol = function () {
   throw new TypeError();
 };
 function ExpressionWithPolynomialRoot() {
   throw new TypeError();
 }
-*/
 
 Expression.ExpressionWithPolynomialRoot = ExpressionWithPolynomialRoot;
 
@@ -165,6 +163,10 @@ ExpressionPolynomialRoot.prototype.divide = function (e) {
   return this.multiply(e.inverse());
 };
 ExpressionPolynomialRoot.prototype.divideExpression = function (x) {
+  if (x.equals(Expression.ZERO)) {
+    return x;
+  }
+  //TODO: optimize!!!
   return x.multiply(this.inverse());
 };
 ExpressionPolynomialRoot.prototype.inverse = function () {
@@ -210,22 +212,22 @@ function weakMap() {
   return typeof WeakMap !== 'undefined' ? new WeakMap() : new EmptyMap();
 }
 
-let cache2rounding = null;
-let cache2 = weakMap();
+const cache2rounding = weakMap();
+const DEFAULT_ROUNDING = {fractionDigits: 3};
 
 ExpressionPolynomialRoot.prototype._toDecimalString = function (options) {
   options = options || {};
-  const rounding = options.rounding;
-  if (rounding !== cache2rounding) {
-    console.log('clear', rounding);
-    cache2rounding = rounding;
+  const rounding = options.rounding || DEFAULT_ROUNDING;
+  let cache2 = cache2rounding.get(rounding);
+  if (cache2 == null) {
     cache2 = weakMap();
+    cache2rounding.set(rounding, cache2);
   }
   var s = cache2.get(this);
   if (s != null) {
     return s;
   }
-  s = toDecimalStringInternal(this, rounding || {fractionDigits: 3});
+  s = toDecimalStringInternal(this, rounding);
   cache2.set(this, s);
   return s;
 };
@@ -1347,9 +1349,16 @@ Expression.prototype.abs = function () {//TODO: remove - ?
     }
     return false;
   };
-  if (this instanceof Expression.Symbol) {
+  const x = this;
+  if (x instanceof Expression.Symbol && !(x instanceof Expression.PolynomialRootSymbol) && !(x instanceof Expression.ExpressionPolynomialRoot) && !(x instanceof Expression.ExpressionWithPolynomialRoot)) {
+    if (x === Expression.PI || x === Expression.E) {
+      return x;
+    }
     return new Expression.Abs(this);//TODO: !?
   }
+  //if (this instanceof Expression.Symbol) {
+  //  return new Expression.Abs(this);//TODO: !?
+  //}
   if (this instanceof Expression.ComplexConjugate) {
     return this.a.abs();
   }
@@ -1379,6 +1388,13 @@ Expression.prototype.abs = function () {//TODO: remove - ?
   }
   if (isSimple(this.complexConjugate())) {
     return this.complexConjugate().abs();
+  }
+  if (Expression.isConstant(this)) {
+    var tmp = Expression.getComplexNumberParts(this);
+    if (!tmp.imaginary.equals(Expression.ZERO)) {
+      // https://en.wikipedia.org/wiki/Absolute_value#Complex_numbers
+      return this.multiply(this.complexConjugate()).squareRoot();
+    }
   }
   if (this.compareTo(Expression.ZERO) < 0) {
     return this.negate();

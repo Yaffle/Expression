@@ -226,171 +226,250 @@ function isFactorizationOverZpSquareFree(u, prime) {
 }
 
 // The art of computer programming. Vol.2: Seminumerical algorithms, page 452
+// returns some factors, not necessary irreducible
 function factorizeOverTheIntegers(u, useHenselLifting = true) {
-  //if (u.toString() === '1471566513477172834305399948590466009*x^36-211905577940712888139977592597027105296*x^34+13129986163287865167531292496146540399224*x^32-462939766422599809806997255332437328597216*x^30+10362430845905260438547837088962342900036976*x^28-155683443407207896942716489327940147108629120*x^26+1618556951246037407274416866201451391464784384*x^24-11830632228190604908249839266002717097001139200*x^22+61153871177545784578882242689870006264757876480*x^20-223152626999418063421149667823603202136231649280*x^18+570260219818484251015463882930738160317054441472*x^16-1007187648191427638267502108195308402754856378368*x^14+1207581236321353649337451225242701250021029548032*x^12-959457354479765675976827753329438931015039090688*x^10+487489052553389695914981886297548193964734087168*x^8-149263610192452471565789533727206449715567656960*x^6+24608195620710414500859286809189277514021732352*x^4-1679911046068335257837067359574057455871590400*x^2+13348232781789541344412108782227014287360000') debugger;
   const polynomial = u;
-  if (u.getCoefficient(0).equals(Expression.ZERO)) {
-    return Polynomial.of(Expression.ZERO, Expression.ONE);
-  }
-  if (u.getCoefficient(0).abs().bitLength() - u.getLeadingCoefficient().abs().bitLength() < -50) {//?
-    const factor = factorizeOverTheIntegers(u._exponentiateRoots(-1), useHenselLifting);
-    return factor == null ? null : factor._exponentiateRoots(-1);
-  }
-  const checkBothVariants = true;
-  const getBound = function (p) {
-    if (checkBothVariants) {
-      return Math.min(p._log2OfBoundForCoefficientsOfFactor(Math.floor(p.getDegree() / 2), p.getLeadingCoefficient().abs()),
-                      p._log2OfBoundForCoefficientsOfFactor(p.getDegree(), p.getLeadingCoefficient().abs()._integerNthRoot(2)));
-    }
-    return p._log2OfBoundForCoefficientsOfFactor(p.getDegree(), p.getLeadingCoefficient().abs());
-  };
-  const B = Math.min(getBound(u), getBound(u._exponentiateRoots(-1)));//TODO: REMOVE
-
+  let factorsIterator1 = null;
+  let factorsIterator2 = null;
+  let results1 = null;
+  let checkBothVariants = true;
   let prime = 0;
-  const nextGoodPrime = function (integer) {
-    let p = integer;
-    let pp = p;
-    do {
-      do {
-        p = Expression.Integer.fromBigInt(p).add(Expression.TWO).toBigInt();
-      } while (!isPrime(p));
-      if (!useHenselLifting) {
-        pp = Expression.Integer.fromBigInt(p);
-      } else {
-        pp = p;
-      }
-    } while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(p)).equals(Expression.ZERO) || !isFactorizationOverZpSquareFree(toIntPolynomial(u, pp), pp));
-    return pp;
-  };
-  const log2 = function (b) {
-    //TODO: ?
-    var e = b.bitLength();
-    return Math.log2(b.truncatingDivide(Expression.TWO._pow(Math.max(0, e - 53))).toNumber()) + Math.max(0, e - 53);
-  };
-  //const useHenselLifting = true;//TODO: ?
-  if (!useHenselLifting) {
-    prime = nextGoodPrime(Expression.TWO._pow(Math.ceil(1 + log2(u.getLeadingCoefficient().abs()) + B)).add(Expression.ONE).toBigInt());
-  } else {
-    prime = nextGoodPrime(1);
-  }
-  const tryMultiplePrimes = !useHenselLifting ? 0 : 2;
-  if (tryMultiplePrimes !== 0) {
-    let best = prime;
-    let bestFactorsNumber = 1 / 0;
-    for (let tries = 0; tries < tryMultiplePrimes; tries += 1) {
-      let factorsNumber = 0;
-      const ddfs = distinctDegreeFactorization(toIntPolynomial(u, prime), prime);
-      for (const entry of ddfs) {
-        factorsNumber += (entry.factor.getDegree() / entry.degree);
-      }
-      if (bestFactorsNumber > factorsNumber) {
-        best = prime;
-        bestFactorsNumber = factorsNumber;
-      }
-      prime = nextGoodPrime(prime);
-    }
-    prime = best;
-  }
-  let factors = factorizeOverTheFiniteField(toIntPolynomial(u, prime), prime).map(factor => useHenselLifting ? fromIntPolynomial(factor) : factor);
-  
-  if (u.isEven() && factors.length > 3) { // https://math.stackexchange.com/a/2894104
-    var f = factorizeOverTheIntegers(u._exponentiateRoots(2));
-    if (f != null) {
-      return f._exponentiateRoots(1 / 2);
-    }
-    // see below
-  }
-
+  let factors = null;
   let q = 0;
-  if (useHenselLifting) {
-    let e = Math.ceil((1 + log2(u.getLeadingCoefficient().abs()) + B) / Math.log2(prime));
-    //if (useQuadraticHenselLift) {
-    //  e = Math.pow(2, Math.ceil(Math.log2(e)));
-    //}
-    const p = Expression.Integer.fromNumber(prime);
-    factors[factors.length - 1] = factors[factors.length - 1].scale(u.getLeadingCoefficient().modulo(p)).mod(p);
-    factors = HenselLifting(u, factors, p, e);
-    q = p._pow(e);
-    factors = factors.map(factor => factor.scale(factor.getLeadingCoefficient().modulo(q).modInverse(q)).mod(q));//TODO: ?
-  } else {
-    q = prime;
-  }
-  
-  //!new 2022-07-27
-  if (u.isEven() && factors.length > 3) { // https://math.stackexchange.com/a/2894104
-    // see above
-    for (var i = 0; i < factors.length; i += 1) {
-      if (factors[i] != null) {
-        var f1 = factors[i].mod(q);
-        var f2 = factors[i]._scaleRoots(Expression.ONE.negate()).mod(q);
-        var found = false;
-        for (var j = i + 1; j < factors.length && !found; j += 1) {
-          if (factors[j] != null && factors[j].mod(q).equals(f2)) {
-            factors[j] = null;
-            found = true;
-          }
-        }
-        if (!found) {
-          //debugger;
-          return null;
-        }
-      }
-    }
-    factors = factors.filter(f => f != null);
-    for (var i = 0; i < Math.pow(2, factors.length - 1); i += 1) {
-      var candidate = productModQ(factors.map((f, index) => Math.floor(i / 2**index) % 2 === 0 ? f : f._scaleRoots(Expression.ONE.negate())), q).scale(u.getLeadingCoefficient()).mod2(q).primitivePart();
-      const tmp = u.divideAndRemainder(candidate, "undefined");
-      if (tmp != undefined && tmp.remainder.getDegree() < 0) {
-        return candidate;
-      }
-    }
-    return null;
-  }
-
-  //!!! (number of factors depends on the choise of prime numbers)
-  //TODO: how to reduce number of iterations (?) (see Donald Knuth's book)
   let c = 0;
-  for (let countOfFactors = 1; countOfFactors <= (checkBothVariants ? factors.length - 1 : Math.floor(factors.length / 2)); countOfFactors += 1) {
-    let combinationsIterator = combinations(factors, countOfFactors);
-    let combination = null;
-    while ((combination = combinationsIterator.next().value) != null) {
-      c += 1;
-      const lc = u.getLeadingCoefficient();
-      // an optimization from the Donald Knuth's book, page 452
-      let productTrailingCoefficient = lc;
-      for (const f of combination) {
-        productTrailingCoefficient = productTrailingCoefficient.multiply(f.getCoefficient(0)).modulo(q);
+  let countOfFactors = 1;
+  let combinationsIterator = null;
+  const iterator = {
+    next: function () {
+      if (u.getDegree() === 0) {
+        return {value: null, done: true};
       }
-      productTrailingCoefficient = Polynomial.of(productTrailingCoefficient).mod2(q).getCoefficient(0);
-      if (u.getCoefficient(0).multiply(lc).remainder(productTrailingCoefficient).equals(Expression.ZERO)) {
-        let v = productModQ(combination, q);
-        console.assert(v.getLeadingCoefficient().equals(Expression.ONE));
-        v = v.scale(lc);
-        v = v.mod2(q);
-        //TODO: test, we need to try w(x) = productModQ(factors.filter(factor => combination.indexOf(factor) === -1), q) as well (see Donald Knuth's book) - ?
-        console.assert(v.getDegree() < u.getDegree());
-        //if (v.getDegree() <= u.getDegree() / 2 || v.getDegree() < u.getDegree()) {
-          //v = v.primitivePart();
-          const tmp = u.scale(lc).divideAndRemainder(v, "undefined");
-          if (tmp != undefined && tmp.remainder.getDegree() < 0) {
-            v = v.primitivePart();
-            factors = factors.filter(factor => combination.indexOf(factor) === -1);
-            combinationsIterator = combinations(factors, countOfFactors);//!?
-            u = tmp.quotient;
-            return v;
+      while (u.getDegree() > 1 && u.getCoefficient(0).equals(Expression.ZERO)) {
+        const factor = Polynomial.of(Expression.ZERO, Expression.ONE);
+        u = u.divideAndRemainder(factor, "undefined").quotient;
+        return {value: factor, done: false};
+      }
+      if (u.getCoefficient(0).abs().bitLength() - u.getLeadingCoefficient().abs().bitLength() < -42) {//?
+        if (factorsIterator1 == null) {
+          factorsIterator1 = factorizeOverTheIntegers(u._exponentiateRoots(-1), useHenselLifting);
+        }
+        const factor = factorsIterator1.next().value;
+        if (factor != null) {
+          const f = factor._exponentiateRoots(-1);
+          return {value: f, done: false};
+        }
+        return {value: null, done: true};
+      }
+      if (u.isEven() && polynomial.getDegree() >= 4) { // https://math.stackexchange.com/a/2894104
+        if (factorsIterator2 == null) {
+          factorsIterator2 = factorizeOverTheIntegers(u._exponentiateRoots(2), useHenselLifting);
+        }
+        const factor = factorsIterator2.next().value;
+        if (factor != null) {
+          const f = factor._exponentiateRoots(1 / 2);
+          u = u.divideAndRemainder(f, "undefined").quotient;
+          return {value: f, done: false};
+        }
+        // see below
+      }
+      
+      // from https://mathoverflow.net/a/449002 ( https://arxiv.org/pdf/0904.3057.pdf )
+      function centralBinomialCoefficientBound(n) {
+        return (n - Math.log2(Math.sqrt(Math.PI * Math.ceil(n / 2))));
+      }
+      function MignotteFactorBound(p) {
+        return (centralBinomialCoefficientBound(p.getDegree()) + p._log2hypot());
+      }
+      function MignotteSingleFactorBound(p) {
+        return MignotteFactorBound(p) * 0.5;
+      }
+      const getBound = function (p) {
+        if (checkBothVariants) {
+          return MignotteSingleFactorBound(p);
+        }
+        return MignotteFactorBound(p);
+      };
+
+      const nextGoodPrime = function (integer) {
+        let p = integer;
+        let pp = p;
+        do {
+          do {
+            p = Expression.Integer.fromBigInt(p).add(Expression.TWO).toBigInt();
+          } while (!isPrime(p));
+          if (!useHenselLifting) {
+            pp = Expression.Integer.fromBigInt(p);
+          } else {
+            pp = p;
           }
-        //}
+        } while (u.getLeadingCoefficient().remainder(Expression.Integer.fromBigInt(p)).equals(Expression.ZERO) || !isFactorizationOverZpSquareFree(toIntPolynomial(u, pp), pp));
+        return pp;
+      };
+
+      if (factors == null) {
+        const B = 1 + getBound(u.scale(u.getLeadingCoefficient().abs()));
+        //const useHenselLifting = true;//TODO: ?
+        if (!useHenselLifting) {
+          prime = nextGoodPrime(Expression.TWO._pow(Math.ceil(B)).add(Expression.ONE).toBigInt());
+        } else {
+          prime = nextGoodPrime(1);
+        }
+        const tryMultiplePrimes = !useHenselLifting ? 0 : 2;
+        if (tryMultiplePrimes !== 0) {
+          let best = prime;
+          let bestFactorsNumber = 1 / 0;
+          for (let tries = 0; tries < tryMultiplePrimes && bestFactorsNumber > 1; tries += 1) {
+            let factorsNumber = 0;
+            const ddfs = distinctDegreeFactorization(toIntPolynomial(u, prime), prime);
+            for (const entry of ddfs) {
+              console.assert((entry.factor.getDegree() % entry.degree) === 0);
+              factorsNumber += (entry.factor.getDegree() / entry.degree);
+            }
+            if (bestFactorsNumber > factorsNumber) {
+              best = prime;
+              bestFactorsNumber = factorsNumber;
+            }
+            prime = nextGoodPrime(prime);
+          }
+          prime = best;
+        }
+        factors = factorizeOverTheFiniteField(toIntPolynomial(u, prime), prime).map(factor => useHenselLifting ? fromIntPolynomial(factor) : factor);
+        if (useHenselLifting && factors.length > 15) {
+          checkBothVariants = false;
+        }
+
+        if (useHenselLifting) {
+          //This gives smaller value:
+          const e = Math.ceil(B / Math.log2(prime));
+          //if (useQuadraticHenselLift) {
+          //  e = Math.pow(2, Math.ceil(Math.log2(e)));
+          //}
+          const p = Expression.Integer.fromNumber(prime);
+          factors[factors.length - 1] = factors[factors.length - 1].scale(u.getLeadingCoefficient().modulo(p)).mod(p);
+          factors = HenselLifting(u, factors, p, e);
+          q = p._pow(e);
+          factors = factors.map(factor => factor.scale(factor.getLeadingCoefficient().modulo(q).modInverse(q)).mod(q));//TODO: ?
+        } else {
+          q = prime;
+        }
       }
+
+      //!new 2022-07-27
+      if (u.isEven() && polynomial.getDegree() >= 4) { // https://math.stackexchange.com/a/2894104
+        // see above
+        if (results1 == null) {
+          for (let i = 0; i < factors.length; i += 1) {
+            if (factors[i] != null) {
+              const f1 = factors[i].mod(q);
+              const f2 = factors[i]._scaleRoots(Expression.ONE.negate()).mod(q);
+              let found = false;
+              for (let j = i + 1; j < factors.length && !found; j += 1) {
+                if (factors[j] != null && factors[j].mod(q).equals(f2)) {
+                  factors[j] = null;
+                  found = true;
+                }
+              }
+              if (!found) {
+                return {value: null, done: true};
+              }
+            }
+          }
+          factors = factors.filter(f => f != null);
+          for (let i = 0; i < Math.pow(2, factors.length - 1) && results1 == null; i += 1) {
+            const combination = factors.map((f, index) => Math.floor(i / 2**index) % 2 === 0 ? f : f._scaleRoots(Expression.ONE.negate()));
+            let ok = true;
+            if (true) { //TODO: !?
+              const lc = u.getLeadingCoefficient();
+              // 2 = 2 + 0 = 1 + 1 = 0 + 2
+              // 1 = 1 + 0 = 0 + 1
+              // 0 = 0 + 0
+              let t2 = Expression.ZERO;
+              let t1 = Expression.ZERO;
+              let t0 = lc;
+              for (const f of combination) {
+                const f2 = f.getCoefficient(2);
+                const f1 = f.getCoefficient(1);
+                const f0 = f.getCoefficient(0);
+                t2 = t2.multiply(f0).add(t1.multiply(f1)).add(t0.multiply(f2)).modulo(q);
+                t1 = t1.multiply(f0).add(t0.multiply(f1)).modulo(q);
+                t0 = t0.multiply(f0).modulo(q);
+              }
+              let tail = Polynomial.of(t0, t1, t2).mod2(q);
+              tail = tail.multiply(tail._scaleRoots(Expression.ONE.negate()));
+              ok = tail.getCoefficient(2).abs().equals(u.getCoefficient(2).multiply(u.getLeadingCoefficient()).abs());
+            }
+            if (ok) {
+              const candidate = productModQ(combination, q).scale(u.getLeadingCoefficient()).mod2(q).primitivePart();
+              const candidate2 = candidate._scaleRoots(Expression.ONE.negate());//TODO: return candidate2
+              if (candidate.multiply(candidate2).equals(u)) {
+                results1 = [];
+                results1.push(candidate);
+                results1.push(candidate2);
+              }
+            }
+          }
+        }
+        if (results1 != null) {
+          while (results1.length > 0) {
+            return {value: results1.pop(), done: false};
+          }
+        }
+        return {value: null, done: true};
+      }
+
+      //!!! (number of factors depends on the choise of prime numbers)
+      //TODO: how to reduce number of iterations (?) (see Donald Knuth's book)
+      for (; countOfFactors <= (checkBothVariants ? factors.length - 1 : Math.floor(factors.length / 2)); countOfFactors += 1) {
+        combinationsIterator = combinations(factors, countOfFactors);
+        let combination = null;
+        while ((combination = combinationsIterator.next().value) != null) {
+          c += 1;
+          const lc = u.getLeadingCoefficient();
+          // an optimization from the Donald Knuth's book, page 452
+          let productTrailingCoefficient = lc;
+          for (const f of combination) {
+            productTrailingCoefficient = productTrailingCoefficient.multiply(f.getCoefficient(0)).modulo(q);
+          }
+          productTrailingCoefficient = Polynomial.of(productTrailingCoefficient).mod2(q).getCoefficient(0);
+          if (u.getCoefficient(0).multiply(lc).remainder(productTrailingCoefficient).equals(Expression.ZERO)) {
+            let v = productModQ(combination, q);
+            console.assert(v.getLeadingCoefficient().equals(Expression.ONE));
+            v = v.scale(lc);
+            v = v.mod2(q);
+            //TODO: test, we need to try w(x) = productModQ(factors.filter(factor => combination.indexOf(factor) === -1), q) as well (see Donald Knuth's book) - ?
+            console.assert(v.getDegree() < u.getDegree());
+            //if (v.getDegree() <= u.getDegree() / 2 || v.getDegree() < u.getDegree()) {
+              //v = v.primitivePart();
+              const tmp = u.scale(lc).divideAndRemainder(v, "undefined");
+              if (tmp != undefined && tmp.remainder.getDegree() < 0) {
+                v = v.primitivePart();
+                factors = factors.filter(factor => combination.indexOf(factor) === -1);
+                combinationsIterator = combinations(factors, countOfFactors);//!?
+                u = tmp.quotient;
+                if (c > 16) {
+                  console.debug(c);
+                }
+                return {value: v, done: false};
+              }
+            //}
+          }
+        }
+      }
+      if (c > 16) {
+        console.debug(c);
+      }
+      if (polynomial.getDegree() > u.getDegree()) {
+        const f = u.primitivePart();//?
+        u = Polynomial.of(u.getContent());
+        return {value: f, done: false};
+      }
+      return {value: null, done: true};
     }
-  }
-if (c > 16) {
-  console.debug(c);
-}
-  if (polynomial.subtract(u).getDegree() >= 0) {
-    u = u.primitivePart();//?
-    return u;
-  }
-  return null;
+  };
+  iterator[globalThis.Symbol.iterator] = function () {
+    return this;
+  };
+  return iterator;
 }
 
 // if q == p, then C = A * B (mod p) -> A1 * B1 (mod p**2), A1 = A (mod p) and B1 = B (mod p)
@@ -421,7 +500,9 @@ function HenselLift(C, A, B, U, V, q, p) { // q -> q * p
   const B0 = U.multiply(f).add(B.mod(p).multiply(t)).mod(p);
   const A1 = A.add(A0.scale(q));
   const B1 = B.add(B0.scale(q));
-  return [A1.mod(q.multiply(p)), B1.mod(q.multiply(p))];
+  //console.assert(A1.mod(q.multiply(p)).equals(A1));
+  //console.assert(B1.mod(q.multiply(p)).equals(B1));
+  return [A1, B1];
 }
 function QuadraticHenselLift(A1, B1, U, V, p) {
   // http://tomlr.free.fr/Math%E9matiques/Math%20Complete/Number%20theory/A%20course%20in%20computational%20algebraic%20number%20theory%20-%20Cohen%20H..pdf
@@ -435,7 +516,9 @@ function QuadraticHenselLift(A1, B1, U, V, p) {
   const V0 = tmp.remainder;
   const U1 = U.add(U0.scale(p));
   const V1 = V.add(V0.scale(p));
-  return [U1.mod(p.multiply(p)), V1.mod(p.multiply(p))];
+  //console.assert(U1.mod(p.multiply(p)).equals(U1));
+  //console.assert(V1.mod(p.multiply(p)).equals(V1));
+  return [U1, V1];
 }
 function HenselLiftingOfTwoFactors(C, A, B, p, k) {
   const useQuadraticHenselLift = true;
@@ -443,17 +526,17 @@ function HenselLiftingOfTwoFactors(C, A, B, p, k) {
   console.assert(tmp1.gcd.getDegree() === 0);
   let U = tmp1.U;
   let V = tmp1.V;
-  var ok = !(p instanceof Expression.Polynomial); // somehow the quadratic hensel lifting is slower in other case
+  const ok = !(p instanceof Expression.Polynomial); // somehow the quadratic hensel lifting is slower in other case
   if (useQuadraticHenselLift && ok) { // TODO: any degree
     const originalP = p;
     let e = 1;
-    while (e < k / 2) {
+    while (e < k / 4) {
       [A, B] = HenselLift(C, A, B, U, V, p, p);
       [U, V] = QuadraticHenselLift(A, B, U, V, p);
       p = p.multiply(p);
       e *= 2;
       if (true) {
-        var c = 1;
+        let c = 1;
         while (e * c < k) {
           c *= 2;
         }
@@ -463,9 +546,13 @@ function HenselLiftingOfTwoFactors(C, A, B, p, k) {
         }
       }
     }
-    [A, B] = HenselLift(C, A, B, U, V, p, p);
-    //p = p.multiply(p);
-    e *= 2;
+    let e0 = e;
+    let q = p;
+    while (e < k) {
+      [A, B] = HenselLift(C, A, B, U, V, q, p);
+      q = q.multiply(p);
+      e += e0;
+    }
     if (e !== k) {
       const pInK = originalP._pow(k);
       A = A.mod(pInK);
@@ -507,7 +594,7 @@ function factorizeMultivariateIntegerPolynomial(p) {
   function factorizeInternal(p) {//TODO: REMOVE
     var factors = [];
     p = p.primitivePart();
-    var f = p.getDegree() > 1 ? (!p.hasIntegerCoefficients() ? p.factorize() : factorizeOverTheIntegers(p)) : null;//TODO: ?
+    var f = p.getDegree() > 1 ? (!p.hasIntegerCoefficients() ? p.factorize() : factorizeOverTheIntegers(p).next().value) : null;//TODO: ?
     if (f != null) {
       factors = factors.concat(factorizeInternal(f));
       factors = factors.concat(factorizeInternal(p.divideAndRemainder(f, "throw").quotient));

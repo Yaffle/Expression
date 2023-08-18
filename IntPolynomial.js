@@ -1,10 +1,11 @@
 
 
 function modulo(a, b) {
-  let x = a % b;
-  if (x < 0) {
-    x += b; // assuming b > 0
-  }
+  let x = a - Math.floor(a / b) * b;
+  //let x = a % b;
+  //if (x < 0) {
+  //  x += b; // assuming b > 0
+  //}
   return x;
 }
 
@@ -16,11 +17,11 @@ function check(number) {
 
 function schoolbook(a, b) {
   const c = new Array(a.length === 0 || b.length === 0 ? 0 : (a.length - 1 + b.length - 1 + 1));
-  for (let i = 0; i < c.length; i++) {
+  for (let i = 0; i < c.length; i += 1) {
     const from = Math.max(0, i - (b.length - 1));
     const to = Math.min(i, a.length - 1);
     let s = a[from] * b[i - from];
-    for (let j = from + 1; j <= to; j++) {
+    for (let j = from + 1; j <= to; j += 1) {
       s += a[j] * b[i - j];
     }
     c[i] = s;
@@ -30,7 +31,7 @@ function schoolbook(a, b) {
 
 function absMax(array) {
   let max = 0;
-  for (let i = 0; i < array.length; i++) {
+  for (let i = 0; i < array.length; i += 1) {
     max = Math.max(max, Math.abs(array[i]));
   }
   return max;
@@ -88,13 +89,13 @@ function multiply(A, B) {
     }
     check(m * m * b.length);
     const remainder = new Array(a.length);
-    for (let i = 0; i < a.length; i++) {
+    for (let i = 0; i < a.length; i += 1) {
       remainder[i] = a[i];
     }
     let remainderDegree = remainder.length - 1;
     const quotient = new Array(a.length - b.length + 1);
     const zero = lc - lc;
-    for (let i = 0; i < quotient.length; i++) {
+    for (let i = 0; i < quotient.length; i += 1) {
       quotient[i] = zero;
     }
     while (remainderDegree >= b.length - 1) {
@@ -156,7 +157,7 @@ function multiply(A, B) {
   IntPolynomial.prototype.toString = function () {
     let s = '';
     let c = this.coefficients;
-    for (let i = c.length - 1; i >= 0; i--) {
+    for (let i = c.length - 1; i >= 0; i -= 1) {
       s += (c[i] >= 0 && i !== c.length ? '+' : '');
       s += c[i].toString();
       if (i === 1) {
