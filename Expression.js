@@ -6253,6 +6253,35 @@ Expression.prototype._abs = function () {
   Expression.List.prototype.gcd = function () {
     return this.list.reduce((result, value) => result.gcd(value));
   };
+  
+function atan2(y, x) {
+  if (x.equals(Expression.ZERO)) {
+    if (y.equals(Expression.ZERO)) {
+      throw new RangeError();
+    }
+    const a = Expression.PI.divide(Expression.TWO);
+    if (!y.isNegative()) {
+      return a;
+    }
+    return a.negate();
+  }
+  const a = y.divide(x).arctan();
+  if (!x.isNegative()) {
+    return a;
+  }
+  if (!y.isNegative()) {
+    return a.add(Expression.PI);
+  }
+  return a.subtract(Expression.PI);
+}
+
+  Expression.prototype.complexArgument = function () {
+    var c = Expression.getComplexNumberParts(this);
+    if (c == undefined) {
+      throw new TypeError();//?
+    }
+    return atan2(c.imaginary, c.real);
+  };
 
 Expression.Logarithm = function (argument) {
   Expression.Function.call(this, "log", argument);
@@ -6262,7 +6291,14 @@ Expression.prototype.logarithm = function () {
   var arg = this;
   if (arg instanceof Expression.Integer) {
     if (arg.compareTo(Expression.ZERO) <= 0) {
-      throw new TypeError("ArithmeticException");//TODO: better message
+      if (arg.compareTo(Expression.ZERO) === 0) {
+        throw new TypeError("ArithmeticException");//TODO: better message
+      }
+      if (arg.equals(Expression.ONE.negate())) {
+        //throw new TypeError("ArithmeticException");//TODO: better message
+        return Expression.I.multiply(Expression.PI);
+      }
+      return arg.abs().logarithm().add(arg.divide(arg.abs()).logarithm());
     }
     if (arg.compareTo(Expression.ONE) === 0) {
       return Expression.ZERO;
@@ -6436,6 +6472,13 @@ Expression.prototype.logarithm = function () {
       return g.logarithm().add(arg.divide(g).logarithm());
     }
   }
+  //TODO: merge with complexLogarithm in sin.js
+  var c = Expression.getComplexNumberParts(arg);
+  if (c != undefined && !c.imaginary.equals(Expression.ZERO)) {
+    const phi = atan2(c.imaginary, c.real);
+    // https://www.varsitytutors.com/hotmath/hotmath_help/topics/polar-form-of-a-complex-number
+    return arg.divide(Expression.I.multiply(phi).exp()).logarithm().add(Expression.I.multiply(phi));
+  } 
   if (Expression.isConstant(arg)) {
     var sd = simpleDivisor(arg);
     if (!sd.equals(arg)) {
@@ -6517,6 +6560,11 @@ Expression.Logarithm.prototype.complexConjugate = function () {
     return this.a;
   };
 
+  Expression.ComplexArgument = function (a) {
+    Expression.Function.call(this, "arg", a);
+  };
+  Expression.ComplexArgument.prototype = Object.create(Expression.Function.prototype);
+
   Expression.AugmentedMatrix = function (A, B) {
     Expression.Function.call(this, "augment", null);
     this.a = A;
@@ -6552,9 +6600,19 @@ Expression.Logarithm.prototype.complexConjugate = function () {
 
 
   Expression.Matrix.prototype.pseudoinverse = function () {
+    if (this.matrix.isSquare()) {
+      const det = this.matrix.determinant();
+      if (Expression.isConstant(det) && !det.equals(Expression.ZERO)) {//?
+        return new Expression.Matrix(this.matrix.inverse());
+      }
+    }
+    if (Expression.callback != undefined) {
+      //TODO: other case
+      Expression.callback(new Expression.Event("pseudoinverse", this));
+    }
     const tmp = Expression.SVD(this.matrix);
     // https://en.wikipedia.org/wiki/Moore–Penrose_inverse#Singular_value_decomposition_(SVD)
-    return new Expression.Matrix(tmp.Vstar.conjugateTranspose().multiply(tmp.Sigma.map(e => e.equals(Expression.ZERO) ? Expression.ZERO : e.inverse())).multiply(tmp.U.conjugateTranspose()));
+    return new Expression.Matrix(tmp.Vstar.conjugateTranspose().multiply(tmp.Sigma.map(e => e.equals(Expression.ZERO) ? Expression.ZERO : e.inverse()).transpose()).multiply(tmp.U.conjugateTranspose()));
   };
   Expression.Pseudoinverse = function (matrix) {
     Expression.Function.call(this, "pseudoinverse", matrix);
@@ -6605,9 +6663,7 @@ Expression.prototype.derivative = function (variable = undefined) {
       return e.multiply(getExponent(e).derivative(variable));
     }
     if (getExponent(e) instanceof Expression.Integer) {//TODO:
-      if (getBase(e).equals(variable)) {
-        return getExponent(e).multiply(getBase(e).pow(getExponent(e).subtract(Expression.ONE)));
-      }
+      return getExponent(e).multiply(getBase(e).pow(getExponent(e).subtract(Expression.ONE))).multiply(getBase(e).derivative(variable));
     }
     if (getExponent(e).equals(variable) && Expression.isConstant(getBase(e))) {
       return e.multiply(getBase(e).logarithm());
@@ -6636,6 +6692,10 @@ Expression.prototype.derivative = function (variable = undefined) {
   }
   if (e instanceof Expression.Cos) {
     return e.a.sin().negate().multiply(e.a.derivative(variable));
+  }
+  if (e instanceof Expression.Logarithm) {
+    //TODO: f > 0 (?)
+    return e.a.derivative(variable).divide(e.a);
   }
   if (Expression.isConstant(e)) {
     return Expression.ZERO;

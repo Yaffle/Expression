@@ -273,11 +273,17 @@
     new Operator("overline", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a.complexConjugate();
     }),
+    new Operator("arg", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a.complexArgument();
+    }),
 
     new Operator("\\left", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
     }),
     new Operator("\\right", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
+      return a;
+    }),
+    new Operator("\\mathrm", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       return a;
     }),
     new Operator("├", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) { // like \\left
@@ -363,6 +369,9 @@
     }),
     new Operator("\'(t)", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {//TODO: !?
       return a.derivative(new Expression.Symbol('t'));
+    }),
+    new Operator("\'_{x}", 1, LEFT_TO_RIGHT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {//TODO: !?
+      return a.derivative(new Expression.Symbol('x'));
     }),
     new Operator("resultant", 1, RIGHT_TO_LEFT, UNARY_PRECEDENCE_PLUS_ONE, function (a) {
       a = a.simplify();
@@ -596,7 +605,7 @@
 
   // TODO: sticky flags - /\s+/y
   var whiteSpaces = /^\s+/;
-  var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{[bvp]?matrix\})?)/;
+  var punctuators = /^(?:[,&(){}|■@]|\\\\|(?:\\begin|\\end)(?:\{(?:[bvp]?matrix|gathered)\})?)/;
   var integerLiteral = /^\d+(?![\d.])(?!(?:(?:[eEЕ]|اس)[\+\-]?\d+))(?!,(?:\d|\(\d+\)))/; // for performance
   var integerLiteralWithoutComma = /^\d+(?![\d.])(?!(?:(?:[eEЕ]|اس)[\+\-]?\d+))/; // for performance
   var decimalFraction = /^(?=[.,]?\d)\d*(?:(?:[.]|[.,](?=\d|\(\d+\)))\d*(?:\(\d+\))?)?(?:(?:[eEЕ]|اس)[\+\-]?\d+)?/;
@@ -743,7 +752,7 @@
               } else {
                 exponentiationLength = '^'.length;
                 token = nextToken(tokenizer);
-                if (token.type !== 'integerLiteral') {
+                if (token.type !== 'integerLiteral' && !(token.type === 'punctuator' && (token.value === '{' || token.value === '('))) {
                   ok = false;
                 } else {
                   tmp = parseExpression(tokenizer, token, context, UNARY_PRECEDENCE, undefined);
@@ -803,7 +812,8 @@
         } else if (token.type === 'punctuator' && (token.value === "\\begin{bmatrix}" ||
                                                    token.value === "\\begin{vmatrix}" ||
                                                    token.value === "\\begin{pmatrix}" ||
-                                                   token.value === "\\begin{matrix}")) {
+                                                   token.value === "\\begin{matrix}" ||
+                                                   token.value === "\\begin{gathered}")) {
           var kind = token.value.slice('\\begin{'.length, -1);
           token = nextToken(tokenizer);
           tmp = parseLaTeXMatrix(tokenizer, token, context, '\\\\');

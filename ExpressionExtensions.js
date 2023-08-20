@@ -106,8 +106,12 @@ Expression.getEigenvalues = function (matrix, callback) {
   var gInv = Expression.ONE;
   if (callback == null) {//TODO: !?
     g = entriesGCD(matrix);
-    gInv = g.inverse();
-    matrix = matrix.scale(gInv);
+    if (g.equals(Expression.ZERO)) {
+      g = Expression.ONE;
+    } else {
+      gInv = g.inverse();
+      matrix = matrix.scale(gInv);
+    }
   }
 
   // TODO: remove Polynomial
@@ -217,6 +221,9 @@ Expression.getEigenvectors = function (matrix, eigenvalues, internal = false) {
   var gInv = Expression.ONE;
   if (true) {
     g = entriesGCD(matrix);
+    if (g.equals(Expression.ZERO)) {
+      g = Expression.ONE;
+    }
     gInv = g.inverse();
   }
 

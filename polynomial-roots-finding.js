@@ -462,7 +462,7 @@ Expression.toPolynomialRoot = function (e) {
       }
     }
     //TODO: ?
-    p = p.divideAndRemainder(factor, "throw");
+    p = p.divideAndRemainder(factor, "throw").quotient;
   }
   console.error(e.toString());
   return undefined;
@@ -848,7 +848,7 @@ Expression.toPolynomialRoot = function (e) {
           for (var i = 0; i < polynomial.getDegree(); i += 1) {
             var c = polynomial.getCoefficient(i);
             if (c instanceof Expression.ExpressionPolynomialRoot) {
-              debugger;
+              //debugger;
               var alpha = c.root.upgrade().getAlpha();
               var v = new Expression.Symbol("$a");
               var p_1 = Polynomial.toPolynomial(polynomial.map(cc => cc === c ? v : cc).calcAt(new Expression.Symbol('$$')), v);

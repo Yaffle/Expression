@@ -172,6 +172,9 @@
   NonSimplifiedExpression.prototype.complexConjugate = function () {
     return new NonSimplifiedExpression(new Expression.ComplexConjugate(this));
   };
+  NonSimplifiedExpression.prototype.complexArgument = function () {
+    return new NonSimplifiedExpression(new Expression.ComplexArgument(this));
+  };
   NonSimplifiedExpression.prototype.adjugate = function () {
     return new NonSimplifiedExpression(new Expression.Adjugate(this));
   };
@@ -253,6 +256,9 @@
   };
   Expression.ComplexConjugate.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).complexConjugate();
+  };
+  Expression.ComplexArgument.prototype.simplifyInternal = function (holder) {
+    return prepare(this.a, holder).complexArgument();
   };
   Expression.Adjugate.prototype.simplifyInternal = function (holder) {
     return prepare(this.a, holder).adjugate();

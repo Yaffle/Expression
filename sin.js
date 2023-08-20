@@ -1093,6 +1093,10 @@ Expression.prototype.arctan = function () {
     return x.negate().arctan().negate();
   }
   if (Expression.isConstant(x) && !(x instanceof Expression.Logarithm)) {
+    if (x instanceof Expression.Complex) {//?
+      // https://en.wikipedia.org/wiki/Inverse_trigonometric_functions#Extension_to_the_complex_plane
+      return Expression.I.subtract(x).divide(Expression.I.add(x)).logarithm().divide(Expression.TWO.multiply(Expression.I));
+    }
     var value = Number(toDecimalStringInternal(x, {fractionDigits: 15}));
     console.assert(!Number.isNaN(value));
     var tmp = getlowestfraction(Math.atan(value) / Math.PI).split("/");
@@ -1123,35 +1127,7 @@ Expression.prototype.arctan = function () {
     // y = ln((i-x)/(i+x))/(2i)
     // y = (ln((i-x)/(i+x)/i)+ln(i))/(2i)
     //TODO: details (a link or a formula - ?)
-    var b = Expression.I.subtract(x).divide(Expression.I.add(x)).matrix;
-    //var tmp = Expression.getFormaDeJordan(b, Expression.getEigenvalues(b));
-    //var J = tmp.J;
-    var c = b.map(function (e, i, j) {
-      return i === j ? e : Expression.ZERO;
-    });
-    //c = tmp.P.multiply(c).multiply(tmp.P_INVERSED);
-    var complexLogarithm = function (e) {
-      if (e instanceof Division) {
-        return complexLogarithm(e.a).subtract(e.b.logarithm());
-      }
-      var c = Expression.getComplexNumberParts(e);
-      if (c != undefined && !c.imaginary.equals(Expression.ZERO)) {
-        var real = c.real;
-        var imaginary = c.imaginary;
-        var phi = real.equals(Expression.ZERO) ? Expression.PI.divide(Expression.TWO) : imaginary.divide(real).arctan();
-        if (real.isNegative()) {//?
-          phi = phi.add(Expression.PI);
-        }
-        // https://www.varsitytutors.com/hotmath/hotmath_help/topics/polar-form-of-a-complex-number
-        return e.divide(Expression.I.multiply(phi).exp()).logarithm().add(Expression.I.multiply(phi));
-      }
-      return e.logarithm();
-    };
-    var lnC = new Expression.Matrix(c.map(function (e, i, j) {
-      return i === j ? complexLogarithm(e) : Expression.ZERO;
-    }));
-    //Expression.I.multiply(Expression.PI).divide(Expression.TWO);
-    return new Expression.Matrix(b.multiply(c.inverse())).logarithm().add(lnC).divide(Expression.TWO.multiply(Expression.I));
+    return Expression.I.subtract(x).divide(Expression.I.add(x)).logarithm().divide(Expression.TWO.multiply(Expression.I));
   }
   /*
   var t = simplifyConstantValue(x, "sin");
