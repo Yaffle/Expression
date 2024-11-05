@@ -1,7 +1,7 @@
 import nthRoot from './nthRoot.js';
 //import bitLength from './bitLength.js';
 import QuadraticSieveFactorization from './node_modules/quadraticsievefactorization/QuadraticSieveFactorization.js';
-import isPrime from './node_modules/quadraticsievefactorization/isPrime.js';
+import isPrime from './node_modules/quadraticsievefactorization/libs/isPrime.js';
 
 
 // https://github.com/tc39/proposal-bigint/issues/205
