@@ -1,6 +1,6 @@
 /*jshint esversion:6, bitwise:false*/
 
-const BitSetWordSize = 31; // see https://v8.dev/blog/pointer-compression
+// see https://v8.dev/blog/pointer-compression
 
 function packedArray(n) {
   // `%DebugPrint(array)` in `node --allow-native-syntax`
@@ -12,8 +12,9 @@ function packedArray(n) {
   return array.slice(0); // slice to reduce the size of the internal storage
 }
 function BitSet(size) {
-  const n = Math.ceil(size / (4 * BitSetWordSize)) * 4;
-  this.data = packedArray(n);
+  const n = Math.ceil(size / (8 * 32)) * 8;
+  this.data = new Uint32Array(n);
+  this.data64 = new BigUint64Array(this.data.buffer);
   this.size = size;
 }
 BitSet.prototype.nextSetBit = function (index) {
@@ -21,46 +22,35 @@ BitSet.prototype.nextSetBit = function (index) {
     return -1;
   }
   const data = this.data;
-  let q = Math.floor(index / BitSetWordSize);
-  let r = index % BitSetWordSize;
-  let x = data[q] >> r;
-  while (x === 0) {
+  let q = index >> 5;
+  let r = index & 31;
+  while ((data[q] >> r) === 0) {
     q += 1;
     if (q === data.length) {
       return -1;
     }
-    x = data[q];
     r = 0;
   }
-  if (x === (-1 << (BitSetWordSize - 1))) {
-    // -x overflows
-    r += BitSetWordSize - 1;
-  } else {
-    // https://stackoverflow.com/questions/61442006/whats-the-most-efficient-way-of-getting-position-of-least-significant-bit-of-a
-    r += 31 - Math.clz32(x & -(+x));
-  }
-  return q * BitSetWordSize + r;
+  // https://stackoverflow.com/questions/61442006/whats-the-most-efficient-way-of-getting-position-of-least-significant-bit-of-a
+  r += 31 - Math.clz32((data[q] >> r) & -(data[q] >> r));
+  return (q * 32) + r;
 };
 BitSet.prototype.toggle = function (index) {
   if ((index | 0) >= (this.size | 0)) {
     throw new RangeError();
   }
-  const q = Math.floor(index / BitSetWordSize);
-  const r = index % BitSetWordSize;
-  this.data[q] ^= (r === BitSetWordSize - 1 ? ((-1) << r) : (1 << r));
+  this.data[index >> 5] ^= (1 << (index & 31));
 };
 BitSet.prototype.xor = function (other) {
-  const a = this.data;
-  const b = other.data;
+  const a = this.data64;
+  const b = other.data64;
   const n = a.length | 0;
-  if (n !== b.length || n % 4 !== 0) {
+  if (n !== b.length || n % 2 !== 0) {
     throw new RangeError();
   }
-  for (let i = 0; i < n; i += 4) {
-    a[i + 0] ^= b[i + 0] | 0;
-    a[i + 1] ^= b[i + 1] | 0;
-    a[i + 2] ^= b[i + 2] | 0;
-    a[i + 3] ^= b[i + 3] | 0;
+  for (let i = 0; i < n; i += 2) {
+    a[i + 0] ^= b[i + 0];
+    a[i + 1] ^= b[i + 1];
   }
 };
 BitSet.prototype.clear = function () {
@@ -69,7 +59,7 @@ BitSet.prototype.clear = function () {
   }
 };
 BitSet.prototype.toString = function () {
-  return this.data.map(x => (x >>> 0).toString(2).padStart(BitSetWordSize, '0').split('').reverse().join('')).join('').slice(0, this.size);
+  return this.data.map(x => (x >>> 0).toString(2).padStart(32, '0').split('').reverse().join('')).join('').slice(0, this.size);
 };
 
 
